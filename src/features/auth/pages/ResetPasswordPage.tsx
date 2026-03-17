@@ -23,14 +23,27 @@ export function ResetPasswordPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true)
-      else navigate(ROUTES.LOGIN, { replace: true })
-    })
+    const checkSession = () => {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) setReady(true)
+      })
+    }
+    checkSession()
+    const hasRecoveryHash = typeof window !== 'undefined' && window.location.hash.includes('type=recovery')
+    const retryTimer = hasRecoveryHash ? window.setTimeout(checkSession, 600) : undefined
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) setReady(true)
     })
-    return () => subscription.unsubscribe()
+    const redirectTimer = window.setTimeout(() => {
+      supabase.auth.getSession().then(({ data }) => {
+        if (!data.session) navigate(ROUTES.LOGIN, { replace: true })
+      })
+    }, 2000)
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer)
+      subscription.unsubscribe()
+      clearTimeout(redirectTimer)
+    }
   }, [navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {

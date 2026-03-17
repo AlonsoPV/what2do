@@ -26,7 +26,8 @@ export function ForgotPasswordPage() {
     }
     setLoading(true)
     try {
-      const redirectTo = `${window.location.origin}${ROUTES.RESET_PASSWORD}`
+      const baseUrl = import.meta.env.VITE_APP_URL ?? window.location.origin
+      const redirectTo = `${baseUrl.replace(/\/$/, '')}${ROUTES.RESET_PASSWORD}`
       await authService.resetPasswordForEmail(trimmed, redirectTo)
       setSent(true)
       toast.success('Revisa tu correo')
