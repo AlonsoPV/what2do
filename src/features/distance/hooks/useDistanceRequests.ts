@@ -16,18 +16,8 @@ export function useDistanceRequests() {
 export function useCreateDistanceRequest() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (row: {
-      ruta?: string | null
-      fecha: string
-      hora_alta: string
-      origin_id: string
-      destination_id: string
-      distance_catalog_id?: string | null
-      km_ida?: number | null
-      km_vuelta?: number | null
-      km_total?: number | null
-      created_by: string | null
-    }) => distanceService.createRequest(row),
+    mutationFn: (row: Parameters<typeof distanceService.createRequest>[0]) =>
+      distanceService.createRequest(row),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: DISTANCE_REQUESTS_QUERY_KEY })
     },

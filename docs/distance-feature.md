@@ -2,77 +2,93 @@
 
 ## Resumen
 
-El tablero incluye un módulo para calcular distancias **ida y vuelta** entre **orígenes y destinos de catálogo**, usando **Google Routes API** (Compute Routes). La API key de Google **no se expone en el frontend**: la llamada se hace desde una **Supabase Edge Function**. Si el par (origen, destino) ya está en el **catálogo de distancias** (`distance_catalog`), se devuelve el resultado **sin llamar a Google**.
+El tablero incluye un módulo para calcular distancias entre **orígenes y destinos de catálogo**, usando **Google Routes API** (Compute Routes). La API key de Google **no se expone en el frontend**: la llamada se hace desde una **Supabase Edge Function**. El flujo prioriza **rutas ya guardadas** para no llamar a la API si no hace falta.
 
-## Flujo actual (reestructurado)
+---
 
-1. El usuario elige **origen** y **destino** en dropdowns (catálogos `distance_origins` y `distance_destinations`). La ubicación se autocompleta desde el registro.
-2. El usuario pulsa **"Calcular distancia"**. El frontend envía `origin_id` y `destination_id` (UUIDs) a la Edge Function.
-3. La Edge Function:
-   - Lee las direcciones desde `distance_origins` y `distance_destinations`.
-   - Busca en `distance_catalog` un registro activo con `(origin_id, destination_id, route_mode)`. Si existe → devuelve `km_ida`, `km_vuelta`, `km_total` (y opcionalmente duraciones) **sin llamar a Google**.
-   - Si no existe: llama a Google **dos veces** (ida: origen → destino; vuelta: destino → origen), calcula `km_total = km_ida + km_vuelta`, inserta en `distance_catalog` con snapshots y devuelve el resultado.
-4. El frontend muestra la tarjeta con ida, vuelta y total. El usuario puede pulsar **"Guardar solicitud"** para insertar en `distance_requests` (ruta, fecha, hora_alta, origin_id, destination_id, distance_catalog_id, km_ida, km_vuelta, km_total, created_by).
-5. El historial visible es la tabla de **solicitudes** (`distance_requests`), no la tabla antigua `distance_queries`.
+## Nueva lógica (saved_route_requests)
+
+1. **Consultar:** El usuario elige origen y destino. El sistema busca en **saved_route_requests** por dirección exacta (origin_id, destination_id, route_mode). A→B y B→A se consultan por separado.
+2. **Si existe ruta guardada:** Se muestra el kilometraje y la duración aprox. con el mensaje *"Ruta encontrada en solicitudes guardadas"*. **No se llama a la Edge Function ni a Google.**
+3. **Si no existe:** Se habilita **"Calcular kilometraje"**. Al pulsar, se llama a la Edge Function (que a su vez usa `distance_catalog` o Google). Se muestra ida, vuelta y total con *"Ruta calculada exitosamente, puedes guardarla"*.
+4. **Guardado manual:** El usuario decide si pulsa **"Guardar ruta calculada"**. Al guardar se insertan **dos registros** en `saved_route_requests`: uno para origen→destino (km_ida) y otro para destino→origen (km_vuelta). No hay guardado automático al calcular.
+5. **Reutilización:** En futuras solicitudes con el mismo par, el lookup devuelve la ruta guardada y no se llama a la API.
+
+### Cómo se evita llamar de más a la API
+
+- **Primero** se consulta `saved_route_requests` (por origin_id, destination_id, route_mode). Si hay fila activa, se usa ese valor y no se invoca la Edge Function.
+- **Solo** si no hay ruta guardada se permite "Calcular kilometraje", que llama a la Edge Function. La Edge Function sigue usando `distance_catalog` como caché interno (si ya calculó ese par antes, devuelve sin llamar a Google).
+
+### Cómo se guardan las rutas
+
+- Una **dirección** = una fila en `saved_route_requests` (origin_id, destination_id, distance_km, duration_seconds, snapshots, etc.).
+- **Un guardado del usuario** crea **dos filas**: A→B (con km de ida) y B→A (con km de vuelta). Así se puede consultar en ambos sentidos sin recalcular.
+- Unicidad: `UNIQUE (origin_id, destination_id, route_mode)`. Al guardar se usa upsert para no duplicar y actualizar si ya existía.
+
+---
+
+## Cambios respecto a la versión anterior
+
+| Antes | Ahora |
+|-------|--------|
+| Tras calcular se podía guardar **una** solicitud en `distance_requests` (ruta, fecha, hora, km ida/vuelta/total). | El guardado es en **saved_route_requests**: **dos** filas por dirección (A→B y B→A), sin ruta/fecha/hora. |
+| No había lookup previo: siempre se podía calcular. | **Primero** se consulta saved_route_requests; solo si no hay resultado se habilita Calcular. |
+| Tablero listaba `distance_requests`. | Tablero y página "Rutas guardadas" listan **saved_route_requests** (una fila por dirección). |
+| Mismo formulario con ruta, fecha, hora. | En el diálogo "Nueva solicitud" el formulario es **simplificado** (solo origen, destino, calcular, guardar). |
+
+Las tablas **distance_requests** y **distance_catalog** se mantienen: `distance_catalog` como caché interno de la Edge Function; `distance_requests` por compatibilidad (el flujo principal pasa por saved_route_requests).
+
+---
 
 ## Arquitectura
 
 | Capa | Ubicación | Responsabilidad |
 |------|-----------|-----------------|
-| **UI** | `src/features/distance/` | DistanceDashboardPage: DistanceRequestForm (origen/destino select + ubicación readonly), DistanceResultCard (ida/vuelta/total), DistanceRequestsTable |
-| **Hooks** | useOrigins, useDestinations, useCalculateRoute, useDistanceRequests, useCreateDistanceRequest | Listas de orígenes/destinos, mutación calcular ruta, lista y creación de solicitudes |
-| **Servicios** | origins.service, destinations.service, distance.service | List/get orígenes y destinos; calculateRoute (Edge Function), listRequests, createRequest |
-| **Backend** | `supabase/functions/calculate-distance/index.ts` | Recibe origin_id/destination_id; lee direcciones de BD; consulta distance_catalog; si no hay hit, dos llamadas a Google (ida + vuelta); inserta en distance_catalog; devuelve km_ida, km_vuelta, km_total |
-| **BD** | distance_origins, distance_destinations, distance_catalog, distance_requests | Catálogos de orígenes/destinos; caché maestro de rutas por par; solicitudes del tablero (RLS por created_by) |
+| **UI** | DistanceDashboardPage, DistanceRequestFormDialog | Botón "Nueva solicitud", diálogo con formulario simplificado (origen, destino, calcular, guardar), SavedRoutesTable |
+| **Hooks** | useRouteLookup, useCalculateRoute, useSaveRoute, useSavedRoutesList, useOrigins, useDestinations | Lookup en saved_route_requests, cálculo vía Edge Function, guardado (dos filas), listado para tablero |
+| **Servicios** | savedRoutes.service, distance.service, origins.service, destinations.service | lookupSavedRoute, saveRouteCalculated, listSavedRoutes; calculateRoute (Edge Function); orígenes/destinos |
+| **Backend** | Edge Function `calculate-distance` | Recibe origin_id/destination_id; consulta distance_catalog; si no hay hit, Google (ida + vuelta); escribe en distance_catalog; **no** escribe en saved_route_requests |
+| **BD** | distance_origins, distance_destinations, distance_catalog, **saved_route_requests** | Catálogos base; caché interno de la API; **rutas guardadas por el usuario (una fila por dirección)** |
 
-## Tablas (nuevas; las antiguas se mantienen)
+---
 
-- **distance_origins**: id, nombre, ubicacion, latitud, longitud (nullable), activo, created_at, updated_at. RLS: lectura para todos; inserción/actualización solo admins.
-- **distance_destinations**: misma estructura.
-- **distance_catalog**: id, origin_id, destination_id, snapshots (nombre/ubicación), km_ida, km_vuelta, km_total, meters_ida/vuelta, duracion_ida_segundos, duracion_vuelta_segundos, route_mode, api_source, activo. **UNIQUE (origin_id, destination_id, route_mode)**. RLS: SELECT para usuarios; INSERT/UPDATE desde Edge Function (service role).
-- **distance_requests**: id, ruta, fecha, hora_alta, origin_id, destination_id, distance_catalog_id, km_ida, km_vuelta, km_total, created_by, created_at, updated_at. RLS: cada usuario ve/inserta las propias.
+## Tablas
 
-Las tablas **distance_queries** y **distance_cache** siguen existiendo; el nuevo flujo no las usa (no se eliminan en esta reestructuración para no perder historial).
+- **distance_origins** / **distance_destinations**: catálogos de orígenes y destinos (nombre, ubicacion, activo). RLS: lectura todos; escritura admins.
+- **distance_catalog**: caché de la Edge Function (una fila por par con km_ida, km_vuelta, km_total). Solo la Edge Function escribe. El frontend no lee esta tabla para "¿ya guardado?".
+- **saved_route_requests**: rutas guardadas por el usuario. Una fila por **dirección** (origin_id, destination_id, route_mode). Campos: snapshots, distance_km, distance_meters, duration_seconds, route_mode, api_source, created_by, created_at, updated_at, activo. UNIQUE (origin_id, destination_id, route_mode). RLS: SELECT usuarios autenticados; INSERT/UPDATE con created_by = usuario actual.
+- **distance_requests**: se mantiene por compatibilidad; el flujo principal de "solicitudes guardadas" usa saved_route_requests.
 
-## Origen = destino
+---
 
-**Decisión documentada:** el formulario del tablero **exige origen ≠ destino** (validación Zod con refinamiento). Si en el futuro se permite origen = destino, ida y vuelta serán iguales y total = 2 × ida; la Edge Function ya soporta ese caso (dos llamadas a Google devolverían el mismo valor).
+## Validaciones
 
-## Geocoding futuro
+- Origen y destino **obligatorios** y no vacíos (incl. rechazo del valor sentinel del select).
+- Origen **≠** destino (validación en schema Zod).
+- No se puede guardar sin un **resultado de cálculo** reciente (km_ida, km_vuelta); si el valor mostrado viene solo del lookup, el botón "Guardar ruta calculada" no está habilitado.
+- En BD: unicidad (origin_id, destination_id, route_mode); upsert al guardar para no duplicar.
 
-Los campos `latitud` y `longitud` en `distance_origins` y `distance_destinations` están preparados para rellenar en una fase posterior (Geocoding API o Places). La Edge Function usa hoy la dirección en texto (`ubicacion`); en el futuro se puede usar coordenadas para mayor precisión si se desea.
+---
+
+## UX / Mensajes
+
+- *"Ruta encontrada en solicitudes guardadas."* — Valor mostrado viene del lookup en saved_route_requests.
+- *"Ruta calculada exitosamente, puedes guardarla."* — Valor viene de la Edge Function; se habilita "Guardar ruta calculada".
+- *"Ruta guardada correctamente."* — Tras guardar las dos filas en saved_route_requests.
+
+---
 
 ## Configuración
 
-### Variable de entorno (Edge Function)
+- **Edge Function:** Secret `GOOGLE_MAPS_API_KEY` en Supabase. Despliegue: `npm run supabase:deploy`.
+- **Migraciones:** Incluyen `20260313320003_saved_route_requests.sql` (tabla y RLS). Ejecutar `supabase db push` o aplicar en el SQL Editor.
 
-En **Supabase → Project Settings → Edge Functions → Secrets** (o `supabase secrets set`):
+---
 
-- **`GOOGLE_MAPS_API_KEY`**: API key de Google Cloud con **Routes API** habilitada.
+## Recomendaciones para siguiente fase
 
-### Base de datos
-
-Aplicar las migraciones en orden:
-
-```bash
-supabase db push
-```
-
-Incluye: `20260313320000_distance_catalogs_and_requests.sql` (tablas nuevas y RLS) y `20260313320001_seed_distance_origins_destinations.sql` (orígenes/destinos de ejemplo: DHL Macrocentro, Palmar, Medix).
-
-### Google Maps Platform
-
-Igual que antes: billing, activar Routes API (Directions / Compute Routes), API key restringida y **solo en la Edge Function**.
-
-## API usada
-
-- **Compute Routes** (POST `https://routes.googleapis.com/directions/v2:computeRoutes`).
-- Dos llamadas por par nuevo: una ida (origen → destino), una vuelta (destino → origen).
-- Waypoints con **address** (texto). Respuesta: `routes[0].distanceMeters` y `routes[0].duration`; se guardan km, metros y duración en segundos en `distance_catalog`.
-
-## Posibles mejoras (V2)
-
-- **CRUD de orígenes y destinos** desde la app (páginas bajo configuración), siguiendo el patrón de Áreas/Statuses.
-- **Geocoding**: rellenar latitud/longitud en orígenes y destinos; opcionalmente usar coordenadas en la Edge Function.
-- **Autocomplete de direcciones** (Places API) al crear/editar orígenes y destinos.
-- **Modo de transporte** en el formulario (WALK, BICYCLE; el backend ya acepta `route_mode`).
+- **Recalcular ruta:** Botón "Recalcular ruta" para un par ya guardado: llamar a la Edge Function y actualizar las dos filas en saved_route_requests (p. ej. con `updated_at`).
+- **Timestamp de último cálculo:** Usar `updated_at` o añadir `last_calculated_at` para mostrar cuándo se calculó por última vez.
+- **Uso de coordenadas:** Campos lat/long en orígenes y destinos; usar en la Edge Function para mayor precisión.
+- **Indicador visual:** Ya implementado (sourceLabel: 'saved' | 'calculated').
+- **distance_requests:** Decidir si se depreca por completo o se mantiene para un historial con ruta/fecha/hora aparte.

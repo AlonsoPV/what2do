@@ -32,6 +32,8 @@ export interface DistanceResultCardProps {
   saved?: boolean
   /** Si el resultado vino de caché */
   cached?: boolean
+  /** Origen del dato: guardado previo vs calculado ahora */
+  sourceLabel?: 'saved' | 'calculated' | null
   /** Ocultar la tarjeta si no hay resultado ni error */
   hidden?: boolean
 }
@@ -47,12 +49,20 @@ export function DistanceResultCard({
   errorMessage,
   saved,
   cached,
+  sourceLabel,
   hidden,
 }: DistanceResultCardProps) {
   const hasIdaVuelta = km_ida != null && km_vuelta != null && km_total != null
   const hasLegacy = distanceKm != null
   const hasSuccess = hasIdaVuelta || (hasLegacy && !errorMessage)
   if (hidden && !hasSuccess && !errorMessage) return null
+
+  const sourceMessage =
+    sourceLabel === 'saved'
+      ? 'Ruta encontrada en solicitudes guardadas.'
+      : sourceLabel === 'calculated'
+        ? 'Ruta calculada exitosamente, puedes guardarla.'
+        : null
 
   const hasError = !!errorMessage
 
@@ -102,11 +112,11 @@ export function DistanceResultCard({
                 <p className="text-lg font-semibold tabular-nums">{Number(km_total).toFixed(2)} km</p>
               </div>
             </div>
-            {(saved || cached) && (
+            {(sourceMessage || saved || cached) && (
               <p id="distance-result-source-hint" className="distance-result-source-hint text-xs text-muted-foreground pt-1">
-                {saved && 'Solicitud guardada.'}
-                {saved && cached && ' '}
-                {cached && 'Resultado desde catálogo.'}
+                {sourceMessage ?? (saved && 'Solicitud guardada.')}
+                {!sourceMessage && saved && cached && ' '}
+                {!sourceMessage && cached && 'Resultado desde catálogo.'}
               </p>
             )}
           </>
@@ -121,11 +131,11 @@ export function DistanceResultCard({
                 </span>
               )}
             </p>
-            {(saved || cached) && (
-              <p className="text-xs text-muted-foreground">
-                {saved && 'Consulta guardada en el historial.'}
-                {saved && cached && ' '}
-                {cached && 'Resultado desde caché.'}
+            {(sourceMessage || saved || cached) && (
+              <p className="text-xs text-muted-foreground pt-1">
+                {sourceMessage ?? (saved && 'Consulta guardada en el historial.')}
+                {!sourceMessage && saved && cached && ' '}
+                {!sourceMessage && cached && 'Resultado desde caché.'}
               </p>
             )}
           </>

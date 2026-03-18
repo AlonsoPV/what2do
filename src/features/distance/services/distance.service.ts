@@ -3,7 +3,7 @@
  * y CRUD de solicitudes en distance_requests.
  */
 
-import { supabase } from '@/lib/supabase/client'
+import { supabase, SUPABASE_URL } from '@/lib/supabase/client'
 import type {
   CalculateRoutePayload,
   CalculateRouteResult,
@@ -17,6 +17,7 @@ import type {
 
 const FUNCTION_NAME = 'calculate-distance'
 const REQUEST_TIMEOUT_MS = 20_000
+const DEBUG = import.meta.env.DEV
 
 function getErrorMessage(
   res: Response,
@@ -35,22 +36,40 @@ export const distanceService = {
    * Lanza Error en caso de fallo para que la mutación rechace y la UI salga de "Calculando...".
    */
   async calculateRoute(payload: CalculateRoutePayload): Promise<CalculateRouteResult> {
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-    const session = refreshData?.session ?? (await supabase.auth.getSession()).data?.session
+    const routeMode = payload.route_mode ?? 'DRIVE'
+    if (DEBUG) {
+      console.log('[distance] calculateRoute: payload', { origin_id: payload.origin_id, destination_id: payload.destination_id, route_mode: routeMode })
+    }
+    // Usar getSession() para no disparar refreshSession() y evitar que el listener de Auth
+    // provoque un re-render que interrumpa la mutación antes del fetch.
+    const { data: sessionData } = await supabase.auth.getSession()
+    const session = sessionData?.session
     const token = session?.access_token
-    if (refreshError || !token) {
+    if (DEBUG) {
+      console.log('[distance] auth:', { hasSession: !!session, hasToken: !!token, tokenLength: token?.length ?? 0 })
+    }
+    if (!token) {
       throw new Error(
         'Debes iniciar sesión para calcular distancias. Si ya has iniciado sesión, cierra sesión y vuelve a entrar.'
       )
     }
 
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${FUNCTION_NAME}`
+    const baseUrl = SUPABASE_URL
+    const url = `${baseUrl}/functions/v1/${FUNCTION_NAME}`
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (DEBUG) {
+      console.log('[distance] request:', { url, hasBaseUrl: !!baseUrl, hasAnonKey: !!anonKey, timeoutMs: REQUEST_TIMEOUT_MS })
+      console.warn('[distance] Si la función no se invoca, comprueba en el Dashboard que esta URL es de tu proyecto:', url)
+    }
+    if (!baseUrl || baseUrl === 'undefined') {
+      throw new Error('VITE_SUPABASE_URL no está configurada. Revisa tu .env.')
+    }
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
 
     let res: Response
     try {
+      if (DEBUG) console.log('[distance] fetch start →', url)
       res = await fetch(url, {
         method: 'POST',
         signal: controller.signal,
@@ -62,11 +81,12 @@ export const distanceService = {
         body: JSON.stringify({
           origin_id: payload.origin_id,
           destination_id: payload.destination_id,
-          route_mode: payload.route_mode ?? 'DRIVE',
+          route_mode: routeMode,
         }),
       })
     } catch (err) {
       clearTimeout(timeoutId)
+      if (DEBUG) console.log('[distance] fetch error', err)
       const isAbort = err instanceof Error && err.name === 'AbortError'
       throw new Error(
         isAbort
@@ -80,10 +100,18 @@ export const distanceService = {
     try {
       result = (await res.json()) as CalculateRouteResult & { message?: string }
     } catch {
+      if (DEBUG) console.log('[distance] response: no JSON', { status: res.status, statusText: res.statusText })
       if (!res.ok) {
         throw new Error(getErrorMessage(res, { message: res.statusText }))
       }
       throw new Error('La respuesta del servidor no es válida.')
+    }
+
+    if (DEBUG) {
+      console.log('[distance] response:', { status: res.status, ok: res.ok, resultOk: result?.ok, message: result?.message })
+      if (res.status === 404) {
+        console.warn('[distance] 404: La función no existe en esta URL. Despliega con: npm run supabase:deploy')
+      }
     }
 
     if (!res.ok) {
@@ -139,6 +167,8 @@ export const distanceService = {
     km_ida?: number | null
     km_vuelta?: number | null
     km_total?: number | null
+    duracion_ida_segundos?: number | null
+    duracion_vuelta_segundos?: number | null
     created_by: string | null
   }): Promise<DistanceRequestRow> {
     const { data, error } = await supabase
@@ -153,6 +183,8 @@ export const distanceService = {
         km_ida: row.km_ida ?? null,
         km_vuelta: row.km_vuelta ?? null,
         km_total: row.km_total ?? null,
+        duracion_ida_segundos: row.duracion_ida_segundos ?? null,
+        duracion_vuelta_segundos: row.duracion_vuelta_segundos ?? null,
         created_by: row.created_by,
       })
       .select()

@@ -9,5 +9,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+/** URL del proyecto Supabase (misma que usa auth). Úsala para Edge Functions. */
+export const SUPABASE_URL = supabaseUrl ?? ''
+
 /** Cliente Supabase. Persiste sesión en localStorage por defecto; el refresh de token es automático. */
 export const supabase = createClient(supabaseUrl ?? '', supabaseAnonKey ?? '')

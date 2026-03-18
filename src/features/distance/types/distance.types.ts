@@ -59,6 +59,8 @@ export interface DistanceRequestRow {
   km_ida: number | null
   km_vuelta: number | null
   km_total: number | null
+  duracion_ida_segundos?: number | null
+  duracion_vuelta_segundos?: number | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -97,6 +99,48 @@ export interface DistanceRequestFormValues {
 export interface DistanceRequestWithDetails extends DistanceRequestRow {
   origin?: DistanceOrigin | null
   destination?: DistanceDestination | null
+}
+
+// --- saved_route_requests: una fila por dirección (origin_id → destination_id) ---
+export interface SavedRouteRequestRow {
+  id: string
+  origin_id: string
+  destination_id: string
+  origin_name_snapshot: string | null
+  origin_location_snapshot: string | null
+  destination_name_snapshot: string | null
+  destination_location_snapshot: string | null
+  distance_km: number
+  distance_meters: number | null
+  duration_seconds: number | null
+  route_mode: string
+  api_source: string
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  activo: boolean
+}
+
+export interface SavedRouteRequestWithDetails extends SavedRouteRequestRow {
+  origin?: DistanceOrigin | null
+  destination?: DistanceDestination | null
+}
+
+/** Fila agrupada por par (ida + vuelta) para mostrar en tabla con columnas Ida, Vuelta, Total */
+export interface SavedRoutePairRow {
+  pairKey: string
+  origin_id: string
+  destination_id: string
+  originName: string
+  destinationName: string
+  origin_location: string
+  destination_location: string
+  km_ida: number
+  km_vuelta: number | null
+  km_total: number
+  duration_ida_seconds: number | null
+  duration_vuelta_seconds: number | null
+  updated_at: string
 }
 
 // --- Legado (distance_queries / formulario libre); mantener por compatibilidad si se usa en otro lugar ---
