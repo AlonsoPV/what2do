@@ -10,6 +10,9 @@ import type {
   DistanceRequestRow,
   DistanceRequestWithDetails,
   DistanceQueryRow,
+  DistanceOrigin,
+  DistanceDestination,
+  DistanceCalculateResult,
 } from '../types/distance.types'
 
 const FUNCTION_NAME = 'calculate-distance'
@@ -17,7 +20,7 @@ const REQUEST_TIMEOUT_MS = 20_000
 
 function getErrorMessage(
   res: Response,
-  result: CalculateRouteResult & { message?: string }
+  result: Partial<CalculateRouteResult & { message?: string }>
 ): string {
   if (result?.message && typeof result.message === 'string') return result.message
   if (res.status === 401) return 'No autorizado. Cierra sesión y vuelve a entrar.'
@@ -107,12 +110,20 @@ export const distanceService = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    const rows = (data ?? []) as DistanceRequestWithDetails[]
-    return rows.map((r) => ({
-      ...r,
-      origin: Array.isArray((r as { origin?: unknown }).origin) ? (r as { origin: unknown[] }).origin[0] : (r as { origin?: unknown }).origin,
-      destination: Array.isArray((r as { destination?: unknown }).destination) ? (r as { destination: unknown[] }).destination[0] : (r as { destination?: unknown }).destination,
-    }))
+    type RawRow = DistanceRequestRow & {
+      origin?: DistanceOrigin | DistanceOrigin[] | null
+      destination?: DistanceDestination | DistanceDestination[] | null
+    }
+    const rows = (data ?? []) as RawRow[]
+    return rows.map((r): DistanceRequestWithDetails => {
+      const origin = r.origin == null ? null : Array.isArray(r.origin) ? r.origin[0] ?? null : r.origin
+      const destination = r.destination == null ? null : Array.isArray(r.destination) ? r.destination[0] ?? null : r.destination
+      return {
+        ...r,
+        origin: origin as DistanceRequestWithDetails['origin'],
+        destination: destination as DistanceRequestWithDetails['destination'],
+      }
+    })
   },
 
   /**
@@ -149,6 +160,38 @@ export const distanceService = {
 
     if (error) throw error
     return data as DistanceRequestRow
+  },
+
+  /**
+   * Legacy: calcula por direcciones de texto (obsoleto).
+   * La Edge Function actual solo acepta origin_id/destination_id. Usa el tablero de distancias con catálogo.
+   */
+  async calculate(_payload: { origen_ubicacion: string; destino_ubicacion: string; route_mode?: string }): Promise<DistanceCalculateResult> {
+    throw new Error(
+      'El cálculo por direcciones de texto está obsoleto. Usa el tablero de distancias y elige origen y destino del catálogo.'
+    )
+  },
+
+  /**
+   * Legacy: inserta en distance_queries (obsoleto).
+   * Usa createRequest() para guardar en distance_requests.
+   */
+  async insert(_row: {
+    origen_nombre: string
+    origen_ubicacion: string
+    destino_nombre: string
+    destino_ubicacion: string
+    distancia_km: number
+    distancia_metros?: number | null
+    duracion_segundos?: number | null
+    route_mode?: string
+    status?: string
+    error_message?: string | null
+    created_by: string | null
+  }): Promise<DistanceQueryRow> {
+    throw new Error(
+      'Guardar en el historial antiguo está obsoleto. Usa "Guardar solicitud" en el tablero de distancias.'
+    )
   },
 
   /** Legacy: lista historial en distance_queries (mantener por compatibilidad). */

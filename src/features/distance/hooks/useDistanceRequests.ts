@@ -4,8 +4,6 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { distanceService } from '../services/distance.service'
-import type { DistanceRequestRow } from '../types/distance.types'
-
 export const DISTANCE_REQUESTS_QUERY_KEY = ['distance', 'requests'] as const
 
 export function useDistanceRequests() {

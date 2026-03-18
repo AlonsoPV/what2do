@@ -6,7 +6,6 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -48,9 +47,9 @@ export interface AccionFormProps {
 export function AccionForm({
   defaultValues,
   onSubmit,
-  onCancel,
-  isSubmitting = false,
-  isEdit = false,
+  onCancel: _onCancel,
+  isSubmitting: _isSubmitting = false,
+  isEdit: _isEdit = false,
   formId,
 }: AccionFormProps) {
   const { data: users = [] } = useUsers({ activo: true })
