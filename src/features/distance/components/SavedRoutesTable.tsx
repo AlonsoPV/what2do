@@ -55,7 +55,7 @@ function groupRowsIntoPairs(rows: SavedRouteRequestWithDetails[]): SavedRoutePai
     const vueltaRow = pairRows.find((r) => r.origin_id > r.destination_id) ?? (pairRows.length > 1 ? pairRows[1] : null)
     const kmIda = Number(idaRow.distance_km)
     const kmVuelta = vueltaRow ? Number(vueltaRow.distance_km) : null
-    const kmTotal = vueltaRow != null ? Math.round((kmIda + kmVuelta) * 100) / 100 : kmIda
+    const kmTotal = vueltaRow != null && kmVuelta != null ? Math.round((kmIda + kmVuelta) * 100) / 100 : kmIda
     const originName = idaRow.origin?.nombre ?? idaRow.origin_name_snapshot ?? '—'
     const destinationName = idaRow.destination?.nombre ?? idaRow.destination_name_snapshot ?? '—'
     const updatedAt = vueltaRow && new Date(vueltaRow.updated_at) > new Date(idaRow.updated_at)
