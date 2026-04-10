@@ -18,6 +18,9 @@ import { cn } from '@/lib/utils'
 import { isEnRetraso } from '../utils/accionUtils'
 import { AlertCircle, AlertTriangle, Clock, FileCheck, ClipboardList, Plus, MessageSquare } from 'lucide-react'
 import { CountdownTimer } from './CountdownTimer'
+import { AccionIdDisplay } from './AccionIdDisplay'
+import { EvidenciaCargadaIndicator } from './EvidenciaCargadaIndicator'
+import { AccionChecklistProgressBadge } from './AccionChecklistProgress'
 
 const ESTADO_LABELS: Record<string, string> = {
   Pendiente: 'Pendiente',
@@ -61,6 +64,8 @@ export interface AccionesControlTableProps {
   onSelectAccion?: (accion: AccionDiaria) => void
   /** Nombres de responsables por id (opcional; si no hay, se muestra el uuid o "—") */
   responsableNames?: Record<string, string>
+  /** Progreso de checklist por acción (misma fuente que Kanban). */
+  checklistProgressByAccionId?: Record<string, { total: number; completed: number }>
   /** Mensaje del empty state (opcional) */
   emptyMessage?: string
   /** Etiqueta del botón CTA en empty state (opcional) */
@@ -75,6 +80,7 @@ export function AccionesControlTable({
   commentCounts = {},
   onSelectAccion,
   responsableNames = {},
+  checklistProgressByAccionId = {},
   emptyMessage = 'No hay acciones para mostrar. Ajusta los filtros o crea una nueva.',
   emptyActionLabel,
   onEmptyAction,
@@ -85,6 +91,7 @@ export function AccionesControlTable({
         <Table>
           <TableHeader>
             <TableRow className="border-border/60 hover:bg-transparent">
+              <TableHead className="bg-muted/40 font-semibold w-[120px]">ID</TableHead>
               <TableHead className="bg-muted/40 font-semibold">Descripción</TableHead>
               <TableHead className="bg-muted/40 font-semibold w-[120px]">Estado</TableHead>
               <TableHead className="bg-muted/40 font-semibold w-[140px]">Responsable</TableHead>
@@ -97,6 +104,7 @@ export function AccionesControlTable({
           <TableBody>
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <TableRow key={i} className="border-border/40">
+                <TableCell className="py-3"><div className="h-4 w-20 animate-pulse rounded bg-muted/70" /></TableCell>
                 <TableCell className="py-3"><div className="h-4 w-48 animate-pulse rounded bg-muted/70" /></TableCell>
                 <TableCell className="py-3"><div className="h-6 w-20 animate-pulse rounded-full bg-muted/70" /></TableCell>
                 <TableCell className="py-3"><div className="h-4 w-24 animate-pulse rounded bg-muted/70" /></TableCell>
@@ -139,6 +147,9 @@ export function AccionesControlTable({
       <Table className="acciones-control-table-grid">
         <TableHeader>
           <TableRow className="border-border/60 hover:bg-transparent">
+            <TableHead className="sticky top-0 z-10 w-[120px] bg-muted/70 backdrop-blur-sm font-semibold text-foreground/90 py-3.5">
+              ID
+            </TableHead>
             <TableHead className="sticky top-0 z-10 bg-muted/70 backdrop-blur-sm font-semibold text-foreground/90 py-3.5">
               Descripción
             </TableHead>
@@ -167,6 +178,7 @@ export function AccionesControlTable({
             const displayStatus = isEnRetraso(accion) ? 'Retraso' : accion.estado
             const rowBorder = ESTADO_ROW_BORDER[displayStatus] ?? ''
             const prioridadClass = PRIORIDAD_BADGE[accion.prioridad] ?? PRIORIDAD_BADGE.P2_Media
+            const checklistProg = checklistProgressByAccionId[accion.id]
             return (
               <TableRow
                 key={accion.id}
@@ -178,15 +190,13 @@ export function AccionesControlTable({
                 )}
                 onClick={() => onSelectAccion?.(accion)}
               >
+                <TableCell className="py-3 align-top w-[120px] max-w-[120px]">
+                  <AccionIdDisplay id={accion.id} />
+                </TableCell>
                 <TableCell className="py-3 align-top max-w-[320px]">
                   <p className="truncate font-medium text-foreground" title={accion.descripcion_accion}>
                     {accion.titulo_accion?.trim() || accion.descripcion_accion}
                   </p>
-                  {accion.evidencia_esperada && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground" title={accion.evidencia_esperada}>
-                      {accion.evidencia_esperada}
-                    </p>
-                  )}
                 </TableCell>
                 <TableCell className="py-3 align-middle">
                   <Badge
@@ -248,6 +258,13 @@ export function AccionesControlTable({
                       <span title="Bloqueado" className="text-destructive">
                         <AlertCircle className="h-4 w-4" />
                       </span>
+                    )}
+                    <EvidenciaCargadaIndicator cargada={accion.evidencia_cargada} />
+                    {checklistProg && checklistProg.total > 0 && (
+                      <AccionChecklistProgressBadge
+                        completados={checklistProg.completed}
+                        total={checklistProg.total}
+                      />
                     )}
                     {!accion.evidencia_cargada &&
                       (accion.estado === 'Hecho' || accion.estado === 'Verificado') && (

@@ -13,6 +13,7 @@ import {
   MapPinned,
   Navigation,
   ClipboardList,
+  FolderKanban,
 } from 'lucide-react'
 
 const CATALOGS = [
@@ -51,6 +52,12 @@ const CATALOGS = [
     description: 'KPIs configurables: unidad, tipo, meta, periodicidad.',
     href: ROUTES.SETTINGS_CATALOGS_KPIS,
     icon: Target,
+  },
+  {
+    title: 'Brechas O2C',
+    description: 'Gaps operativos: área, estado, responsable y vínculo a KPIs.',
+    href: ROUTES.SETTINGS_CATALOGS_GAPS,
+    icon: FolderKanban,
   },
   {
     title: 'Orígenes',

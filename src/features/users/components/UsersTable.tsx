@@ -49,7 +49,7 @@ export function UsersTable({
     return (
       <div className="rounded-md border bg-card">
         <div className="flex h-[320px] items-center justify-center text-muted-foreground">
-          Cargando usuarios...
+          Cargando listado…
         </div>
       </div>
     )

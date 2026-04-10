@@ -108,7 +108,7 @@ export function UserDetailPage() {
         isToggling={toggleStatus.isPending}
       />
 
-      <PasswordManagementCard />
+      <PasswordManagementCard userEmail={email ?? null} />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent aria-describedby={undefined}>

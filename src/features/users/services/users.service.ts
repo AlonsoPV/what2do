@@ -1,12 +1,63 @@
 /**
  * Servicio de administración de usuarios (tabla usuarios).
  * Gestiona perfiles; no maneja contraseñas (auth.users).
+ *
+ * Alta: `create` → Edge Function `invite-user` (service role en servidor) → `auth.admin.inviteUserByEmail`
+ * + trigger `handle_new_user` → fila en `public.usuarios`. Contraseñas solo en Supabase Auth.
  */
 
 import { supabase } from '@/lib/supabase/client'
 import type { UserProfile, CreateUserInput, UpdateUserInput, UsersFilter } from '../types/user.types'
 
 const TABLE = 'usuarios'
+
+type InviteUserResponseBody = { ok?: boolean; message?: string }
+
+/** Mensajes del API (a veces en inglés) → texto claro para quien administra usuarios. */
+function mapInviteUserFacingMessage(raw: string): string {
+  const m = raw.trim()
+  const low = m.toLowerCase()
+  if (/already|exists|registered/i.test(low) && (low.includes('user') || low.includes('email'))) {
+    return 'Ese correo ya tiene cuenta. Revisa el listado de usuarios o usa otro correo.'
+  }
+  if (low.includes('invalid') && low.includes('email')) {
+    return 'El correo no es válido. Revísalo e inténtalo de nuevo.'
+  }
+  if (m === 'No autorizado' || m === 'Sesión inválida') {
+    return 'Tu sesión caducó o no tienes permiso. Vuelve a iniciar sesión e inténtalo de nuevo.'
+  }
+  if (m === 'Solo administradores pueden invitar usuarios') {
+    return 'Solo quienes administran la plataforma pueden enviar invitaciones.'
+  }
+  if (m === 'No se pudo validar permisos' || m === 'Faltan credenciales de Supabase') {
+    return 'No pudimos completar la invitación por un fallo del servidor. Inténtalo más tarde o avisa a quien administra el sistema.'
+  }
+  if (m === 'Correo, nombre y rol son obligatorios') {
+    return 'Faltan correo, nombre o rol.'
+  }
+  return m
+}
+
+async function parseInviteFunctionError(
+  error: Error,
+  data: InviteUserResponseBody | null
+): Promise<string> {
+  if (data && typeof data.message === 'string' && data.message.trim()) {
+    return mapInviteUserFacingMessage(data.message)
+  }
+  const ctx = (error as { context?: Response }).context
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body: unknown = await ctx.json()
+      if (body && typeof body === 'object' && 'message' in body && typeof (body as { message: string }).message === 'string') {
+        return mapInviteUserFacingMessage((body as { message: string }).message)
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return mapInviteUserFacingMessage(error.message || 'No pudimos enviar la invitación')
+}
 
 export const usersAdminService = {
   /**
@@ -120,10 +171,15 @@ export const usersAdminService = {
       onboarding_completed: input.onboarding_completed ?? false,
     }
 
-    const { error } = await supabase.functions.invoke('invite-user', {
+    const { data, error } = await supabase.functions.invoke<InviteUserResponseBody>('invite-user', {
       body: payload,
     })
 
-    if (error) throw error
+    if (error) {
+      throw new Error(await parseInviteFunctionError(error, data ?? null))
+    }
+    if (data && data.ok === false && typeof data.message === 'string') {
+      throw new Error(mapInviteUserFacingMessage(data.message))
+    }
   },
 }

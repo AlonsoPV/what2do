@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,77 +12,60 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { KeyRound } from 'lucide-react'
+import { KeyRound, Shield } from 'lucide-react'
 import { authService } from '@/services/auth.service'
 import { toast } from 'sonner'
-
-const MIN_PASSWORD_LENGTH = 6
+import {
+  PASSWORD_MIN_LENGTH,
+  changePasswordFormSchema,
+  type ChangePasswordFormValues,
+} from '@/features/auth/schemas/password.schema'
 
 export function ChangePasswordCard() {
   const [open, setOpen] = useState(false)
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!currentPassword.trim()) {
-      toast.error('Ingresa tu contraseña actual')
-      return
-    }
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      toast.error(`La nueva contraseña debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`)
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error('La nueva contraseña y la confirmación no coinciden')
-      return
-    }
-    if (currentPassword === newPassword) {
-      toast.error('La nueva contraseña debe ser diferente a la actual')
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      await authService.changePassword(currentPassword, newPassword)
-      toast.success('Contraseña actualizada correctamente')
-      setOpen(false)
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al cambiar la contraseña')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+  const form = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordFormSchema),
+    defaultValues: {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+    },
+  })
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
+      form.reset()
     }
     setOpen(next)
   }
 
+  const onSubmit = form.handleSubmit(async (values) => {
+    try {
+      await authService.changePassword(values.currentPassword, values.newPassword)
+      toast.success('Contraseña actualizada. La próxima vez usa la nueva.')
+      handleOpenChange(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No pudimos cambiar la contraseña. Inténtalo de nuevo.')
+    }
+  })
+
   return (
     <>
-      <Card>
+      <Card className="border-border/60">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <KeyRound className="h-5 w-5" />
-                Cambiar contraseña
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <KeyRound className="h-5 w-5 text-primary" aria-hidden />
+                Contraseña
               </CardTitle>
-              <CardDescription className="mt-1">
-                Actualiza tu contraseña ingresando la actual y la nueva
+              <CardDescription>
+                Cambia tu contraseña de acceso cuando quieras. Mínimo {PASSWORD_MIN_LENGTH} caracteres; si
+                puedes, combina letras y números.
               </CardDescription>
             </div>
-            <Button variant="outline" onClick={() => setOpen(true)}>
+            <Button variant="outline" className="shrink-0" onClick={() => setOpen(true)}>
               Cambiar contraseña
             </Button>
           </div>
@@ -89,25 +74,31 @@ export function ChangePasswordCard() {
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent aria-describedby={undefined} className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cambiar contraseña</DialogTitle>
-            <DialogDescription>
-              Ingresa tu contraseña actual y la nueva contraseña. La nueva debe tener al menos{' '}
-              {MIN_PASSWORD_LENGTH} caracteres.
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-2 text-primary">
+              <Shield className="h-5 w-5" aria-hidden />
+              <DialogTitle className="text-left">Cambiar contraseña</DialogTitle>
+            </div>
+            <DialogDescription className="text-left text-sm leading-relaxed">
+              Por seguridad, primero pedimos tu contraseña actual. La nueva queda solo en el acceso; no
+              aparece en tu ficha del tablero.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <form onSubmit={onSubmit} className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label htmlFor="current-password">Contraseña actual</Label>
               <Input
                 id="current-password"
                 type="password"
                 autoComplete="current-password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Tu contraseña actual"
-                disabled={isSubmitting}
+                disabled={form.formState.isSubmitting}
+                {...form.register('currentPassword')}
+                className={form.formState.errors.currentPassword ? 'border-destructive' : ''}
               />
+              {form.formState.errors.currentPassword && (
+                <p className="text-sm text-destructive">{form.formState.errors.currentPassword.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-password">Nueva contraseña</Label>
@@ -115,11 +106,14 @@ export function ChangePasswordCard() {
                 id="new-password"
                 type="password"
                 autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="Nueva contraseña"
-                disabled={isSubmitting}
+                disabled={form.formState.isSubmitting}
+                {...form.register('newPassword')}
+                className={form.formState.errors.newPassword ? 'border-destructive' : ''}
               />
+              {form.formState.errors.newPassword && (
+                <p className="text-sm text-destructive">{form.formState.errors.newPassword.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirmar nueva contraseña</Label>
@@ -127,32 +121,26 @@ export function ChangePasswordCard() {
                 id="confirm-password"
                 type="password"
                 autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Repite la nueva contraseña"
-                disabled={isSubmitting}
+                disabled={form.formState.isSubmitting}
+                {...form.register('confirmPassword')}
+                className={form.formState.errors.confirmPassword ? 'border-destructive' : ''}
               />
+              {form.formState.errors.confirmPassword && (
+                <p className="text-sm text-destructive">{form.formState.errors.confirmPassword.message}</p>
+              )}
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => handleOpenChange(false)}
-                disabled={isSubmitting}
+                disabled={form.formState.isSubmitting}
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={
-                  isSubmitting ||
-                  !currentPassword ||
-                  newPassword.length < MIN_PASSWORD_LENGTH ||
-                  newPassword !== confirmPassword ||
-                  currentPassword === newPassword
-                }
-              >
-                {isSubmitting ? 'Guardando...' : 'Cambiar contraseña'}
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? 'Guardando…' : 'Guardar nueva contraseña'}
               </Button>
             </div>
           </form>

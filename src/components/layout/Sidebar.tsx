@@ -4,12 +4,13 @@ import {
   Settings,
   Columns3,
   Target,
-  Layers,
   Calendar,
   FileBarChart,
   Bell,
   BookOpen,
-  MapPin,
+  GraduationCap,
+  LineChart,
+  FolderKanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/constants'
@@ -21,12 +22,13 @@ import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 const navItems = [
   { to: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
   { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
+  { to: ROUTES.DASHBOARD_KPIS, label: 'KPIs O2C', icon: LineChart },
+  { to: ROUTES.DASHBOARD_GAPS, label: 'Gaps O2C', icon: FolderKanban },
+  { to: ROUTES.ACADEMIA, label: 'Academia O2C', icon: GraduationCap },
   { to: ROUTES.DISCIPLINA, label: 'Disciplina', icon: Target },
-  { to: ROUTES.AREAS, label: 'Panel de área', icon: Layers },
   { to: ROUTES.CALENDARIO, label: 'Calendario', icon: Calendar },
   { to: ROUTES.REPORTES, label: 'Reportes', icon: FileBarChart },
   { to: ROUTES.NOTIFICACIONES, label: 'Notificaciones', icon: Bell },
-  { to: ROUTES.DISTANCIAS, label: 'Distancias', icon: MapPin },
   { to: ROUTES.MANUAL, label: 'Manual', icon: BookOpen },
   { to: ROUTES.SETTINGS, label: 'Configuración', icon: Settings },
 ] as const

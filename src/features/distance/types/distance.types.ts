@@ -131,6 +131,8 @@ export interface SavedRoutePairRow {
   pairKey: string
   origin_id: string
   destination_id: string
+  /** Modo de ruta compartido por ida y vuelta (p. ej. DRIVE) */
+  route_mode: string
   originName: string
   destinationName: string
   origin_location: string

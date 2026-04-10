@@ -7,6 +7,8 @@
  * ver lib/catalog-registry.ts y docs/catalogs-evolution.md.
  */
 
+import type { CatalogKpiO2cRow } from '@/features/kpi/types/kpi.types'
+
 /** Base para ítems de catálogo con activo (permite reutilizar componentes genéricos) */
 export interface CatalogItemWithActivo {
   id: string
@@ -172,20 +174,10 @@ export interface UpdateDropdownOptionInput {
 export type KpiUnit = 'porcentaje' | 'numero' | 'dias' | 'moneda' | 'horas' | 'cantidad'
 export type KpiType = 'manual' | 'calculado' | 'informativo'
 export type KpiPeriodicity = 'diaria' | 'semanal' | 'mensual' | 'trimestral' | 'anual'
+export type CatalogKpiCalcType = 'minimize' | 'maximize' | 'binary'
 
-export interface CatalogKpi {
-  id: string
-  nombre: string
-  descripcion: string | null
-  unidad: string
-  tipo: string
-  meta_objetivo: number | null
-  periodicidad: string
-  orden: number
-  activo: boolean
-  created_at: string
-  updated_at: string
-}
+/** Fila completa de `catalog_kpis` (catálogo + negocio O2C). */
+export type CatalogKpi = CatalogKpiO2cRow
 
 export interface CreateKpiInput {
   nombre: string
@@ -196,6 +188,19 @@ export interface CreateKpiInput {
   periodicidad?: string
   orden?: number
   activo?: boolean
+  gap_id?: string | null
+  weight?: number | null
+  baseline?: number | null
+  target_m6?: number | null
+  target_m12?: number | null
+  target_m18?: number | null
+  direction?: 'maximize' | 'minimize' | null
+  calc_type?: CatalogKpiCalcType | null
+  current_value?: number | null
+  in_global_portfolio?: boolean
+  threshold_green?: number | null
+  threshold_yellow?: number | null
+  owner_usuario?: string | null
 }
 
 export interface UpdateKpiInput {
@@ -207,10 +212,27 @@ export interface UpdateKpiInput {
   periodicidad?: string
   orden?: number
   activo?: boolean
+  gap_id?: string | null
+  weight?: number | null
+  baseline?: number | null
+  target_m6?: number | null
+  target_m12?: number | null
+  target_m18?: number | null
+  direction?: 'maximize' | 'minimize' | null
+  calc_type?: CatalogKpiCalcType | null
+  current_value?: number | null
+  in_global_portfolio?: boolean
+  threshold_green?: number | null
+  threshold_yellow?: number | null
+  owner_usuario?: string | null
 }
 
 // ---- Filtros genéricos ----
 export interface CatalogFilter {
   search?: string
   activo?: boolean | null
+  gap_id?: string | null
+  calc_type?: CatalogKpiCalcType | null
+  /** Solo KPIs activos en portafolio global con `gap_id` (misma regla que listados O2C). */
+  globalPortfolioMembersOnly?: boolean
 }

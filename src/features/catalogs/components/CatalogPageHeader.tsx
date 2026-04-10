@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 
 interface CatalogPageHeaderProps {
   title: string
-  description: string
+  description: ReactNode
   onAdd?: () => void
   addLabel?: string
 }

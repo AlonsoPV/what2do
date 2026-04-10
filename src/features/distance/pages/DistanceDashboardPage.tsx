@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { DistanceRequestFormDialog } from '../components/DistanceRequestFormDialog'
 import { SavedRoutesTable } from '../components/SavedRoutesTable'
-import { useSavedRoutesList, useSaveRoute } from '../hooks/useSavedRoutes'
+import { useSavedRoutesList, useSaveRoute, useDeactivateSavedRoutePair } from '../hooks/useSavedRoutes'
 import { useCalculateRoute } from '../hooks/useCalculateRoute'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import type { SavedRoutePairRow } from '../types/distance.types'
@@ -17,9 +17,11 @@ import { Plus } from 'lucide-react'
 export function DistanceDashboardPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [recalculatingPairKey, setRecalculatingPairKey] = useState<string | null>(null)
+  const [deactivatingPairKey, setDeactivatingPairKey] = useState<string | null>(null)
   const { data: savedRoutes = [], isLoading: routesLoading } = useSavedRoutesList()
   const calculateRoute = useCalculateRoute()
   const saveRoute = useSaveRoute()
+  const deactivatePair = useDeactivateSavedRoutePair()
   const { data: currentUser } = useCurrentUser()
 
   const handleRecalculate = useCallback(
@@ -29,7 +31,7 @@ export function DistanceDashboardPage() {
         const result = await calculateRoute.mutateAsync({
           origin_id: row.origin_id,
           destination_id: row.destination_id,
-          route_mode: 'DRIVE',
+          route_mode: row.route_mode,
         })
         if (result?.ok && result.km_ida != null && result.km_vuelta != null) {
           await saveRoute.mutateAsync({
@@ -43,7 +45,7 @@ export function DistanceDashboardPage() {
             km_vuelta: result.km_vuelta,
             duracion_ida_segundos: result.duracion_ida_segundos ?? null,
             duracion_vuelta_segundos: result.duracion_vuelta_segundos ?? null,
-            route_mode: 'DRIVE',
+            route_mode: row.route_mode,
             created_by: currentUser?.id ?? null,
           })
           toast.success('Ruta recalculada y guardada.')
@@ -57,6 +59,26 @@ export function DistanceDashboardPage() {
       }
     },
     [calculateRoute, saveRoute, currentUser?.id]
+  )
+
+  const handleDeactivate = useCallback(
+    async (row: SavedRoutePairRow) => {
+      setDeactivatingPairKey(row.pairKey)
+      try {
+        await deactivatePair.mutateAsync({
+          originId: row.origin_id,
+          destinationId: row.destination_id,
+          routeMode: row.route_mode,
+        })
+        toast.success('Ruta quitada del listado.')
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'No se pudo quitar la ruta.')
+        throw err
+      } finally {
+        setDeactivatingPairKey(null)
+      }
+    },
+    [deactivatePair]
   )
 
   return (
@@ -97,6 +119,8 @@ export function DistanceDashboardPage() {
           isLoading={routesLoading}
           onRecalculate={handleRecalculate}
           recalculatingPairKey={recalculatingPairKey}
+          onDeactivate={handleDeactivate}
+          deactivatingPairKey={deactivatingPairKey}
         />
       </section>
 

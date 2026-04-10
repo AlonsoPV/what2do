@@ -8,6 +8,8 @@ export function useUsers(filter: UsersFilter = {}) {
   return useQuery({
     queryKey: [...QUERY_KEY, filter],
     queryFn: () => usersAdminService.list(filter),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
   })
 }
 

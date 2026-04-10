@@ -3,7 +3,12 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { lookupSavedRoute, saveRouteCalculated, listSavedRoutes } from '../services/savedRoutes.service'
+import {
+  lookupSavedRoute,
+  saveRouteCalculated,
+  listSavedRoutes,
+  deactivateSavedRoutePair,
+} from '../services/savedRoutes.service'
 import type { SaveRouteCalculatedPayload } from '../services/savedRoutes.service'
 
 export const SAVED_ROUTES_QUERY_KEY = ['distance', 'saved_routes'] as const
@@ -33,6 +38,20 @@ export function useSaveRoute() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (payload: SaveRouteCalculatedPayload) => saveRouteCalculated(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: SAVED_ROUTES_QUERY_KEY })
+    },
+  })
+}
+
+/**
+ * Desactiva el par guardado (ida + vuelta). Invalida listado y lookups.
+ */
+export function useDeactivateSavedRoutePair() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (args: { originId: string; destinationId: string; routeMode?: string }) =>
+      deactivateSavedRoutePair(args.originId, args.destinationId, args.routeMode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: SAVED_ROUTES_QUERY_KEY })
     },

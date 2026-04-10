@@ -24,7 +24,16 @@ import { PrioritiesPage } from '@/features/catalogs/pages/PrioritiesPage'
 import { DropdownCatalogsPage } from '@/features/catalogs/pages/DropdownCatalogsPage'
 import { DropdownCatalogOptionsPage } from '@/features/catalogs/pages/DropdownCatalogOptionsPage'
 import { KpisPage } from '@/features/catalogs/pages/KpisPage'
-import { DistanceDashboardPage, DistanceOriginsCatalogPage, DistanceDestinationsCatalogPage, DistanceRequestsSavedPage } from '@/features/distance'
+import { GapsPage } from '@/features/catalogs/pages/GapsPage'
+import {
+  DistanceDashboardPage,
+  DistanceSettingsPage,
+  DistanceOriginsCatalogPage,
+  DistanceDestinationsCatalogPage,
+  DistanceRequestsSavedPage,
+} from '@/features/distance'
+import { GapsDashboardPage, KpisDashboardPage } from '@/features/kpi'
+import { AcademyPage } from '@/features/academy'
 import { ROUTES } from '@/constants'
 
 const router = createBrowserRouter([
@@ -50,6 +59,8 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to={ROUTES.DASHBOARD} replace /> },
       { path: ROUTES.DASHBOARD, element: <DashboardPage /> },
+      { path: ROUTES.DASHBOARD_KPIS, element: <KpisDashboardPage /> },
+      { path: ROUTES.DASHBOARD_GAPS, element: <GapsDashboardPage /> },
       { path: ROUTES.KANBAN, element: <KanbanPage /> },
       { path: ROUTES.DISCIPLINA, element: <DisciplinaPage /> },
       { path: ROUTES.AREAS, element: <PanelAreasPage /> },
@@ -57,6 +68,7 @@ const router = createBrowserRouter([
       { path: ROUTES.REPORTES, element: <ReportesPage /> },
       { path: ROUTES.NOTIFICACIONES, element: <NotificacionesPage /> },
       { path: ROUTES.DISTANCIAS, element: <DistanceDashboardPage /> },
+      { path: ROUTES.ACADEMIA, element: <AcademyPage /> },
       { path: ROUTES.MANUAL, element: <ManualPage /> },
       {
         path: ROUTES.SETTINGS,
@@ -64,6 +76,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to={ROUTES.SETTINGS_PROFILE} replace /> },
           { path: 'profile', element: <ProfilePage /> },
+          { path: 'distancias', element: <DistanceSettingsPage /> },
           { path: 'users', element: <UsersPage /> },
           { path: 'users/:id', element: <UserDetailPage /> },
           { path: 'catalogs', element: <CatalogsHomePage /> },
@@ -74,6 +87,7 @@ const router = createBrowserRouter([
           { path: 'catalogs/dropdowns', element: <DropdownCatalogsPage /> },
           { path: 'catalogs/dropdowns/:catalogId', element: <DropdownCatalogOptionsPage /> },
           { path: 'catalogs/kpis', element: <KpisPage /> },
+          { path: 'catalogs/gaps', element: <GapsPage /> },
           { path: 'catalogs/origins', element: <DistanceOriginsCatalogPage /> },
           { path: 'catalogs/destinations', element: <DistanceDestinationsCatalogPage /> },
           { path: 'catalogs/solicitudes-guardadas', element: <DistanceRequestsSavedPage /> },

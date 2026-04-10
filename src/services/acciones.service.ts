@@ -4,6 +4,9 @@
  */
 
 import { supabase } from '@/lib/supabase/client'
+import { gapActionsLogService } from '@/services/gapActionsLog.service'
+import { listGapIdsForAccion } from '@/services/accionLinks.service'
+import { usuariosService } from '@/services/usuarios.service'
 import type { AccionDiaria, ActionStatus, PrioridadNc } from '@/types'
 
 function isEnRetraso(a: AccionDiaria): boolean {
@@ -15,6 +18,57 @@ function isEnRetraso(a: AccionDiaria): boolean {
 
 const TABLE = 'acciones_diarias'
 
+function isDoneEstado(s: ActionStatus): boolean {
+  return s === 'Hecho' || s === 'Verificado'
+}
+
+async function resolveCurrentUsuarioId(): Promise<string | null> {
+  const { data: auth } = await supabase.auth.getUser()
+  const authId = auth.user?.id
+  if (!authId) return null
+  const u = await usuariosService.getByAuthId(authId)
+  return u?.id ?? null
+}
+
+/**
+ * Tras cerrar/verificar: registra evento en gap_actions_log si hay gap_id (sin tocar mediciones KPI).
+ * Fallos de auditoría no revierten el update de la acción.
+ */
+async function maybeInsertGapActionLog(prev: AccionDiaria, updated: AccionDiaria): Promise<void> {
+  const next = updated.estado
+  let eventType: 'action_completed' | 'action_verified' | null = null
+  if (!isDoneEstado(prev.estado) && isDoneEstado(next)) {
+    eventType = 'action_completed'
+  } else if (prev.estado === 'Hecho' && next === 'Verificado') {
+    eventType = 'action_verified'
+  }
+  if (!eventType) return
+
+  let gapIds: string[] = []
+  try {
+    gapIds = await listGapIdsForAccion(updated.id)
+  } catch (e) {
+    console.error('[acciones] listGapIdsForAccion:', e)
+    gapIds = updated.gap_id ? [updated.gap_id] : []
+  }
+  if (gapIds.length === 0) return
+
+  try {
+    const createdBy = await resolveCurrentUsuarioId()
+    for (const gapId of gapIds) {
+      await gapActionsLogService.insertEvent({
+        gapId,
+        accionId: updated.id,
+        eventType,
+        createdBy,
+        payload: { previous_estado: prev.estado, estado: next },
+      })
+    }
+  } catch (err) {
+    console.error('[acciones] gap_actions_log:', err)
+  }
+}
+
 export interface AccionesFilter {
   /** Fecha "hasta": se muestran acciones creadas en o antes de este día (visible desde el día de creación y todos los días siguientes). */
   fecha_creacion?: string // YYYY-MM-DD
@@ -24,7 +78,14 @@ export interface AccionesFilter {
   fecha_min?: string
   /** Rango: fecha de la acción <= fecha_max (YYYY-MM-DD). Útil para calendario. */
   fecha_max?: string
+  /**
+   * Calendario: acciones creadas en o antes de este día (fin del último día visible de la grilla).
+   * No filtra por `fecha` (límite operativo); se combina con excluir_estados (p. ej. Verificado).
+   */
+  calendario_creadas_hasta?: string // YYYY-MM-DD
   estado?: ActionStatus | ActionStatus[]
+  /** Estados a excluir (ej. Verificado para calendario: mostrar solo activas). */
+  excluir_estados?: ActionStatus[]
   prioridad?: PrioridadNc | PrioridadNc[]
   area?: string
   responsable?: string
@@ -52,6 +113,9 @@ export const accionesService = {
       const nextStr = next.toISOString().slice(0, 10)
       q = q.lt('created_at', `${nextStr}T00:00:00`)
     }
+    if (filter.calendario_creadas_hasta) {
+      q = q.lte('created_at', `${filter.calendario_creadas_hasta}T23:59:59.999Z`)
+    }
     if (filter.fecha_min) q = q.gte('fecha', filter.fecha_min)
     if (filter.fecha_max) q = q.lte('fecha', filter.fecha_max)
     if (filter.fecha && !filter.fecha_min && !filter.fecha_max) q = q.eq('fecha', filter.fecha)
@@ -64,6 +128,9 @@ export const accionesService = {
     const onlyRetraso = estadoFilter.length === 1 && estadoFilter[0] === 'Retraso'
     if (estadoFilter.length > 0 && !onlyRetraso) {
       q = q.in('estado', estadoFilter)
+    }
+    if (filter.excluir_estados?.length) {
+      q = q.not('estado', 'in', `(${filter.excluir_estados.map((e) => `"${e}"`).join(',')})`)
     }
     if (filter.prioridad) {
       const prioridades = Array.isArray(filter.prioridad)
@@ -119,6 +186,12 @@ export const accionesService = {
   },
 
   async update(id: string, payload: Partial<AccionDiaria>) {
+    let prev: AccionDiaria | undefined
+    const nextEstado = payload.estado
+    if (nextEstado === 'Hecho' || nextEstado === 'Verificado') {
+      prev = await this.getById(id)
+    }
+
     const { data, error } = await supabase
       .from(TABLE)
       .update(payload)
@@ -126,7 +199,13 @@ export const accionesService = {
       .select()
       .single()
     if (error) throw error
-    return data as AccionDiaria
+    const updated = data as AccionDiaria
+
+    if (prev && nextEstado !== undefined) {
+      await maybeInsertGapActionLog(prev, updated)
+    }
+
+    return updated
   },
 
   async updateEstado(id: string, estado: ActionStatus, extra?: Partial<AccionDiaria>) {

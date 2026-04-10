@@ -35,6 +35,10 @@ export interface AccionDiaria {
   evidencia_adjunta: string | null
   estado: ActionStatus
   kpi_afectado: string | null
+  /** Brecha O2C (catálogo); opcional; convive con kpi_afectado legacy */
+  gap_id?: string | null
+  story_points?: number
+  catalog_kpi_id?: string | null
   okr_impactado: string | null
   proceso: string | null
   area: string | null
@@ -48,6 +52,21 @@ export interface AccionDiaria {
   repeticion: boolean
   verificador_dato: string | null
   verificador_gobierno: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Punto a validar (checklist) vinculado a una acción diaria. */
+export interface AccionCheckpoint {
+  id: string
+  accion_id: string
+  texto: string
+  orden: number
+  obligatorio: boolean
+  activo: boolean
+  completado: boolean
+  checked_at: string | null
+  checked_by: string | null
   created_at: string
   updated_at: string
 }

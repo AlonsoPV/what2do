@@ -16,6 +16,7 @@ export type CatalogKey =
   | 'dropdown_catalogs'
   | 'dropdown_options'
   | 'catalog_kpis'
+  | 'gaps'
 
 /** Dependencias conocidas: "este catálogo es referido por estos módulos/tablas" */
 export const CATALOG_DEPENDENCIES: Record<
@@ -35,6 +36,10 @@ export const CATALOG_DEPENDENCIES: Record<
   ],
   dropdown_options: [],
   catalog_kpis: [],
+  gaps: [
+    { table: 'catalog_kpis', label: 'KPIs de catálogo (gap_id)' },
+    { table: 'acciones_diarias', label: 'Acciones (gap_id)' },
+  ],
 }
 
 export function getDependencies(key: CatalogKey): { table?: string; label: string }[] {

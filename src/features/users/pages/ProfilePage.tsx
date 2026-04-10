@@ -34,7 +34,7 @@ function formatDate(iso: string) {
 
 export function ProfilePage() {
   const { refetch: refetchAuth, user: authUser } = useAuth()
-  const { data: user, isLoading, isError } = useCurrentUser()
+  const { data: user, isLoading, isError, error: profileError } = useCurrentUser()
   const updateUser = useUpdateUser()
   const [editOpen, setEditOpen] = useState(false)
   const [nombreEdit, setNombreEdit] = useState('')
@@ -52,12 +52,12 @@ export function ProfilePage() {
       { id: user.id, input: { nombre: nombreEdit.trim() } },
       {
         onSuccess: () => {
-          toast.success('Nombre actualizado correctamente')
+          toast.success('Nombre actualizado')
           setEditOpen(false)
           refetchAuth()
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Error al actualizar')
+          toast.error(err instanceof Error ? err.message : 'No pudimos guardar el nombre. Inténtalo de nuevo.')
         },
       }
     )
@@ -66,15 +66,29 @@ export function ProfilePage() {
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center text-muted-foreground">
-        Cargando perfil...
+        Cargando tu perfil…
       </div>
     )
   }
 
   if (isError || !user) {
     return (
-      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-        No se pudo cargar tu perfil. Intenta recargar la página.
+      <div className="space-y-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm">
+        <p className="font-medium text-destructive">No pudimos mostrar tu ficha en el tablero.</p>
+        {isError && profileError instanceof Error ? (
+          <p className="text-xs text-muted-foreground leading-relaxed">{profileError.message}</p>
+        ) : null}
+        {!isError && !user ? (
+          <p className="text-xs text-foreground/90 leading-relaxed">
+            Tu sesión está activa, pero aún no tienes ficha aquí. Pide a un administrador que revise tu alta en
+            Usuarios.
+          </p>
+        ) : null}
+        {isError ? (
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Revisa tu conexión e inténtalo de nuevo. Si sigue igual, avisa a quien administra la plataforma.
+          </p>
+        ) : null}
       </div>
     )
   }
@@ -83,9 +97,7 @@ export function ProfilePage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Mi perfil</h2>
-        <p className="text-muted-foreground">
-          Información de tu cuenta y preferencias
-        </p>
+        <p className="text-muted-foreground">Datos de tu cuenta en el tablero</p>
       </div>
 
       <Card>
@@ -135,7 +147,7 @@ export function ProfilePage() {
               </dd>
             </div>
             <div>
-              <dt className="text-sm font-medium text-muted-foreground">Onboarding</dt>
+              <dt className="text-sm font-medium text-muted-foreground">Registro de bienvenida</dt>
               <dd className="mt-0.5">
                 <Badge variant={user.onboarding_completed ? 'success' : 'outline'}>
                   {user.onboarding_completed ? 'Completado' : 'Pendiente'}
@@ -161,7 +173,7 @@ export function ProfilePage() {
           <DialogHeader>
             <DialogTitle>Editar nombre</DialogTitle>
             <DialogDescription>
-              Actualiza tu nombre de visualización. El rol y área solo pueden ser modificados por un administrador.
+              Cambia cómo se muestra tu nombre. El rol y el área solo los modifica un administrador.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
@@ -188,7 +200,7 @@ export function ProfilePage() {
                   updateUser.isPending
                 }
               >
-                {updateUser.isPending ? 'Guardando...' : 'Guardar'}
+                {updateUser.isPending ? 'Guardando…' : 'Guardar'}
               </Button>
             </div>
           </div>

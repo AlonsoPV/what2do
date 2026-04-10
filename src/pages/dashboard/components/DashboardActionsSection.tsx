@@ -11,6 +11,7 @@ export interface DashboardActionsSectionProps {
   isLoading?: boolean
   commentCounts?: Record<string, number>
   responsableNames?: Record<string, string>
+  checklistProgressByAccionId?: Record<string, { total: number; completed: number }>
   onSelectAccion?: (accion: AccionDiaria) => void
   onNewAction?: () => void
 }
@@ -20,6 +21,7 @@ export function DashboardActionsSection({
   isLoading,
   commentCounts = {},
   responsableNames = {},
+  checklistProgressByAccionId = {},
   onSelectAccion,
   onNewAction,
 }: DashboardActionsSectionProps) {
@@ -47,6 +49,7 @@ export function DashboardActionsSection({
           commentCounts={commentCounts}
           onSelectAccion={onSelectAccion}
           responsableNames={responsableNames}
+          checklistProgressByAccionId={checklistProgressByAccionId}
           emptyMessage="No hay acciones registradas para esta fecha."
           emptyActionLabel="Crear acción"
           onEmptyAction={onNewAction}

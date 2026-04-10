@@ -24,6 +24,14 @@ function getErrorMessage(
   result: Partial<CalculateRouteResult & { message?: string }>
 ): string {
   if (result?.message && typeof result.message === 'string') return result.message
+  if (res.status === 404) {
+    return (
+      'El servicio de cálculo de distancias no está disponible (404). ' +
+      'Despliega la Edge Function en Supabase: en la raíz del proyecto ejecuta `npm run supabase:deploy` ' +
+      '(o `npx supabase@latest functions deploy calculate-distance` vinculado a tu proyecto). ' +
+      'En Dashboard → Edge Functions → calculate-distance configura los secretos GOOGLE_MAPS_API_KEY y SUPABASE_SERVICE_ROLE_KEY.'
+    )
+  }
   if (res.status === 401) return 'No autorizado. Cierra sesión y vuelve a entrar.'
   if (res.status === 500) return 'Error del servidor. Comprueba la configuración de la Edge Function.'
   return `Error ${res.status}. ${res.statusText || 'Sin detalles'}`
@@ -109,8 +117,9 @@ export const distanceService = {
 
     if (DEBUG) {
       console.log('[distance] response:', { status: res.status, ok: res.ok, resultOk: result?.ok, message: result?.message })
-      if (res.status === 404) {
-        console.warn('[distance] 404: La función no existe en esta URL. Despliega con: npm run supabase:deploy')
+      // 404 puede ser "función no desplegada" (body vacío) o negocio (ej. Origen no encontrado) desde la Edge Function
+      if (res.status === 404 && !result?.message) {
+        console.warn('[distance] 404 sin mensaje: suele ser función no desplegada. Ejecuta: npm run supabase:deploy')
       }
     }
 
@@ -198,7 +207,8 @@ export const distanceService = {
    * Legacy: calcula por direcciones de texto (obsoleto).
    * La Edge Function actual solo acepta origin_id/destination_id. Usa el tablero de distancias con catálogo.
    */
-  async calculate(_payload: { origen_ubicacion: string; destino_ubicacion: string; route_mode?: string }): Promise<DistanceCalculateResult> {
+  async calculate(payload: { origen_ubicacion: string; destino_ubicacion: string; route_mode?: string }): Promise<DistanceCalculateResult> {
+    void payload
     throw new Error(
       'El cálculo por direcciones de texto está obsoleto. Usa el tablero de distancias y elige origen y destino del catálogo.'
     )
@@ -208,7 +218,7 @@ export const distanceService = {
    * Legacy: inserta en distance_queries (obsoleto).
    * Usa createRequest() para guardar en distance_requests.
    */
-  async insert(_row: {
+  async insert(row: {
     origen_nombre: string
     origen_ubicacion: string
     destino_nombre: string
@@ -221,6 +231,7 @@ export const distanceService = {
     error_message?: string | null
     created_by: string | null
   }): Promise<DistanceQueryRow> {
+    void row
     throw new Error(
       'Guardar en el historial antiguo está obsoleto. Usa "Guardar solicitud" en el tablero de distancias.'
     )

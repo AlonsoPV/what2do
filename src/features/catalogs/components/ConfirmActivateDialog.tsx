@@ -14,7 +14,7 @@ interface ConfirmActivateDialogProps {
   onOpenChange: (open: boolean) => void
   title: string
   description: string
-  onConfirm: () => void
+  onConfirm: () => void | Promise<void>
   isActivo: boolean
   itemName?: string
   isLoading?: boolean
@@ -39,7 +39,11 @@ export function ConfirmActivateDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              void Promise.resolve(onConfirm())
+            }}
             disabled={isLoading}
             className={isActivo ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
           >

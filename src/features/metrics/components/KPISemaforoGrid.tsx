@@ -1,5 +1,8 @@
 /**
- * Grid del semáforo KPI — panel de monitoreo ejecutivo (spec §4.2, §10.2).
+ * Grid del semáforo KPI — tablas legacy `kpis` / `kpi_mediciones`.
+ *
+ * @deprecated Usar `CatalogKpiSemaforoGrid` desde `@/features/kpi` (catálogo O2C y mediciones
+ *   `catalog_kpi_measurements`). El dashboard ejecutivo ya no usa este componente por defecto.
  */
 
 import { Activity } from 'lucide-react'

@@ -16,19 +16,20 @@ export interface CreateNotificacionInput {
 }
 
 export const notificacionesService = {
-  async create(input: CreateNotificacionInput) {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .insert({
-        usuario_id: input.usuario_id,
-        tipo: input.tipo,
-        prioridad: input.prioridad ?? 'Normal',
-        payload: input.payload ?? null,
-      })
-      .select()
-      .single()
+  /**
+   * Inserta una notificación para otro usuario.
+   * No usamos `.select()` tras el insert: la política RLS `notificaciones_select_own` solo permite
+   * leer filas donde `usuario_id` es el usuario actual; al notificar al responsable, el insert es válido
+   * pero el RETURNING fallaría con 403 en PostgREST.
+   */
+  async create(input: CreateNotificacionInput): Promise<void> {
+    const { error } = await supabase.from(TABLE).insert({
+      usuario_id: input.usuario_id,
+      tipo: input.tipo,
+      prioridad: input.prioridad ?? 'Normal',
+      payload: input.payload ?? null,
+    })
     if (error) throw error
-    return data as Notificacion
   },
 
   async listByUsuario(usuarioId: string, options?: { leido?: boolean }) {

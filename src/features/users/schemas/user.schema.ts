@@ -10,15 +10,15 @@ const commonUserFormSchema = z.object({
     }),
   nombre: z
     .string()
-    .min(1, 'El nombre es obligatorio')
+    .min(1, 'Indica el nombre')
     .transform((s) => s.trim())
     .pipe(
       z
         .string()
-        .min(2, 'El nombre debe tener al menos 2 caracteres')
-        .max(100, 'El nombre no puede superar 100 caracteres')
+        .min(2, 'Al menos 2 caracteres')
+        .max(100, 'Como máximo 100 caracteres')
     ),
-  rol: z.string().min(1, 'Selecciona un rol'),
+  rol: z.string().min(1, 'Elige un rol'),
   area: z
     .string()
     .transform((s) => (s?.trim() === '' ? undefined : s?.trim() ?? undefined))
@@ -32,8 +32,8 @@ const commonUserFormSchema = z.object({
 export const createUserFormSchema = commonUserFormSchema.extend({
   email: z
     .string()
-    .min(1, 'El correo electrónico es obligatorio')
-    .email('El correo electrónico no es válido')
+    .min(1, 'Indica un correo')
+    .email('Escribe un correo válido')
     .transform((s) => s.trim().toLowerCase()),
 })
 

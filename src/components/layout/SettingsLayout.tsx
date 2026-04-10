@@ -1,10 +1,24 @@
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/constants'
-import { Users, FolderOpen, Shield, MapPin, Flag, ArrowUpCircle, List, Target, UserCircle, MapPinned, Navigation, ClipboardList } from 'lucide-react'
+import {
+  Users,
+  FolderOpen,
+  Shield,
+  MapPin,
+  Flag,
+  ArrowUpCircle,
+  List,
+  Target,
+  UserCircle,
+  MapPinned,
+  Navigation,
+  ClipboardList,
+} from 'lucide-react'
 
 const SETTINGS_LINKS = [
   { to: ROUTES.SETTINGS_PROFILE, label: 'Mi perfil', icon: UserCircle },
+  { to: ROUTES.SETTINGS_DISTANCIAS, label: 'Distancias', icon: MapPin },
   { to: ROUTES.SETTINGS_USERS, label: 'Usuarios', icon: Users },
   { to: ROUTES.SETTINGS_CATALOGS, label: 'Catálogos', icon: FolderOpen },
 ] as const

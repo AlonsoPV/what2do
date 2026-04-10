@@ -70,8 +70,18 @@ export function UserForm({
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
       {isCreate && (
+        <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Cómo funciona la invitación</p>
+          <ol className="mt-2 list-inside list-decimal space-y-1">
+            <li>Indicas correo, nombre y rol (el área es opcional).</li>
+            <li>Esa persona recibe un correo para elegir su contraseña de acceso.</li>
+            <li>Al completar el paso, su ficha queda lista y puede entrar al tablero con ese rol.</li>
+          </ol>
+        </div>
+      )}
+      {isCreate && (
         <div className="space-y-2">
-          <Label htmlFor="email">Correo electrónico *</Label>
+          <Label htmlFor="email">Correo *</Label>
           <Input
             id="email"
             type="email"
@@ -80,7 +90,7 @@ export function UserForm({
             autoComplete="email"
           />
           <p className="text-xs text-muted-foreground">
-            Se enviará una invitación por correo y el perfil se vinculará automáticamente.
+            El mismo que usará para iniciar sesión. Si ese correo ya tiene cuenta, te lo indicamos.
           </p>
           {form.formState.errors.email && (
             <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
@@ -92,7 +102,7 @@ export function UserForm({
         <Input
           id="nombre"
           {...form.register('nombre')}
-          placeholder="Nombre del usuario"
+          placeholder="Nombre en el tablero"
           autoComplete="name"
         />
         {form.formState.errors.nombre && (
@@ -108,7 +118,7 @@ export function UserForm({
           disabled={loadingRoles}
         >
           <SelectTrigger id="rol">
-            <SelectValue placeholder={loadingRoles ? 'Cargando roles...' : 'Seleccionar rol'} />
+            <SelectValue placeholder={loadingRoles ? 'Cargando roles…' : 'Elige un rol'} />
           </SelectTrigger>
           <SelectContent>
             {roles.map((r) => (
@@ -131,7 +141,7 @@ export function UserForm({
           disabled={loadingAreas}
         >
           <SelectTrigger id="area">
-            <SelectValue placeholder={loadingAreas ? 'Cargando áreas...' : 'Seleccionar área (opcional)'} />
+            <SelectValue placeholder={loadingAreas ? 'Cargando áreas…' : 'Área (opcional)'} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Sin área</SelectItem>
@@ -142,9 +152,7 @@ export function UserForm({
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground">
-          Opcional. Valores del catálogo de áreas.
-        </p>
+        <p className="text-xs text-muted-foreground">Opcional. Viene del catálogo de áreas.</p>
         {form.formState.errors.area && (
           <p className="text-sm text-destructive">{form.formState.errors.area.message}</p>
         )}
@@ -165,7 +173,7 @@ export function UserForm({
             {...form.register('onboarding_completed')}
             className="h-4 w-4 rounded border-input"
           />
-          <span className="text-sm font-medium">Onboarding completado</span>
+          <span className="text-sm font-medium">Registro de bienvenida completado</span>
         </label>
       </div>
 
@@ -174,7 +182,7 @@ export function UserForm({
           Cancelar
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Guardando...' : isCreate ? 'Invitar usuario' : 'Guardar cambios'}
+          {isSubmitting ? 'Guardando…' : isCreate ? 'Enviar invitación' : 'Guardar cambios'}
         </Button>
       </div>
     </form>

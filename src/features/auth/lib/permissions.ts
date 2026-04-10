@@ -3,8 +3,9 @@
  * Base para RLS y restricciones por rol.
  *
  * Modelo de datos:
- * - auth.users = identidad de acceso
- * - usuarios.user_id = referencia al usuario autenticado (perfil)
+ * - auth.users = identidad de acceso (sesión).
+ * - usuarios = perfil de negocio (nombre, rol de catálogo, área); sin fila aquí no hay permisos en el tablero.
+ * - user_roles.app_role = rol de aplicación (admin / super_admin) para Settings y políticas; no confundir con `usuarios.rol`.
  * - Datos de negocio: created_by, assigned_to, updated_by
  */
 

@@ -6,6 +6,24 @@ import type { CreateDropdownOptionInput, UpdateDropdownOptionInput } from '../ty
 
 const KEY = ['catalogs', 'dropdownOptions'] as const
 
+function normalizeCatalogKey(catalogKey: string | undefined | null): string {
+  return catalogKey?.trim() ?? ''
+}
+
+export function dropdownOptionsByCatalogKeyQueryKey(catalogKey: string | undefined | null) {
+  return [...KEY, 'byKey', normalizeCatalogKey(catalogKey)] as const
+}
+
+export async function fetchDropdownOptionsByCatalogKey(
+  catalogKey: string | undefined | null
+): Promise<DropdownOption[]> {
+  const normalized = normalizeCatalogKey(catalogKey)
+  if (!normalized) return []
+  const catalog = await dropdownCatalogsService.getByKey(normalized)
+  if (!catalog) return []
+  return dropdownOptionsService.listByCatalogId(catalog.id)
+}
+
 export function useDropdownOptions(catalogId: string | undefined | null) {
   return useQuery({
     queryKey: [...KEY, catalogId],
@@ -18,14 +36,16 @@ export function useDropdownOptions(catalogId: string | undefined | null) {
 /** Opciones de un catálogo por su key (ej. 'evidencia_esperada'). Devuelve [] si no existe. */
 export function useDropdownOptionsByKey(catalogKey: string | undefined | null) {
   return useQuery({
-    queryKey: [...KEY, 'byKey', catalogKey],
-    queryFn: async (): Promise<DropdownOption[]> => {
-      if (!catalogKey?.trim()) return []
-      const catalog = await dropdownCatalogsService.getByKey(catalogKey.trim())
-      if (!catalog) return []
-      return dropdownOptionsService.listByCatalogId(catalog.id)
+    queryKey: dropdownOptionsByCatalogKeyQueryKey(catalogKey),
+    queryFn: () => fetchDropdownOptionsByCatalogKey(catalogKey),
+    enabled: !!normalizeCatalogKey(catalogKey),
+    // Si el resultado previo fue vacío, fuerza reintento al montar.
+    refetchOnMount: (query) => {
+      const current = query.state.data as DropdownOption[] | undefined
+      return !current || current.length === 0 ? 'always' : false
     },
-    enabled: !!catalogKey?.trim(),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
   })
 }
 

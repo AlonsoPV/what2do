@@ -112,6 +112,46 @@ export async function saveRouteCalculated(payload: SaveRouteCalculatedPayload): 
 }
 
 /**
+ * Borrado lógico del par A↔B: desactiva las dos filas (ida y vuelta) con el mismo route_mode.
+ * RLS: solo filas con created_by = usuario actual (política UPDATE).
+ */
+export async function deactivateSavedRoutePair(
+  originId: string,
+  destinationId: string,
+  routeMode: string = ROUTE_MODE_DEFAULT
+): Promise<void> {
+  if (!originId || !destinationId) return
+  const mode = routeMode?.trim() || ROUTE_MODE_DEFAULT
+  const A = originId
+  const B = destinationId
+
+  const { data: d1, error: e1 } = await supabase
+    .from(TABLE)
+    .update({ activo: false })
+    .eq('origin_id', A)
+    .eq('destination_id', B)
+    .eq('route_mode', mode)
+    .select('id')
+  if (e1) throw e1
+
+  const { data: d2, error: e2 } = await supabase
+    .from(TABLE)
+    .update({ activo: false })
+    .eq('origin_id', B)
+    .eq('destination_id', A)
+    .eq('route_mode', mode)
+    .select('id')
+  if (e2) throw e2
+
+  const touched = (d1?.length ?? 0) + (d2?.length ?? 0)
+  if (touched === 0) {
+    throw new Error(
+      'No se pudo quitar esta ruta. Solo puedes quitar rutas que guardaste tú, o la ruta ya no está activa.'
+    )
+  }
+}
+
+/**
  * Lista rutas guardadas para el tablero (con joins a distance_places para nombres).
  * origin_id y destination_id referencian distance_places desde la migración 20260313320004.
  */

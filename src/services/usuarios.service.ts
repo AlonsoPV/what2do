@@ -11,14 +11,15 @@ import type { Usuario } from '@/types'
 const TABLE = 'usuarios'
 
 export const usuariosService = {
-  async getByAuthId(authUserId: string) {
+  /** Perfil por auth user id; null si no hay fila (evita error HTTP de .single() con 0 filas). */
+  async getByAuthId(authUserId: string): Promise<Usuario | null> {
     const { data, error } = await supabase
       .from(TABLE)
       .select('*')
       .eq('user_id', authUserId)
-      .single()
+      .maybeSingle()
     if (error) throw error
-    return data as Usuario
+    return (data as Usuario) ?? null
   },
 
   async getById(id: string) {

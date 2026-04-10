@@ -21,6 +21,8 @@ import { useUpdateAccionEstado } from '../hooks/useAccionMutations'
 import { useCommentCounts } from '../hooks/useCommentCounts'
 import { isEnRetraso } from '../utils/accionUtils'
 import { CountdownTimer } from './CountdownTimer'
+import { AccionIdDisplay } from './AccionIdDisplay'
+import { EvidenciaCargadaIndicator } from './EvidenciaCargadaIndicator'
 import {
   AlertCircle,
   FileCheck,
@@ -44,6 +46,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { AccionChecklistProgressBadge } from './AccionChecklistProgress'
 
 const COLUMN_ORDER: ActionStatus[] = [
   'Pendiente',
@@ -139,6 +142,8 @@ export interface KanbanBoardProps {
   onNewAction?: () => void
   /** Cuando está definido, se muestra solo la columna de este estado (sincronizado con el filtro de la toolbar). */
   filterEstado?: ActionStatus
+  /** Progreso de checklist por acción (checkpoints activos). */
+  checklistProgressByAccionId?: Record<string, { total: number; completed: number }>
 }
 
 function KanbanCardInner({
@@ -150,6 +155,7 @@ function KanbanCardInner({
   dragHandleProps,
   onClick,
   onMoveEstado,
+  checklistProgress,
 }: {
   accion: AccionDiaria
   responsableName: string
@@ -159,6 +165,7 @@ function KanbanCardInner({
   dragHandleProps?: { attributes: object; listeners?: object }
   onClick?: () => void
   onMoveEstado?: (estado: ActionStatus) => void
+  checklistProgress?: { total: number; completed: number }
 }) {
   const priorityStyle = PRIORITY_STYLES[accion.prioridad] ?? PRIORITY_STYLES.P2_Media
   const displayStatus = isEnRetraso(accion) ? 'Retraso' : accion.estado
@@ -227,11 +234,9 @@ function KanbanCardInner({
           <p className="text-sm font-medium leading-snug text-foreground line-clamp-2" title={accion.descripcion_accion}>
             {accion.titulo_accion?.trim() || accion.descripcion_accion}
           </p>
-          {accion.evidencia_esperada && (
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {accion.evidencia_esperada}
-            </p>
-          )}
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            ID <AccionIdDisplay id={accion.id} className="inline align-baseline" />
+          </p>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3">
@@ -260,6 +265,13 @@ function KanbanCardInner({
             <AlertCircle className="h-3 w-3" />
           </span>
         )}
+        <EvidenciaCargadaIndicator cargada={accion.evidencia_cargada} />
+        {checklistProgress && checklistProgress.total > 0 && (
+          <AccionChecklistProgressBadge
+            completados={checklistProgress.completed}
+            total={checklistProgress.total}
+          />
+        )}
         {!accion.evidencia_cargada && (accion.estado === 'Hecho' || accion.estado === 'Verificado') && (
           <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-600" title="Sin evidencia">
             <FileCheck className="h-3 w-3" />
@@ -276,12 +288,14 @@ function KanbanCard({
   commentCount = 0,
   onSelectAccion,
   onMoveEstado,
+  checklistProgress,
 }: {
   accion: AccionDiaria
   responsableName: string
   commentCount?: number
   onSelectAccion?: (accion: AccionDiaria) => void
   onMoveEstado?: (accion: AccionDiaria, estado: ActionStatus) => void
+  checklistProgress?: { total: number; completed: number }
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: accion.id,
@@ -299,6 +313,7 @@ function KanbanCard({
         onMoveEstado={
           onMoveEstado ? (estado) => onMoveEstado(accion, estado) : undefined
         }
+        checklistProgress={checklistProgress}
       />
     </div>
   )
@@ -337,6 +352,7 @@ function KanbanColumn({
   onSelectAccion,
   onNewAction,
   onMoveEstado,
+  checklistProgressByAccionId = {},
 }: {
   status: ActionStatus
   actions: AccionDiaria[]
@@ -345,6 +361,7 @@ function KanbanColumn({
   onSelectAccion?: (accion: AccionDiaria) => void
   onNewAction?: () => void
   onMoveEstado?: (accion: AccionDiaria, estado: ActionStatus) => void
+  checklistProgressByAccionId?: Record<string, { total: number; completed: number }>
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const style = COLUMN_STYLES[status]
@@ -412,6 +429,7 @@ function KanbanColumn({
               commentCount={commentCounts[accion.id] ?? 0}
               onSelectAccion={onSelectAccion}
               onMoveEstado={onMoveEstado}
+              checklistProgress={checklistProgressByAccionId[accion.id]}
             />
           ))
         )}
@@ -454,6 +472,7 @@ export function KanbanBoard({
   onSelectAccion,
   onNewAction,
   filterEstado,
+  checklistProgressByAccionId = {},
 }: KanbanBoardProps) {
   const updateEstado = useUpdateAccionEstado()
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -508,10 +527,6 @@ export function KanbanBoard({
       if (!accion) return
       const currentDisplay = isEnRetraso(accion) ? 'Retraso' : accion.estado
       if (currentDisplay === newStatus) return
-      if (newStatus === 'Hecho' && !accion.evidencia_cargada) {
-        toast.error('No se puede marcar como Hecho sin evidencia cargada')
-        return
-      }
       updateEstado.mutate(
         { id: accion.id, estado: newStatus },
         {
@@ -525,10 +540,6 @@ export function KanbanBoard({
 
   const handleMoveEstado = useCallback(
     (accion: AccionDiaria, estado: ActionStatus) => {
-      if (estado === 'Hecho' && !accion.evidencia_cargada) {
-        toast.error('No se puede marcar como Hecho sin evidencia cargada')
-        return
-      }
       updateEstado.mutate(
         { id: accion.id, estado },
         {
@@ -567,6 +578,7 @@ export function KanbanBoard({
             onSelectAccion={onSelectAccion}
             onNewAction={onNewAction}
             onMoveEstado={handleMoveEstado}
+            checklistProgressByAccionId={checklistProgressByAccionId}
           />
         ))}
       </div>
@@ -578,6 +590,7 @@ export function KanbanBoard({
               responsableName={responsableNames[activeAccion.responsable] ?? activeAccion.responsable ?? '—'}
               commentCount={commentCounts[activeAccion.id] ?? 0}
               isOverlay
+              checklistProgress={checklistProgressByAccionId[activeAccion.id]}
             />
           </div>
         ) : null}

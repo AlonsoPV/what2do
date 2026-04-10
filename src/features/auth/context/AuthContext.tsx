@@ -1,34 +1,60 @@
 /**
  * Proveedor de autenticación.
  * Única fuente de verdad: sesión (Supabase), perfil (usuarios), usuario activo.
- * No hay timeouts ni cierre de sesión por lógica manual; solo por signOut explícito o SIGNED_OUT de Supabase.
+ *
+ * Reglas del bootstrap:
+ * - Siempre resolver a un estado final explícito: authenticated, signed_out, network_error,
+ *   no_profile o user_inactive.
+ * - Nunca dejar `isLoading` en true indefinidamente.
+ * - Coordinar listener + fallback sin carreras: si una ejecución vieja termina tarde, se ignora.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { authService } from '@/services/auth.service'
 import { usuariosService } from '@/services/usuarios.service'
-import type { AuthState } from '../types/auth.types'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
+import type { AuthState, LoadAuthResult } from '../types/auth.types'
+import { AuthStoreContext, type AuthStoreContextValue } from './auth-store-context'
+export { useAuth } from '../hooks/useAuth'
 
 const __DEV__ = import.meta.env.DEV
+const CURRENT_USER_QUERY_KEY = ['users', 'current'] as const
 
-interface AuthContextValue extends AuthState {
-  logout: () => Promise<void>
-  refetch: () => Promise<void>
+/**
+ * Límite de espera para resolver sesión con `getSession()` cuando no usamos el valor del listener.
+ */
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 20000
+/** Límite de espera para cargar perfil tras tener sesión válida. */
+const PROFILE_BOOTSTRAP_TIMEOUT_MS = 15000
+/** Si el listener inicial no llega, dispara un fallback controlado de bootstrap. */
+const INITIAL_AUTH_EVENT_FALLBACK_MS = 1500
+
+function devLog(message: string, payload?: unknown) {
+  if (!__DEV__) return
+  if (payload === undefined) {
+    console.log(`[auth] ${message}`)
+    return
+  }
+  console.log(`[auth] ${message}`, payload)
 }
 
-const AuthContext = createContext<AuthContextValue | null>(null)
+function devWarn(message: string, payload?: unknown) {
+  if (!__DEV__) return
+  if (payload === undefined) {
+    console.warn(`[auth] ${message}`)
+    return
+  }
+  console.warn(`[auth] ${message}`, payload)
+}
+
+function getCurrentUserQueryKey(authUserId: string) {
+  return [...CURRENT_USER_QUERY_KEY, authUserId] as const
+}
 
 /** Estado mientras se valida la sesión al montar (bootstrap). */
 const LOADING_STATE: AuthState = {
+  status: 'loading',
   session: null,
   user: null,
   profile: null,
@@ -40,6 +66,7 @@ const LOADING_STATE: AuthState = {
 
 /** Estado tras cierre de sesión (explícito o SIGNED_OUT). Persistencia: Supabase limpia; no mostrar loader. */
 const SIGNED_OUT_STATE: AuthState = {
+  status: 'signed_out',
   session: null,
   user: null,
   profile: null,
@@ -53,100 +80,237 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const [state, setState] = useState<AuthState>(LOADING_STATE)
   const initialCheckDoneRef = useRef(false)
+  const bootstrapRunIdRef = useRef(0)
 
-  const loadAuth = useCallback(async () => {
+  /**
+   * Flujo central de bootstrap/refetch.
+   * Siempre resuelve a un estado final, aunque falle la sesión, el perfil o el listener tarde.
+   */
+  const initializeAuth = useCallback(async (
+    authEvent?: AuthChangeEvent,
+    sessionFromListener?: Session | null
+  ): Promise<LoadAuthResult> => {
+    const runId = ++bootstrapRunIdRef.current
     const isInitial = !initialCheckDoneRef.current
-    if (isInitial) {
-      if (__DEV__) console.log('[Auth] Bootstrap: validando sesión…')
-      setState((s) => ({ ...s, isLoading: true, error: null }))
-    } else if (__DEV__) {
-      console.log('[Auth] Refrescando estado (listener)…')
-    }
+    const useListenerSession = sessionFromListener !== undefined
 
-    try {
-      const { data } = await authService.getSession()
-      const session = data?.session ?? null
-      const user = session?.user ?? null
+    let session: Session | null = null
+    let user: User | null = null
 
-      if (!session || !user) {
-        if (__DEV__) console.log('[Auth] Sesión inválida o inexistente')
-        initialCheckDoneRef.current = true
-        setState(SIGNED_OUT_STATE)
-        return
+    const buildResult = (nextState: AuthState): LoadAuthResult => ({
+      canEnterApp: nextState.status === 'authenticated',
+      status: nextState.status,
+      error: nextState.error,
+    })
+
+    const commitResolvedState = (nextState: AuthState, reason: string): LoadAuthResult => {
+      const result = buildResult(nextState)
+      if (runId !== bootstrapRunIdRef.current) {
+        devWarn('stale bootstrap result ignored', { runId, latestRunId: bootstrapRunIdRef.current, reason })
+        return result
       }
 
-      if (__DEV__) console.log('[Auth] Sesión válida, cargando perfil…')
-      let profile
+      initialCheckDoneRef.current = true
+
+      if (user?.id && nextState.profile) {
+        queryClient.setQueryData(getCurrentUserQueryKey(user.id), nextState.profile)
+      } else if (nextState.status === 'signed_out') {
+        queryClient.removeQueries({ queryKey: CURRENT_USER_QUERY_KEY })
+      } else if (user?.id) {
+        queryClient.removeQueries({ queryKey: getCurrentUserQueryKey(user.id), exact: true })
+      }
+
+      setState(nextState)
+      devLog('bootstrap resolved', {
+        reason,
+        status: nextState.status,
+        isAuthenticated: nextState.isAuthenticated,
+        isReady: nextState.isReady,
+        errorType: nextState.error?.type ?? null,
+      })
+      return result
+    }
+
+    const setBootstrapLoading = isInitial || authEvent === 'SIGNED_IN'
+    if (setBootstrapLoading) {
+      setState((s) => ({ ...s, isLoading: true, error: null, status: 'loading' }))
+    }
+
+    devLog('bootstrap start', {
+      runId,
+      authEvent: authEvent ?? 'manual',
+      useListenerSession,
+      isInitial,
+    })
+
+    try {
+      if (useListenerSession) {
+        session = sessionFromListener ?? null
+        user = session?.user ?? null
+        devLog('auth event', authEvent ?? 'listener')
+      } else {
+        devLog('loading session with getSession()')
+        try {
+          const res = await Promise.race([
+            authService.getSession(),
+            new Promise<never>((_, reject) => {
+              window.setTimeout(
+                () => reject(new Error('AUTH_SESSION_TIMEOUT')),
+                SESSION_BOOTSTRAP_TIMEOUT_MS
+              )
+            }),
+          ])
+          session = res.data?.session ?? null
+          user = session?.user ?? null
+        } catch (err) {
+          if (err instanceof Error && err.message === 'AUTH_SESSION_TIMEOUT') {
+            devWarn('session timeout')
+            return commitResolvedState(
+              {
+                status: 'network_error',
+                session: null,
+                user: null,
+                profile: null,
+                isLoading: false,
+                isAuthenticated: false,
+                isReady: true,
+                error: {
+                  type: 'network',
+                  message:
+                    'La comprobación tardó demasiado. Recarga la página. Si pasa a menudo, avisa a quien administra el sistema.',
+                },
+              },
+              'session_timeout'
+            )
+          }
+          throw err
+        }
+      }
+
+      if (!session || !user) {
+        devLog('no session')
+        return commitResolvedState(SIGNED_OUT_STATE, 'signed_out')
+      }
+
+      devLog('session found', { userId: user.id })
+      devLog('loading profile', { userId: user.id })
+
+      let profile: Awaited<ReturnType<typeof usuariosService.getByAuthId>>
       try {
-        profile = await usuariosService.getByAuthId(user.id)
-      } catch {
-        if (__DEV__) console.warn('[Auth] Error de perfil (no_profile), sesión se mantiene')
-        initialCheckDoneRef.current = true
-        setState({
-          session,
-          user,
-          profile: null,
-          isLoading: false,
-          isAuthenticated: true,
-          isReady: true,
-          error: {
-            type: 'no_profile',
-            message:
-              'No se encontró tu perfil en el sistema. Contacta al administrador.',
+        profile = await Promise.race([
+          usuariosService.getByAuthId(user.id),
+          new Promise<never>((_, reject) => {
+            window.setTimeout(
+              () => reject(new Error('AUTH_PROFILE_TIMEOUT')),
+              PROFILE_BOOTSTRAP_TIMEOUT_MS
+            )
+          }),
+        ])
+      } catch (err) {
+        devWarn('profile load error', err)
+        const message =
+          err instanceof Error && err.message === 'AUTH_PROFILE_TIMEOUT'
+            ? 'No pudimos cargar tu ficha del tablero a tiempo. Revisa tu conexión y vuelve a intentarlo.'
+            : 'No pudimos cargar tu ficha en el tablero. Revisa tu conexión y, si sigue igual, avisa a quien administra el sistema.'
+
+        return commitResolvedState(
+          {
+            status: 'network_error',
+            session,
+            user,
+            profile: null,
+            isLoading: false,
+            isAuthenticated: true,
+            isReady: false,
+            error: {
+              type: 'network',
+              message,
+            },
           },
-        })
-        return
+          'profile_network_error'
+        )
+      }
+
+      if (!profile) {
+        devWarn('no profile', { userId: user.id })
+        return commitResolvedState(
+          {
+            status: 'no_profile',
+            session,
+            user,
+            profile: null,
+            isLoading: false,
+            isAuthenticated: true,
+            isReady: false,
+            error: {
+              type: 'no_profile',
+              message:
+                'Tu acceso existe, pero aún no tienes ficha en el tablero: sin ella no podemos asignarte rol ni permisos. Pide a un administrador que te dé de alta en Usuarios o que revise tu correo.',
+            },
+          },
+          'no_profile'
+        )
       }
 
       if (!profile.activo) {
-        if (__DEV__) console.warn('[Auth] Usuario inactivo, sesión se mantiene')
-        initialCheckDoneRef.current = true
-        setState({
+        devWarn('inactive user', { userId: user.id })
+        return commitResolvedState(
+          {
+            status: 'user_inactive',
+            session,
+            user,
+            profile,
+            isLoading: false,
+            isAuthenticated: true,
+            isReady: false,
+            error: {
+              type: 'user_inactive',
+              message:
+                'Tu cuenta está desactivada: no puedes entrar al tablero hasta que un administrador la vuelva a activar.',
+            },
+          },
+          'user_inactive'
+        )
+      }
+
+      devLog('profile loaded', { userId: user.id, profileId: profile.id })
+      return commitResolvedState(
+        {
+          status: 'authenticated',
           session,
           user,
           profile,
           isLoading: false,
           isAuthenticated: true,
+          isReady: true,
+          error: null,
+        },
+        'authenticated'
+      )
+    } catch (err) {
+      devWarn('network error', err)
+      return commitResolvedState(
+        {
+          status: 'network_error',
+          session,
+          user,
+          profile: null,
+          isLoading: false,
+          isAuthenticated: Boolean(session && user),
           isReady: false,
           error: {
-            type: 'user_inactive',
-            message: 'Tu cuenta está desactivada. Contacta al administrador.',
+            type: 'network',
+            message:
+              'No pudimos comprobar la sesión. Revisa tu conexión y, si estás dentro de la app, pulsa Reintentar.',
           },
-        })
-        return
-      }
-
-      if (__DEV__) console.log('[Auth] Sesión y perfil OK')
-      initialCheckDoneRef.current = true
-      setState({
-        session,
-        user,
-        profile,
-        isLoading: false,
-        isAuthenticated: true,
-        isReady: true,
-        error: null,
-      })
-    } catch (err) {
-      if (__DEV__) console.warn('[Auth] Error al verificar (red/otro); no se invalida sesión:', err)
-      initialCheckDoneRef.current = true
-      setState({
-        session: null,
-        user: null,
-        profile: null,
-        isLoading: false,
-        isAuthenticated: false,
-        isReady: true,
-        error: {
-          type: 'network',
-          message: 'Error al verificar la sesión. Revisa la conexión y reintenta.',
         },
-      })
+        'unexpected_error'
+      )
     }
-  }, [])
+  }, [queryClient])
 
   const logout = useCallback(async () => {
-    if (__DEV__) console.log('[Auth] Logout manual')
+    devLog('logout manual')
     setState(SIGNED_OUT_STATE)
     try {
       await authService.signOut()
@@ -161,33 +325,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   useEffect(() => {
-    loadAuth()
-    const { data: { subscription } } = authService.onAuthStateChange((event) => {
-      if (__DEV__) console.log('[Auth] onAuthStateChange:', event)
-      if (event === 'SIGNED_OUT') {
-        setState(SIGNED_OUT_STATE)
-        return
-      }
-      loadAuth()
+    // El listener es la fuente principal del primer estado; si no llega, usamos fallback controlado.
+    const { data: { subscription } } = authService.onAuthStateChange(async (event, session) => {
+      await initializeAuth(event, session)
     })
+
+    // Fallback: si el evento inicial no llega, evita loader infinito.
+    const fallbackId = window.setTimeout(() => {
+      if (initialCheckDoneRef.current) return
+      devWarn('fallback bootstrap: initial auth event did not arrive, using getSession()')
+      void initializeAuth()
+    }, INITIAL_AUTH_EVENT_FALLBACK_MS)
+
     return () => {
+      window.clearTimeout(fallbackId)
       subscription.unsubscribe()
     }
-  }, [loadAuth])
+  }, [initializeAuth])
 
-  const value: AuthContextValue = {
+  const value: AuthStoreContextValue = {
     ...state,
     logout,
-    refetch: loadAuth,
+    refetch: (authEvent) => initializeAuth(authEvent),
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) {
-    throw new Error('useAuth debe usarse dentro de AuthProvider')
-  }
-  return ctx
+  return <AuthStoreContext.Provider value={value}>{children}</AuthStoreContext.Provider>
 }

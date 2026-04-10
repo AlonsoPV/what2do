@@ -30,14 +30,14 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
   })
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-2">
-        <Label htmlFor="login-email">Email</Label>
+        <Label htmlFor="login-email">Correo</Label>
         <Input
           id="login-email"
           type="email"
           autoComplete="email"
-          placeholder="tu@email.com"
+          placeholder="nombre@empresa.com"
           disabled={isLoading}
           {...form.register('email')}
           className={form.formState.errors.email ? 'border-destructive' : ''}
@@ -49,7 +49,15 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
         )}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="login-password">Contraseña</Label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Label htmlFor="login-password">Contraseña</Label>
+          <Link
+            to={ROUTES.FORGOT_PASSWORD}
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
         <Input
           id="login-password"
           type="password"
@@ -65,16 +73,8 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
           </p>
         )}
       </div>
-      <div className="flex justify-end">
-        <Link
-          to={ROUTES.FORGOT_PASSWORD}
-          className="text-sm text-muted-foreground hover:text-primary hover:underline"
-        >
-          ¿Olvidaste tu contraseña?
-        </Link>
-      </div>
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? 'Entrando…' : 'Entrar'}
+      <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+        {isLoading ? 'Iniciando sesión…' : 'Iniciar sesión'}
       </Button>
     </form>
   )

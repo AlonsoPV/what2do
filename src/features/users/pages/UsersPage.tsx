@@ -58,19 +58,19 @@ export function UsersPage() {
         { id: editingUser.id, input: values as UpdateUserInput },
         {
           onSuccess: () => {
-            toast.success('Usuario actualizado correctamente')
+            toast.success('Cambios guardados')
             setFormOpen(false)
             setEditingUser(null)
           },
           onError: (err) => {
-            toast.error(err instanceof Error ? err.message : 'Error al actualizar')
+            toast.error(err instanceof Error ? err.message : 'No pudimos guardar los cambios. Inténtalo de nuevo.')
           },
         }
       )
     } else {
       const email = typeof values.email === 'string' ? values.email.trim() : ''
       if (!email) {
-        toast.error('Indica un correo electrónico válido para enviar la invitación.')
+        toast.error('Indica un correo válido para enviar la invitación.')
         return
       }
       createUser.mutate(
@@ -84,12 +84,14 @@ export function UsersPage() {
         },
         {
           onSuccess: () => {
-            toast.success(`Invitación enviada a ${email}`)
+            toast.success(
+              `Invitación enviada a ${email}. Esa persona recibirá un correo para elegir contraseña y entrar.`
+            )
             setFormOpen(false)
             setEditingUser(null)
           },
           onError: (err) => {
-            toast.error(err instanceof Error ? err.message : 'Error al enviar la invitación')
+            toast.error(err instanceof Error ? err.message : 'No pudimos enviar la invitación. Inténtalo de nuevo.')
           },
         }
       )
@@ -106,12 +108,14 @@ export function UsersPage() {
       {
         onSuccess: () => {
           toast.success(
-            newActivo ? 'Usuario activado correctamente' : 'Usuario desactivado correctamente'
+            newActivo
+              ? 'Cuenta activada: ya puede entrar al tablero.'
+              : 'Cuenta desactivada: no podrá entrar hasta que la reactives.'
           )
           setConfirmToggle(null)
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Error al cambiar estatus')
+          toast.error(err instanceof Error ? err.message : 'No pudimos cambiar el estado. Inténtalo de nuevo.')
         },
       }
     )
@@ -121,9 +125,9 @@ export function UsersPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Administración de usuarios</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Usuarios</h2>
           <p className="text-muted-foreground">
-            Gestiona perfiles de usuario y envía invitaciones por correo.
+            Invita personas por correo y gestiona su ficha en el tablero.
           </p>
         </div>
         <Button onClick={handleCreate}>
@@ -140,7 +144,7 @@ export function UsersPage() {
 
       {isError && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-          {error instanceof Error ? error.message : 'Error al cargar usuarios'}
+          {error instanceof Error ? error.message : 'No pudimos cargar el listado. Revisa la conexión o inténtalo de nuevo.'}
         </div>
       )}
 
@@ -154,9 +158,11 @@ export function UsersPage() {
       <Dialog open={formOpen} onOpenChange={(open) => !open && setFormOpen(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingUser ? 'Editar usuario' : 'Invitar usuario'}</DialogTitle>
-            <DialogDescription className="sr-only">
-              {editingUser ? 'Formulario para editar el perfil del usuario.' : 'Formulario para enviar una invitación por correo y crear el perfil del usuario.'}
+            <DialogTitle>{editingUser ? 'Editar ficha' : 'Invitar a alguien nuevo'}</DialogTitle>
+            <DialogDescription className="text-left text-sm text-muted-foreground">
+              {editingUser
+                ? 'Los cambios aplican a su ficha en el tablero (rol, área y estado).'
+                : 'Con correo, nombre y rol basta. Creamos el acceso y enviamos un correo para que elija contraseña.'}
             </DialogDescription>
           </DialogHeader>
           <UserForm
@@ -184,12 +190,12 @@ export function UsersPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmToggle?.activo ? 'Desactivar usuario' : 'Activar usuario'}
+              {confirmToggle?.activo ? 'Desactivar cuenta' : 'Activar cuenta'}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmToggle?.activo
-                ? `¿Desactivar a ${confirmToggle.nombre}? El usuario no podrá acceder hasta que se reactive.`
-                : `¿Activar a ${confirmToggle?.nombre}?`}
+                ? `¿Desactivar a ${confirmToggle.nombre}? No podrá entrar al tablero hasta que reactives su cuenta.`
+                : `¿Activar a ${confirmToggle?.nombre}? Podrá volver a entrar con su correo y contraseña.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

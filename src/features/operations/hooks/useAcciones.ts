@@ -20,12 +20,16 @@ function filterQueryKey(filter: AccionesFilter): unknown[] {
       : Array.isArray(filter.prioridad)
         ? filter.prioridad.join(',')
         : filter.prioridad
+  const excluir =
+    filter.excluir_estados?.length ? filter.excluir_estados.join(',') : ''
   return [
     filter.fecha_creacion ?? '',
     filter.fecha ?? '',
     filter.fecha_min ?? '',
     filter.fecha_max ?? '',
+    filter.calendario_creadas_hasta ?? '',
     estado,
+    excluir,
     prioridad,
     filter.area ?? '',
     filter.responsable ?? '',
@@ -33,11 +37,15 @@ function filterQueryKey(filter: AccionesFilter): unknown[] {
   ]
 }
 
-export function useAcciones(filter: AccionesFilter = {}) {
+export function useAcciones(
+  filter: AccionesFilter = {},
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: [...KEY, filterQueryKey(filter)],
     queryFn: () => accionesService.list(filter),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   })
 }
 

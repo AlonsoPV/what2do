@@ -6,12 +6,13 @@
 import { useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAcciones } from '@/features/operations/hooks/useAcciones'
-import { firstDayOfMonth, lastDayOfMonth, monthName } from '@/lib/dateUtils'
+import { addCalendarDays, dateOnlyCDMX, monthName } from '@/lib/dateUtils'
 import type { AccionDiaria } from '@/types'
 import { cn } from '@/lib/utils'
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ROUTES } from '@/constants'
+import { AccionIdDisplay, EvidenciaCargadaIndicator } from '@/features/operations'
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
@@ -80,34 +81,56 @@ function getCalendarDays(year: number, month: number): { date: string; isCurrent
   return result.slice(0, totalCells)
 }
 
+/**
+ * Cada acción no verificada se muestra en todos los días desde su creación (CDMX) hasta el fin del rango visible,
+ * mientras siga activa (no viene en lista si ya está Verificado).
+ */
+function expandAccionesPorDiasVisibles(
+  acciones: AccionDiaria[],
+  gridFirstDate: string,
+  gridLastDate: string
+): Record<string, AccionDiaria[]> {
+  const map: Record<string, AccionDiaria[]> = {}
+  for (const a of acciones) {
+    if (a.estado === 'Verificado') continue
+    const created = dateOnlyCDMX(a.created_at)
+    const from = created > gridFirstDate ? created : gridFirstDate
+    if (from > gridLastDate) continue
+    let d = from
+    while (d <= gridLastDate) {
+      if (!map[d]) map[d] = []
+      map[d].push(a)
+      d = addCalendarDays(d, 1)
+    }
+  }
+  for (const key of Object.keys(map)) {
+    map[key].sort((x, y) => (x.hora_limite || '').localeCompare(y.hora_limite || ''))
+  }
+  return map
+}
+
 export function CalendarView({ responsableNames = {}, onSelectAccion }: CalendarViewProps) {
   const navigate = useNavigate()
   const [view, setView] = useState(currentYearMonth)
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
-  const monthStart = firstDayOfMonth(view.year, view.month)
-  const monthEnd = lastDayOfMonth(view.year, view.month)
-  const { data: acciones = [], isLoading } = useAcciones({
-    fecha_min: monthStart,
-    fecha_max: monthEnd,
-  })
-
-  const actionsByDate = useMemo(() => {
-    const map: Record<string, AccionDiaria[]> = {}
-    for (const a of acciones) {
-      if (!map[a.fecha]) map[a.fecha] = []
-      map[a.fecha].push(a)
-    }
-    for (const key of Object.keys(map)) {
-      map[key].sort((x, y) => (x.hora_limite || '').localeCompare(y.hora_limite || ''))
-    }
-    return map
-  }, [acciones])
-
   const calendarDays = useMemo(
     () => getCalendarDays(view.year, view.month),
     [view.year, view.month]
   )
+
+  const gridFirstDate = calendarDays[0]?.date ?? ''
+  const gridLastDate = calendarDays[calendarDays.length - 1]?.date ?? ''
+
+  const { data: acciones = [], isLoading } = useAcciones({
+    calendario_creadas_hasta: gridLastDate || undefined,
+    excluir_estados: ['Verificado'],
+  })
+
+  const actionsByDate = useMemo(() => {
+    if (!gridFirstDate || !gridLastDate) return {}
+    return expandAccionesPorDiasVisibles(acciones, gridFirstDate, gridLastDate)
+  }, [acciones, gridFirstDate, gridLastDate])
 
   const goPrev = useCallback(() => {
     setView((v) => {
@@ -228,8 +251,14 @@ export function CalendarView({ responsableNames = {}, onSelectAccion }: Calendar
                   className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-sm"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground" title={accion.descripcion_accion}>{accion.titulo_accion?.trim() || accion.descripcion_accion}</p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <p className="min-w-0 flex-1 truncate font-medium text-foreground" title={accion.descripcion_accion}>
+                        {accion.titulo_accion?.trim() || accion.descripcion_accion}
+                      </p>
+                      <EvidenciaCargadaIndicator cargada={accion.evidencia_cargada} className="shrink-0" />
+                    </div>
                     <p className="text-xs text-muted-foreground">
+                      ID <AccionIdDisplay id={accion.id} className="inline align-baseline" /> ·{' '}
                       {accion.hora_limite?.slice(0, 5) ?? '—'} · {responsableNames[accion.responsable] ?? accion.responsable ?? '—'} · {accion.estado}
                     </p>
                   </div>

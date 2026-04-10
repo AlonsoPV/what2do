@@ -4,11 +4,18 @@ import type { CatalogFilter } from '../types/catalogs.types'
 import type { CreateAreaInput, UpdateAreaInput } from '../types/catalogs.types'
 
 const KEY = ['catalogs', 'areas'] as const
+export const areasQueryKey = (filter: CatalogFilter = {}) => [...KEY, filter] as const
+
+export async function fetchAreas(filter: CatalogFilter = {}) {
+  return areasService.list(filter)
+}
 
 export function useAreas(filter: CatalogFilter = {}) {
   return useQuery({
-    queryKey: [...KEY, filter],
-    queryFn: () => areasService.list(filter),
+    queryKey: areasQueryKey(filter),
+    queryFn: () => fetchAreas(filter),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
   })
 }
 

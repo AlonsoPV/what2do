@@ -22,7 +22,7 @@ export function AuthLoader() {
           className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"
           aria-label="Cargando"
         />
-        <p className="text-sm text-muted-foreground">Verificando sesión…</p>
+        <p className="text-sm text-muted-foreground">Comprobando tu sesión…</p>
       </div>
     </div>
   )

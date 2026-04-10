@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DisciplinaAcademyRegistro } from './components/DisciplinaAcademyRegistro'
+import { DisciplinaAccionesCard } from './components/DisciplinaAccionesCard'
 
 const DISCIPLINA_INFO =
   'Métricas de tu desempeño operativo: porcentaje de acciones cerradas con evidencia, acciones en estado Hecho/Verificado sin evidencia cargada, racha de días con cumplimiento ≥90% y reincidencias. Se calculan a partir de las acciones asignadas a tu usuario en la fecha seleccionada.'
@@ -56,13 +58,13 @@ export function DisciplinaPage() {
           </div>
         </div>
         <p className="text-muted-foreground mt-0.5">
-          Cumplimiento, sin evidencia, racha en verde, reincidencias (spec §5.4)
+          Seguimiento de formación (Academia), acciones del día y métricas de cumplimiento (spec §5.4).
         </p>
       </div>
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-2">
-          <Label htmlFor="disciplina-fecha">Fecha</Label>
+          <Label htmlFor="disciplina-fecha">Fecha de referencia</Label>
           <Input
             id="disciplina-fecha"
             type="date"
@@ -72,21 +74,36 @@ export function DisciplinaPage() {
         </div>
       </div>
 
-      {!currentUser ? (
-        <div className="flex h-64 items-center justify-center rounded-lg border border-dashed bg-muted/30 text-muted-foreground">
-          Inicia sesión para ver tus métricas de disciplina.
+      <section className="space-y-3" aria-labelledby="disciplina-seguimiento-heading">
+        <h3 id="disciplina-seguimiento-heading" className="text-lg font-semibold tracking-tight">
+          Seguimiento: registro de Academia y acciones
+        </h3>
+        <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+          <DisciplinaAcademyRegistro />
+          <DisciplinaAccionesCard fecha={fecha} usuarioId={currentUser?.id} />
         </div>
-      ) : isError ? (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          No se pudieron cargar las métricas.
-        </div>
-      ) : isLoading ? (
-        <div className="flex h-48 items-center justify-center rounded-lg border border-dashed bg-muted/30">
-          <p className="text-sm text-muted-foreground">Cargando…</p>
-        </div>
-      ) : metrics ? (
-        <DisciplinaCard metrics={metrics} fechaLabel={fechaLabel} />
-      ) : null}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="disciplina-metricas-heading">
+        <h3 id="disciplina-metricas-heading" className="text-lg font-semibold tracking-tight">
+          Indicadores de disciplina
+        </h3>
+        {!currentUser ? (
+          <div className="flex h-64 items-center justify-center rounded-lg border border-dashed bg-muted/30 text-muted-foreground">
+            Inicia sesión para ver tus métricas de disciplina.
+          </div>
+        ) : isError ? (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            No se pudieron cargar las métricas.
+          </div>
+        ) : isLoading ? (
+          <div className="flex h-48 items-center justify-center rounded-lg border border-dashed bg-muted/30">
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          </div>
+        ) : metrics ? (
+          <DisciplinaCard metrics={metrics} fechaLabel={fechaLabel} />
+        ) : null}
+      </section>
     </div>
   )
 }

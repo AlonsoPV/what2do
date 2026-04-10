@@ -5,10 +5,12 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useAcciones,
   useAccion,
   useCommentCounts,
+  useChecklistProgressByAccionIds,
   KanbanBoard,
   KanbanHeader,
   KanbanToolbar,
@@ -18,6 +20,10 @@ import {
 } from '@/features/operations'
 import type { KanbanViewMode } from '@/features/operations'
 import { useUsers } from '@/features/users/hooks/useUsers'
+import {
+  dropdownOptionsByCatalogKeyQueryKey,
+  fetchDropdownOptionsByCatalogKey,
+} from '@/features/catalogs/hooks/useDropdownOptions'
 import type { AccionDiaria } from '@/types'
 import type { AccionesFilter } from '@/services/acciones.service'
 import { todayCDMX } from '@/lib/dateUtils'
@@ -25,7 +31,19 @@ import { todayCDMX } from '@/lib/dateUtils'
 const DEFAULT_FILTER: AccionesFilter = {}
 
 export function KanbanPage() {
+  const qc = useQueryClient()
   const today = todayCDMX()
+  const prefetchEvidenceCatalog = useCallback(async () => {
+    await qc.prefetchQuery({
+      queryKey: dropdownOptionsByCatalogKeyQueryKey('evidencia_esperada'),
+      queryFn: () => fetchDropdownOptionsByCatalogKey('evidencia_esperada'),
+    })
+  }, [qc])
+
+  useEffect(() => {
+    void prefetchEvidenceCatalog()
+  }, [prefetchEvidenceCatalog])
+
   const [filter, setFilter] = useState<AccionesFilter>(() => ({
     ...DEFAULT_FILTER,
     fecha_creacion: today,
@@ -33,6 +51,8 @@ export function KanbanPage() {
   const [filtersExpanded, setFiltersExpanded] = useState(true)
   const [viewMode, setViewMode] = useState<KanbanViewMode>('kanban')
   const { data: acciones = [], isLoading } = useAcciones(filter)
+  const accionIds = useMemo(() => acciones.map((a) => a.id), [acciones])
+  const { data: checklistProgressByAccionId = {} } = useChecklistProgressByAccionIds(accionIds)
   const { data: commentCounts = {} } = useCommentCounts(acciones.map((a) => a.id))
   const { data: users = [] } = useUsers({ activo: true })
   const [editingAccion, setEditingAccion] = useState<AccionDiaria | null>(null)
@@ -97,14 +117,16 @@ export function KanbanPage() {
   }, [acciones])
 
   const handleSelectAccion = useCallback((accion: AccionDiaria) => {
+    void prefetchEvidenceCatalog()
     setEditingAccion(accion)
     setDialogOpen(true)
-  }, [])
+  }, [prefetchEvidenceCatalog])
 
   const handleNewAction = useCallback(() => {
+    void prefetchEvidenceCatalog()
     setEditingAccion(null)
     setDialogOpen(true)
-  }, [])
+  }, [prefetchEvidenceCatalog])
 
   const handleDialogClose = useCallback(() => {
     setEditingAccion(null)
@@ -149,6 +171,7 @@ export function KanbanPage() {
             acciones={acciones}
             isLoading={isLoading}
             responsableNames={responsableNames}
+            checklistProgressByAccionId={checklistProgressByAccionId}
             onSelectAccion={handleSelectAccion}
             onNewAction={handleNewAction}
             filterEstado={
@@ -174,6 +197,7 @@ export function KanbanPage() {
               commentCounts={commentCounts}
               onSelectAccion={handleSelectAccion}
               responsableNames={responsableNames}
+              checklistProgressByAccionId={checklistProgressByAccionId}
             />
           </div>
         )}
