@@ -19,6 +19,7 @@ import { ACTION_STATUS } from '@/types'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import { useAreas } from '@/features/catalogs/hooks/useAreas'
 import { Search, X } from 'lucide-react'
+import { todayWallClockCDMX } from '@/lib/dateUtils'
 
 const ESTADO_OPTIONS = [
   { value: 'all', label: 'Todos' },
@@ -45,10 +46,14 @@ export function AccionesFilterBar({
 }: AccionesFilterBarProps) {
   const { data: users = [] } = useUsers({ activo: true })
   const { data: areas = [] } = useAreas({ activo: true })
+  const todayYmd = todayWallClockCDMX()
+  const fechaEffective = filter.fecha_creacion ?? todayYmd
+  const fechaDiffersFromToday =
+    filter.fecha_creacion != null && filter.fecha_creacion !== todayYmd
 
   const hasFilters =
     (filter.search != null && filter.search !== '') ||
-    filter.fecha_creacion != null ||
+    fechaDiffersFromToday ||
     filter.estado != null ||
     filter.prioridad != null ||
     (filter.area != null && filter.area !== '') ||
@@ -61,10 +66,14 @@ export function AccionesFilterBar({
         <Input
           id="acciones-fecha"
           type="date"
-          value={filter.fecha_creacion ?? ''}
+          value={fechaEffective}
           onChange={(e) =>
-            onFilterChange({ ...filter, fecha_creacion: e.target.value || undefined })
+            onFilterChange({
+              ...filter,
+              fecha_creacion: e.target.value ? e.target.value : todayYmd,
+            })
           }
+          title="Visible hasta (por defecto: hoy, zona Ciudad de México)"
         />
       </div>
       <div className="min-w-[180px] flex-1 space-y-2">

@@ -34,8 +34,8 @@ import { DashboardActionsSection } from './components/DashboardActionsSection'
 import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
 import { InfoHint } from '@/components/InfoHint'
 import { Button } from '@/components/ui/button'
-import { Activity, ChevronRight, LineChart, Target } from 'lucide-react'
-import { todayCDMX } from '@/lib/dateUtils'
+import { Activity, ChevronRight, Target } from 'lucide-react'
+import { todayWallClockCDMX } from '@/lib/dateUtils'
 import { ROUTES } from '@/constants'
 
 const DEFAULT_FILTER: AccionesFilter = {}
@@ -60,7 +60,7 @@ function ImpactTableSkeleton() {
 
 export function DashboardPage() {
   const qc = useQueryClient()
-  const today = todayCDMX()
+  const today = todayWallClockCDMX()
   const prefetchEvidenceCatalog = useCallback(async () => {
     await qc.prefetchQuery({
       queryKey: dropdownOptionsByCatalogKeyQueryKey('evidencia_esperada'),
@@ -76,11 +76,18 @@ export function DashboardPage() {
     ...DEFAULT_FILTER,
     fecha_creacion: today,
   }))
-  const [filtersExpanded, setFiltersExpanded] = useState(true)
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccion, setEditingAccion] = useState<AccionDiaria | null>(null)
 
-  const { data: acciones = [], isLoading } = useAcciones(filter)
+  const filterForQuery = useMemo(() => {
+    const f: AccionesFilter = { ...filter }
+    if (f.fecha_creacion === '' || f.fecha_creacion == null) {
+      delete f.fecha_creacion
+    }
+    return f
+  }, [filter])
+  const { data: acciones = [], isLoading } = useAcciones(filterForQuery)
   const accionIds = useMemo(() => acciones.map((a) => a.id), [acciones])
   const { data: commentCounts = {} } = useCommentCounts(accionIds)
   const { data: checklistProgressByAccionId = {} } = useChecklistProgressByAccionIds(accionIds)
@@ -124,9 +131,29 @@ export function DashboardPage() {
     [impactRows]
   )
 
+  const advancedFiltersActive = Boolean(
+    filter.estado != null ||
+      filter.prioridad != null ||
+      (filter.area != null && filter.area !== '') ||
+      filter.responsable != null
+  )
+
   const handleFilterChange = useCallback((next: AccionesFilter | Partial<AccionesFilter>) => {
-    setFilter((prev) => ({ ...prev, ...next }))
-  }, [])
+    setFilter((prev) => {
+      const merged: AccionesFilter = { ...prev, ...next }
+      if (Object.prototype.hasOwnProperty.call(next, 'fecha_creacion')) {
+        const f = next.fecha_creacion
+        if (f === undefined || f === null || f === '') {
+          delete merged.fecha_creacion
+        } else if (typeof f === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f)) {
+          merged.fecha_creacion = f
+        } else {
+          merged.fecha_creacion = today
+        }
+      }
+      return merged
+    })
+  }, [today])
 
   const handleClearFilters = useCallback(() => {
     setFilter({ ...DEFAULT_FILTER, fecha_creacion: today })
@@ -150,50 +177,51 @@ export function DashboardPage() {
 
   return (
     <div id="dashboard-page" className="dashboard-page min-h-0">
-      <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:px-6">
-        <DashboardHeader
-          filtersExpanded={filtersExpanded}
-          onToggleFilters={() => setFiltersExpanded((v) => !v)}
-          onNewAction={handleCreate}
-        />
-
-        <div id="dashboard-toolbar" className="dashboard-toolbar-wrapper -mt-2 sm:-mt-1">
-          <KanbanToolbar
-            filter={filter}
-            onFilterChange={handleFilterChange}
-            onClear={handleClearFilters}
-            visible={filtersExpanded}
+      <div className="mx-auto w-full max-w-7xl space-y-6 overflow-x-hidden px-3 py-5 sm:space-y-8 sm:px-6 sm:py-6">
+        <section
+          className="dashboard-control-center space-y-5 rounded-2xl border border-border/50 bg-card/30 p-4 shadow-sm ring-1 ring-black/5 dark:bg-card/20 dark:ring-white/10 sm:p-6"
+          aria-labelledby="dashboard-title"
+        >
+          <DashboardHeader
+            filtersExpanded={filtersExpanded}
+            advancedFiltersActive={advancedFiltersActive}
+            onToggleFilters={() => setFiltersExpanded((v) => !v)}
+            onNewAction={handleCreate}
           />
-        </div>
+
+          <div
+            id="dashboard-toolbar"
+            className="dashboard-toolbar-wrapper sticky top-0 z-30 -mx-4 -mt-1 border-y border-border/40 bg-background/88 px-4 py-3 shadow-[0_6px_16px_-8px_rgba(0,0,0,0.1)] backdrop-blur-md sm:-mx-6 sm:px-6 dark:bg-background/85 dark:shadow-[0_6px_16px_-8px_rgba(0,0,0,0.38)]"
+          >
+            <KanbanToolbar
+              filter={filter}
+              onFilterChange={handleFilterChange}
+              onClear={handleClearFilters}
+              layout="dashboard"
+              advancedExpanded={filtersExpanded}
+            />
+          </div>
+        </section>
 
         <section
           id="dashboard-section-o2c-global"
           data-section="portfolio-health"
           className="scroll-mt-4"
         >
-          <SectionCard>
-            <SectionCardHeader
-              icon={LineChart}
-              title="Salud global del portafolio"
-              subtitle="Score y semáforo según el documento KPIs (metas por mes de programa)."
+          {o2cScoreLoading ? (
+            <div
+              className="flex min-h-[200px] items-center justify-center rounded-xl border border-dashed border-border/50 bg-muted/10 px-4 py-8"
+              aria-busy="true"
+            >
+              <p className="text-sm text-muted-foreground">Cargando score global…</p>
+            </div>
+          ) : (
+            <GlobalScoreMdSpecPanel
+              programMonthIndex={programMonthIndex}
+              programStartConfigured={programStartConfigured}
+              md={mdSpec}
             />
-            <SectionCardBody>
-              {o2cScoreLoading ? (
-                <div
-                  className="flex min-h-[200px] items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 px-4 py-8"
-                  aria-busy="true"
-                >
-                  <p className="text-sm text-muted-foreground">Cargando salud del portafolio…</p>
-                </div>
-              ) : (
-                <GlobalScoreMdSpecPanel
-                  programMonthIndex={programMonthIndex}
-                  programStartConfigured={programStartConfigured}
-                  md={mdSpec}
-                />
-              )}
-            </SectionCardBody>
-          </SectionCard>
+          )}
         </section>
 
         <section id="dashboard-section-semaforo" className="dashboard-section-semaforo scroll-mt-4">
@@ -205,19 +233,10 @@ export function DashboardPage() {
               subtitle="Cumplimiento, estado y vínculos con acciones por indicador O2C."
             />
             <SectionCardBody className="dashboard-semaforo-content">
-              {o2cScoreLoading ? (
-                <div
-                  className="flex min-h-[160px] items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 px-4 py-8"
-                  aria-busy="true"
-                >
-                  <p className="text-sm text-muted-foreground">Cargando portafolio KPI…</p>
-                </div>
-              ) : (
-                <CatalogKpiSemaforoGrid
-                  metricItems={o2cPortfolioMetricItems}
-                  isLoading={o2cScoreLoading}
-                />
-              )}
+              <CatalogKpiSemaforoGrid
+                metricItems={o2cPortfolioMetricItems}
+                isLoading={o2cScoreLoading}
+              />
             </SectionCardBody>
           </SectionCard>
         </section>
@@ -230,7 +249,7 @@ export function DashboardPage() {
               subtitle="Avance del portafolio de brechas vinculadas al tablero."
             />
             <SectionCardBody>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
                 <ChainStatCard
                   label="Avance global"
                   value={`${Math.round(chainSummary.avanceGlobal * 100)}%`}
@@ -271,7 +290,7 @@ export function DashboardPage() {
               title="Mayor impacto pendiente"
               subtitle="Ordenadas por impacto; alinea ejecución con el tablero O2C."
               action={
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
                   <InfoHint text="Las cinco acciones abiertas con mayor aporte estimado según peso del KPI y story points del gap. Completarlas desbloquea avance en gap y KPI." />
                   <Button variant="outline" size="sm" className="border-border/60 bg-background/80" asChild>
                     <Link to={ROUTES.DASHBOARD_IMPACTO} className="gap-1">
@@ -314,13 +333,22 @@ export function DashboardPage() {
                           key={row.accionId}
                           className="border-b border-border/35 transition-colors last:border-0 hover:bg-muted/20"
                         >
-                          <td className="py-3 pr-4 align-top font-medium leading-snug">{row.titulo}</td>
+                          <td className="py-3 pr-4 align-top">
+                            <span className="block max-w-[180px] truncate font-medium leading-snug sm:max-w-none">
+                              {row.titulo}
+                            </span>
+                          </td>
                           <td className="py-3 pr-4 align-top text-muted-foreground">{row.gapNombre ?? '—'}</td>
                           <td className="py-3 pr-3 align-top text-right tabular-nums text-muted-foreground">
                             {row.storyPoints ?? '—'}
                           </td>
-                          <td className="py-3 align-top text-right tabular-nums font-semibold text-primary">
-                            {row.impactoPct != null ? `${(row.impactoPct * 100).toFixed(1)}%` : '—'}
+                          <td className="py-3 align-top text-right">
+                            <span className="font-semibold tabular-nums text-primary">
+                              {row.impactoPct != null ? (row.impactoPct * 100).toFixed(1) : '—'}
+                            </span>
+                            {row.impactoPct != null ? (
+                              <span className="text-xs text-muted-foreground">%</span>
+                            ) : null}
                           </td>
                         </tr>
                       ))}
@@ -328,19 +356,6 @@ export function DashboardPage() {
                   </table>
                 </div>
               )}
-            </SectionCardBody>
-          </SectionCard>
-        </section>
-
-        <section id="dashboard-section-metrics" className="dashboard-section-metrics scroll-mt-4">
-          <SectionCard>
-            <SectionCardHeader
-              eyebrow="Pulso operativo"
-              title="Acciones según filtros"
-              subtitle="Totales del día seleccionado y eficiencia (completadas / total)."
-            />
-            <SectionCardBody>
-              <DashboardKpiCards metricas={metricas} isLoading={isLoading} />
             </SectionCardBody>
           </SectionCard>
         </section>
@@ -354,8 +369,25 @@ export function DashboardPage() {
             checklistProgressByAccionId={checklistProgressByAccionId}
             onSelectAccion={handleSelectAccion}
             onNewAction={handleCreate}
+            fechaResumen={filter.fecha_creacion ?? today}
           />
         </div>
+
+        <section
+          id="dashboard-section-metrics"
+          className="dashboard-section-metrics scroll-mt-4 border-t border-border/40 pt-8"
+        >
+          <SectionCard>
+            <SectionCardHeader
+              eyebrow="Pulso operativo"
+              title="Resumen de acciones"
+              subtitle="Totales según filtros activos."
+            />
+            <SectionCardBody>
+              <DashboardKpiCards metricas={metricas} isLoading={isLoading} />
+            </SectionCardBody>
+          </SectionCard>
+        </section>
       </div>
 
       <AccionFormDialog

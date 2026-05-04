@@ -14,7 +14,6 @@ import { getAppNow } from '@/lib/clock'
 import { InfoHint } from '@/components/InfoHint'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import {
   Select,
   SelectContent,
@@ -26,6 +25,7 @@ import { useKpisDashboardData, useGlobalScoreEvolution, useGapKpiLinks } from '.
 import {
   getGapWeights,
   KPI_COMPLIANCE_CRITICAL_MAX,
+  calculateGlobalScoreFromMetrics,
   resolveEffectiveStatusThresholds,
   resolveTarget,
   isLiteralMetaCumplida,
@@ -33,12 +33,16 @@ import {
   type KpiComplianceStatus,
   type TargetHorizon,
 } from '../utils/kpiCalculations'
+import { deriveMdSpecPortfolio } from '../utils/kpiMdSpecCalculations'
 import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
-import { GlobalScoreMdSpecPanel } from '../components/GlobalScoreMdSpecPanel'
+import { PortfolioHealthExecutiveSection } from '../components/PortfolioHealthExecutiveSection'
+import type { GlobalScoreChartRange } from '../utils/globalScoreEvolution'
 import { KpiSortButton, type SortDir, type SortKey } from '../components/KpiSortButton'
 import type { CatalogKpi } from '@/features/catalogs/types/catalogs.types'
 import { KpiMeasurementDialog } from '../components/KpiMeasurementDialog'
 import { KpiCard, type KpiCardViewModel } from '../components/KpiCard'
+import { KpiFilteredSemaforoStrip } from '../components/KpiFilteredSemaforoStrip'
+import { KpiGapLinkedProgressSection, type KpiGapProgressRow } from '../components/KpiGapLinkedProgressSection'
 import { buildKpiDashboardCsv, downloadKpiDashboardCsv } from '../utils/exportKpiDashboardCsv'
 import { lastMeasurementValuesForSparkline } from '../utils/kpiSparklineData'
 
@@ -58,7 +62,8 @@ function horizonShortLabel(h: TargetHorizon): string {
 
 export function KpisDashboardPage() {
   const [targetHorizon, setTargetHorizon] = useState<TargetHorizon>(DEFAULT_O2C_TARGET_HORIZON)
-  const scoreEvolution = useGlobalScoreEvolution({ targetHorizon })
+  const [scoreChartRange, setScoreChartRange] = useState<GlobalScoreChartRange>('90d')
+  const scoreEvolution = useGlobalScoreEvolution({ targetHorizon, chartRange: scoreChartRange })
 
   const {
     recentById,
@@ -68,6 +73,7 @@ export function KpisDashboardPage() {
     gapsLoading,
     userById,
     enriched,
+    metricItems,
   } = useKpisDashboardData(targetHorizon)
   const { links, isLoading: gapLinksLoading } = useGapKpiLinks()
 
@@ -158,6 +164,26 @@ export function KpisDashboardPage() {
     })
   }, [enriched, kpiFilter, areaFilter, categoryFilter, ownerFilter, statusFilter])
 
+  const filteredSummary = useMemo(() => {
+    let on_track = 0
+    let at_risk = 0
+    let off_track = 0
+    let sin_datos = 0
+    for (const e of filtered) {
+      if (e.compliance === null) sin_datos += 1
+      else if (e.status === 'on_track') on_track += 1
+      else if (e.status === 'at_risk') at_risk += 1
+      else if (e.status === 'off_track') off_track += 1
+    }
+    return {
+      total: filtered.length,
+      on_track,
+      at_risk,
+      off_track,
+      sin_datos,
+    }
+  }, [filtered])
+
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     const list = [...filtered]
@@ -213,6 +239,7 @@ export function KpisDashboardPage() {
         eff != null && Number.isFinite(eff)
           ? `Meta (${horizonShortLabel(pipelineHorizon)}): ${eff.toFixed(2)} · ${thStr}`
           : thStr
+      const activeBrechasCount = links.filter((l) => l.kpiId === e.row.id && l.estado !== 'cerrado').length
       return {
         row: e.row,
         gapLabel,
@@ -230,26 +257,72 @@ export function KpisDashboardPage() {
         unit: e.row.unidad ?? null,
         sparklineValues: lastMeasurementValuesForSparkline(recentById.get(e.row.id)),
         literalMetaCumplida: isLiteralMetaCumplida(e.metric, { targetHorizon: pipelineHorizon }),
+        kpiShortCode: `KPI-${String(e.row.orden).padStart(2, '0')}`,
+        activeBrechasCount,
+        targetHorizonShort: horizonShortLabel(pipelineHorizon),
       }
     })
-  }, [sorted, userById, pipelineHorizon, recentById])
+  }, [sorted, userById, pipelineHorizon, recentById, links])
 
-  const kpiGapProgress = useMemo(() => {
-    return filtered
-      .map((e) => {
-        const link = links.find((item) => item.gapId === e.row.gap_id)
-        return {
-          kpiId: e.row.id,
-          kpiNombre: e.row.nombre,
-          gapNombre: link?.gapNombre ?? null,
-          avancePct: link?.avancePct ?? null,
-          estado: link?.estado ?? null,
-          puntosCompletados: link?.puntosCompletados ?? 0,
-          totalPuntosGap: link?.totalPuntosGap ?? 0,
-        }
+  const kpiGroups = useMemo(() => {
+    const criticos: KpiCardViewModel[] = []
+    const riesgo: KpiCardViewModel[] = []
+    const correctos: KpiCardViewModel[] = []
+    const sinDatos: KpiCardViewModel[] = []
+    for (const vm of viewModels) {
+      if (vm.noData) sinDatos.push(vm)
+      else if (vm.status === 'off_track') criticos.push(vm)
+      else if (vm.status === 'at_risk') riesgo.push(vm)
+      else if (vm.status === 'on_track') correctos.push(vm)
+    }
+    return { criticos, riesgo, correctos, sinDatos }
+  }, [viewModels])
+
+  const filteredIds = useMemo(() => new Set(filtered.map((e) => e.row.id)), [filtered])
+
+  const filteredMetricItems = useMemo(
+    () => metricItems.filter((m) => filteredIds.has(m.row.id)),
+    [metricItems, filteredIds]
+  )
+
+  const filteredGlobalScore = useMemo(
+    () => calculateGlobalScoreFromMetrics(filtered.map((e) => ({ metric: e.metric })), { targetHorizon: pipelineHorizon }),
+    [filtered, pipelineHorizon]
+  )
+
+  const filteredMdSpec = useMemo(
+    () =>
+      deriveMdSpecPortfolio(filteredMetricItems, scoreEvolution.programMonthIndex, {
+        o2cAlignedSemaphores: { targetHorizon: pipelineHorizon },
+      }),
+    [filteredMetricItems, scoreEvolution.programMonthIndex, pipelineHorizon]
+  )
+
+  const linkByGapId = useMemo(() => new Map(links.map((l) => [l.gapId, l])), [links])
+
+  const kpiGapProgress = useMemo((): KpiGapProgressRow[] => {
+    const out: KpiGapProgressRow[] = []
+    for (const e of filtered) {
+      const gid = e.row.gap_id
+      if (!gid) continue
+      const link = linkByGapId.get(gid)
+      if (!link?.gapNombre) continue
+      const kpiCode = `KPI-${String(e.row.orden).padStart(2, '0')}`
+      out.push({
+        kpiId: e.row.id,
+        orden: e.row.orden,
+        kpiLabel: `${kpiCode} — ${e.row.nombre}`,
+        gapId: gid,
+        gapLabel: link.gapNombre,
+        avancePct: link.avancePct ?? null,
+        estado: link.estado ?? null,
+        puntosCompletados: link.puntosCompletados ?? 0,
+        totalPuntosGap: link.totalPuntosGap ?? 0,
       })
-      .filter((item) => item.gapNombre !== null)
-  }, [filtered, links])
+    }
+    out.sort((a, b) => a.orden - b.orden || a.kpiLabel.localeCompare(b.kpiLabel, 'es'))
+    return out
+  }, [filtered, linkByGapId])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -282,19 +355,18 @@ export function KpisDashboardPage() {
   return (
     <div
       data-page="kpi-dashboard"
-      className="kpi-dashboard mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:px-6"
+      className="kpi-dashboard mx-auto w-full max-w-7xl space-y-8 overflow-x-hidden px-4 py-6 sm:px-6"
     >
       <header className="space-y-1">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Catálogo O2C</p>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight text-foreground">KPIs O2C</h1>
               <InfoHint text="Pantalla ejecutiva para seguimiento de cumplimiento KPI por catálogo O2C, con score global, semáforo y detalle por indicador." />
             </div>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Cumplimiento ponderado por mediciones de catálogo (última medición; coincide con valor actual al
-              registrar). Las acciones no actualizan el KPI por medición; solo reflejan avance en gaps.
+              Vista ejecutiva: salud del portafolio, semáforo y detalle por indicador.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 rounded-lg border border-border/60 bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">
@@ -315,64 +387,41 @@ export function KpisDashboardPage() {
         </div>
       )}
 
-      <section data-section="portfolio-health" className="scroll-mt-4">
-        <SectionCard>
-          <SectionCardHeader
-            title="Salud global del portafolio"
-            subtitle="Score ponderado O2C y metodología del documento KPIs."
-            action={
-              <InfoHint text="Muestra el score global con la metodología del documento KPIs y su semáforo agregado." />
-            }
-          />
-          <SectionCardBody className="space-y-4">
-            <div>
-              <p className="text-4xl font-semibold tabular-nums text-foreground">
-                {scoreEvolution.globalScore != null ? `${Math.round(scoreEvolution.globalScore * 100)}` : '—'}
-                <span className="ml-1 text-xl text-muted-foreground">%</span>
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">Score global ponderado O2C</p>
-            </div>
-            <div className="kpi-dashboard__md-score">
-              <GlobalScoreMdSpecPanel
-                programMonthIndex={scoreEvolution.programMonthIndex}
-                programStartConfigured={scoreEvolution.programStartConfigured}
-                md={scoreEvolution.mdSpec}
-              />
-            </div>
-            {criticalKpiCount > 0 ? (
-              <div
-                data-section="critical-alert"
-                className="kpi-dashboard__critical-alert rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                role="status"
-              >
-                <span className="font-medium">Atención: </span>
-                {criticalKpiCount} indicador(es) con cumplimiento inferior al 30% en la vista actual. Conviene
-                revisar plan de acción o mediciones.
+      <div className="kpi-dashboard__portfolio-block space-y-4">
+        <PortfolioHealthExecutiveSection
+          horizonLabel={horizonShortLabel(pipelineHorizon)}
+          filteredSummary={filteredSummary}
+          filteredGlobalScore={filteredGlobalScore}
+          mdGlobalScorePoints={filteredMdSpec.mdGlobalScorePoints}
+          criticalKpiCount={criticalKpiCount}
+          isLoading={portfolioLoading || gapsLoading}
+          chartSeries={scoreEvolution.chartSeries}
+          chartRange={scoreChartRange}
+          onChartRangeChange={setScoreChartRange}
+          snapshotsLoading={scoreEvolution.snapshotsLoading}
+          snapshotsError={scoreEvolution.snapshotsError}
+        />
+        {gapWeightRows.length > 0 ? (
+          <details className="kpi-dashboard__gap-weights rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+            <summary className="kpi-dashboard__gap-weights-summary cursor-pointer list-none font-medium text-foreground">
+              Ver distribución de pesos por gap
+            </summary>
+            <div className="kpi-dashboard__gap-weights-body mt-2 space-y-2" role="note">
+              <div className="kpi-dashboard__gap-weights-head flex items-center gap-2">
+                <p className="font-medium text-foreground">Peso acumulado por gap (referencia)</p>
+                <InfoHint text="Referencia analítica para distribución de pesos por gap. No se exige suma de 1 por gap; la validación obligatoria es global del portafolio." />
               </div>
-            ) : null}
-            {gapWeightRows.length > 0 && (
-              <details className="kpi-dashboard__gap-weights rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                <summary className="kpi-dashboard__gap-weights-summary cursor-pointer list-none font-medium text-foreground">
-                  Ver distribución de pesos por gap
-                </summary>
-                <div className="kpi-dashboard__gap-weights-body mt-2 space-y-2" role="note">
-                  <div className="kpi-dashboard__gap-weights-head flex items-center gap-2">
-                    <p className="font-medium text-foreground">Peso acumulado por gap (referencia)</p>
-                    <InfoHint text="Referencia analítica para distribución de pesos por gap. No se exige suma de 1 por gap; la validación obligatoria es global del portafolio." />
-                  </div>
-                  <ul className="kpi-dashboard__gap-weights-list list-inside list-disc space-y-0.5">
-                    {gapWeightRows.map((g) => (
-                      <li key={g.gapId} className="kpi-dashboard__gap-weights-item" data-gap-id={g.gapId}>
-                        "{g.label}": {g.sum.toFixed(4)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </details>
-            )}
-          </SectionCardBody>
-        </SectionCard>
-      </section>
+              <ul className="kpi-dashboard__gap-weights-list list-inside list-disc space-y-0.5">
+                {gapWeightRows.map((g) => (
+                  <li key={g.gapId} className="kpi-dashboard__gap-weights-item" data-gap-id={g.gapId}>
+                    "{g.label}": {g.sum.toFixed(4)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
+        ) : null}
+      </div>
 
       <section data-section="filters" className="scroll-mt-4" aria-labelledby="kpi-filters-title">
         <SectionCard>
@@ -380,7 +429,7 @@ export function KpisDashboardPage() {
             icon={Filter}
             titleId="kpi-filters-title"
             title="Filtros y orden"
-            subtitle="Afectan el listado de KPIs y el orden del detalle visible."
+            subtitle="Refinan la lista inferior; el semáforo arriba refleja solo lo visible."
             action={
               <div className="flex flex-wrap items-center gap-2">
                 <InfoHint text="Los filtros afectan el listado de KPIs y sus tarjetas. El orden aplica al detalle visible." />
@@ -415,8 +464,9 @@ export function KpisDashboardPage() {
               </div>
             }
           />
-          <SectionCardBody className="space-y-4">
-        <div className="kpi-dashboard__filters-grid grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <SectionCardBody className="space-y-5">
+            <KpiFilteredSemaforoStrip summary={filteredSummary} />
+            <div className="kpi-dashboard__filters-grid grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <div className="kpi-dashboard__filter-field kpi-dashboard__filter-field--kpi space-y-2">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="kpi-filter-kpi">KPI</Label>
@@ -439,7 +489,7 @@ export function KpisDashboardPage() {
           <div className="kpi-dashboard__filter-field kpi-dashboard__filter-field--horizon space-y-2">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="kpi-horizon">Horizonte de meta</Label>
-              <InfoHint text="Define qué meta numérica usa el motor O2C en este tablero: M6, M12 o M18 (con reglas de fallback entre columnas). Afecta el valor de meta efectiva, cumplimiento y score O2C de las tarjetas; no edita las metas en base de datos. El bloque «Score global (metodología documento KPIs)» elige M3/M6/M12/M18 según el mes de programa (VITE_O2C_PROGRAM_START), no este control." />
+              <InfoHint text="Meta numérica M6 / M12 / M18 para el motor O2C del tablero. No edita el catálogo en base de datos." />
             </div>
             <Select
               value={targetHorizon}
@@ -533,7 +583,7 @@ export function KpisDashboardPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="kpi-dashboard__sort-row flex flex-wrap items-end gap-3 sm:col-span-2 lg:col-span-3 xl:col-span-6">
+          <div className="kpi-dashboard__sort-row flex flex-wrap items-end gap-3 sm:col-span-2 lg:col-span-3 xl:col-span-5">
             <span className="kpi-dashboard__sort-label text-xs text-muted-foreground">Ordenar por:</span>
             <div className="kpi-dashboard__sort-buttons flex flex-wrap gap-2">
               <span className="kpi-dashboard__sort-btn-wrap" data-sort-key="nombre">
@@ -558,62 +608,7 @@ export function KpisDashboardPage() {
         </SectionCard>
       </section>
 
-      <section className="scroll-mt-4">
-        <SectionCard>
-          <SectionCardHeader
-            title="Avance de gaps vinculados"
-            subtitle="Cada KPI se alimenta del cierre de su gap; al 100% el KPI puede alcanzar su meta."
-            action={
-              <InfoHint text="Cada KPI se alimenta del cierre de su gap. Cuando el gap llega a 100%, el KPI puede alcanzar su meta." />
-            }
-          />
-          <SectionCardBody className="space-y-2">
-          {gapLinksLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando avance de gaps vinculados…</p>
-          ) : kpiGapProgress.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Ningún KPI visible tiene gap vinculado con avance registrado.
-            </p>
-          ) : (
-            kpiGapProgress.map((item) => (
-              <div key={item.kpiId} className="flex items-center gap-3 text-sm">
-                <span className="w-48 shrink-0 truncate font-medium">{item.kpiNombre}</span>
-                <span className="text-muted-foreground">←</span>
-                <span className="w-40 shrink-0 truncate text-muted-foreground">{item.gapNombre}</span>
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn('h-full rounded-full transition-all', {
-                      'bg-emerald-500': item.estado === 'cerrado',
-                      'bg-amber-500': item.estado === 'en_progreso',
-                      'bg-muted-foreground/30': item.estado === 'abierto',
-                    })}
-                    style={{ width: `${Math.round((item.avancePct ?? 0) * 100)}%` }}
-                  />
-                </div>
-                <span className="w-10 shrink-0 text-right tabular-nums text-xs text-muted-foreground">
-                  {item.avancePct != null ? `${Math.round(item.avancePct * 100)}%` : '—'}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-2 py-0.5 text-xs font-medium text-foreground shadow-sm">
-                  <span
-                    className={cn('h-1.5 w-1.5 shrink-0 rounded-full', {
-                      'bg-emerald-500': item.estado === 'cerrado',
-                      'bg-amber-500': item.estado === 'en_progreso',
-                      'bg-muted-foreground/40': item.estado === 'abierto',
-                    })}
-                    aria-hidden
-                  />
-                  {item.estado === 'cerrado'
-                    ? 'Cerrado'
-                    : item.estado === 'en_progreso'
-                      ? 'En progreso'
-                      : 'Abierto'}
-                </span>
-              </div>
-            ))
-          )}
-          </SectionCardBody>
-        </SectionCard>
-      </section>
+      <KpiGapLinkedProgressSection rows={kpiGapProgress} isLoading={gapLinksLoading} />
 
       <section
         data-section="kpi-detail"
@@ -624,10 +619,10 @@ export function KpisDashboardPage() {
           <SectionCardHeader
             icon={ListChecks}
             titleId="kpi-list-title"
-            title={`Detalle de KPIs (${viewModels.length})`}
-            subtitle="Cumplimiento, tendencia, peso, gap y responsable."
+            title={`Indicadores (${viewModels.length})`}
+            subtitle="Vista ejecutiva: primero lo crítico; el detalle técnico se abre en ventana desde cada tarjeta."
             action={
-              <InfoHint text="Tarjetas detalladas con cumplimiento, tendencia, peso, gap y responsable para análisis operativo." />
+              <InfoHint text="Agrupados por semáforo. La frase bajo el valor resume qué implica el KPI para negocio; guía, umbrales y evolución están en «Ver detalle técnico» (popup)." />
             }
           />
           <SectionCardBody>
@@ -636,14 +631,87 @@ export function KpisDashboardPage() {
         ) : viewModels.length === 0 ? (
           <p className="kpi-dashboard__empty text-sm text-muted-foreground">No hay KPIs que coincidan con los filtros.</p>
         ) : (
-          <div className="kpi-dashboard__cards-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {viewModels.map((vm) => (
-              <KpiCard
-                key={vm.row.id}
-                vm={vm}
-                onRegisterMeasurement={() => setMeasurementKpi(vm.row)}
-              />
-            ))}
+          <div className="kpi-dashboard__cards-groups space-y-10">
+            {kpiGroups.criticos.length > 0 ? (
+              <div className="space-y-4" data-kpi-group="criticos">
+                <div className="flex flex-wrap items-center gap-2 px-0.5">
+                  <span className="h-2 w-2 rounded-full bg-destructive" aria-hidden />
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">Críticos</h3>
+                  <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-medium tabular-nums text-destructive">
+                    {kpiGroups.criticos.length}
+                  </span>
+                </div>
+                <div className="kpi-dashboard__cards-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {kpiGroups.criticos.map((vm) => (
+                    <KpiCard
+                      key={vm.row.id}
+                      vm={vm}
+                      onRegisterMeasurement={() => setMeasurementKpi(vm.row)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {kpiGroups.riesgo.length > 0 ? (
+              <div className="space-y-4" data-kpi-group="riesgo">
+                <div className="flex flex-wrap items-center gap-2 px-0.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden />
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">En riesgo</h3>
+                  <span className="rounded-md border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-950 dark:text-amber-100">
+                    {kpiGroups.riesgo.length}
+                  </span>
+                </div>
+                <div className="kpi-dashboard__cards-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {kpiGroups.riesgo.map((vm) => (
+                    <KpiCard
+                      key={vm.row.id}
+                      vm={vm}
+                      onRegisterMeasurement={() => setMeasurementKpi(vm.row)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {kpiGroups.correctos.length > 0 ? (
+              <div className="space-y-4" data-kpi-group="correctos">
+                <div className="flex flex-wrap items-center gap-2 px-0.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">Correctos</h3>
+                  <span className="rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium tabular-nums text-emerald-950 dark:text-emerald-100">
+                    {kpiGroups.correctos.length}
+                  </span>
+                </div>
+                <div className="kpi-dashboard__cards-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {kpiGroups.correctos.map((vm) => (
+                    <KpiCard
+                      key={vm.row.id}
+                      vm={vm}
+                      onRegisterMeasurement={() => setMeasurementKpi(vm.row)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {kpiGroups.sinDatos.length > 0 ? (
+              <div className="space-y-4" data-kpi-group="sin-datos">
+                <div className="flex flex-wrap items-center gap-2 px-0.5">
+                  <span className="h-2 w-2 rounded-full bg-muted-foreground/50" aria-hidden />
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">Sin mediciones</h3>
+                  <span className="rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+                    {kpiGroups.sinDatos.length}
+                  </span>
+                </div>
+                <div className="kpi-dashboard__cards-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {kpiGroups.sinDatos.map((vm) => (
+                    <KpiCard
+                      key={vm.row.id}
+                      vm={vm}
+                      onRegisterMeasurement={() => setMeasurementKpi(vm.row)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
           </SectionCardBody>

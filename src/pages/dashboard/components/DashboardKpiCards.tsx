@@ -19,7 +19,10 @@ export interface DashboardKpiCardsProps {
 
 export function DashboardKpiCards({ metricas, isLoading }: DashboardKpiCardsProps) {
   return (
-    <div id="dashboard-kpi-cards" className="dashboard-kpi-cards grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div
+      id="dashboard-kpi-cards"
+      className="dashboard-kpi-cards grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5"
+    >
       <DashboardKpiCard
         id="dashboard-kpi-card-total"
         className="dashboard-kpi-card dashboard-kpi-card-total"

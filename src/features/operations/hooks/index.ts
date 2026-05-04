@@ -26,3 +26,4 @@ export {
   useUpdateAccionCheckpoint,
   useToggleAccionCheckpoint,
 } from './useAccionCheckpointMutations'
+export { useActionEstadoPermissions } from './useActionEstadoPermissions'

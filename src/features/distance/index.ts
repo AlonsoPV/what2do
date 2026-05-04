@@ -1,13 +1,8 @@
 /**
- * Módulo de distancias: catálogos origen/destino, cálculo ida/vuelta vía Edge Function,
- * tablero de solicitudes (distance_requests).
+ * Módulo de distancias: cálculo ida/vuelta vía Edge Function y tablero de solicitudes (distance_requests).
  */
 
 export { DistanceDashboardPage } from './pages/DistanceDashboardPage'
-export { DistanceSettingsPage } from './pages/DistanceSettingsPage'
-export { DistanceOriginsCatalogPage } from './pages/DistanceOriginsCatalogPage'
-export { DistanceDestinationsCatalogPage } from './pages/DistanceDestinationsCatalogPage'
-export { DistanceRequestsSavedPage } from './pages/DistanceRequestsSavedPage'
 export { DistanceRequestForm } from './components/DistanceRequestForm'
 export { DistanceRequestFormDialog } from './components/DistanceRequestFormDialog'
 export { DistanceResultCard } from './components/DistanceResultCard'

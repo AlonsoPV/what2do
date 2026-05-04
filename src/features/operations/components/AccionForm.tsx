@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import { Controller, useForm, type Resolver } from 'react-hook-form'
+import { Controller, useForm, type FieldErrors, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,7 +44,25 @@ import {
 } from '../utils/tipoAccionConfig'
 import { AccionImpactPreview } from './AccionImpactPreview'
 import { SectionCardBody } from '@/components/SectionCard'
-import { ChevronDown, FileText, User, FileCheck, Tags, Link2, Gauge } from 'lucide-react'
+import { ChevronDown, FileText, User, FileCheck, Tags, Gauge } from 'lucide-react'
+
+/** Mensajes de error de envío (Zod + RHF) para resumen fuera del scroll del formulario. */
+function collectAccionFormErrorMessages(errors: FieldErrors<AccionFormInput>): string[] {
+  const found: string[] = []
+  const walk = (node: unknown): void => {
+    if (node == null || typeof node !== 'object') return
+    const o = node as Record<string, unknown>
+    if (typeof o.message === 'string' && o.message.length > 0) {
+      found.push(o.message)
+    }
+    for (const [k, v] of Object.entries(o)) {
+      if (k === 'message' || k === 'type' || k === 'ref') continue
+      if (v && typeof v === 'object') walk(v)
+    }
+  }
+  walk(errors)
+  return [...new Set(found)]
+}
 
 const inputBase =
   'flex h-9 w-full rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50'
@@ -90,6 +108,8 @@ export interface AccionFormProps {
   isEdit?: boolean
   /** Id del form para botón de envío externo (barra fija del diálogo). */
   formId?: string
+  /** Si el envío falla por validación, se envían los mensajes (p. ej. pie del diálogo). */
+  onSubmitInvalid?: (messages: string[]) => void
 }
 
 export function AccionForm({
@@ -99,6 +119,7 @@ export function AccionForm({
   isSubmitting: _isSubmitting = false,
   isEdit: _isEdit = false,
   formId,
+  onSubmitInvalid,
 }: AccionFormProps) {
   const {
     data: users = [],
@@ -121,13 +142,7 @@ export function AccionForm({
     error: gapsErrorObj,
     refetch: retryGaps,
   } = useGaps({ filters: { activo: true } })
-  const {
-    data: catalogKpis = [],
-    isLoading: catalogKpisLoading,
-    isError: catalogKpisError,
-    error: catalogKpisErrorObj,
-    refetch: retryCatalogKpis,
-  } = useKpis({ activo: true })
+  const { data: catalogKpis = [] } = useKpis({ activo: true })
   /** Catálogo dropdown con key 'evidencia_esperada': opciones para el select de evidencia esperada. */
   const {
     data: evidenciaOpciones = [],
@@ -172,25 +187,14 @@ export function AccionForm({
   }, [gaps])
 
   const gapIds = form.watch('gap_ids') ?? []
-  const catalogKpiIds = form.watch('catalog_kpi_ids') ?? []
   const tipoSeleccionado = form.watch('tipo_accion')
+  const esTipoOtro = tipoSeleccionado === 'otro'
   const storyPoints = form.watch('story_points') ?? 0
-  const gapIdSet = useMemo(() => new Set(gapIds), [gapIds])
 
   const selectedGaps = useMemo(
     () => gaps.filter((g) => gapIds.includes(g.id)),
     [gaps, gapIds]
   )
-  const selectedCatalogKpis = useMemo(
-    () => catalogKpis.filter((k) => catalogKpiIds.includes(k.id)),
-    [catalogKpis, catalogKpiIds]
-  )
-
-  const availableCatalogKpis = useMemo(() => {
-    if (gapIds.length === 0) return catalogKpis
-    return catalogKpis.filter((k) => !k.gap_id || gapIdSet.has(k.gap_id))
-  }, [catalogKpis, gapIdSet, gapIds])
-
   function toggleGap(id: string) {
     const cur = form.getValues('gap_ids') ?? []
     if (cur.includes(id)) {
@@ -200,22 +204,6 @@ export function AccionForm({
     form.setValue('gap_ids', [...cur, id])
     const gapArea = gapById.get(id)?.area
     if (gapArea) form.setValue('area', gapArea)
-  }
-
-  function toggleCatalogKpi(id: string) {
-    const cur = form.getValues('catalog_kpi_ids') ?? []
-    if (cur.includes(id)) {
-      form.setValue('catalog_kpi_ids', cur.filter((x) => x !== id))
-      return
-    }
-    const kpi = catalogKpis.find((k) => k.id === id)
-    if (kpi?.gap_id && !gapIdSet.has(kpi.gap_id)) {
-      const gids = form.getValues('gap_ids') ?? []
-      form.setValue('gap_ids', [...gids, kpi.gap_id])
-      const gapArea = gapById.get(kpi.gap_id)?.area
-      if (gapArea) form.setValue('area', gapArea)
-    }
-    form.setValue('catalog_kpi_ids', [...cur, id])
   }
 
   const evidenciaSignature = evidenciaOpciones.map((o) => `${o.id}:${o.value}:${o.label}`).join('|')
@@ -264,7 +252,10 @@ export function AccionForm({
   return (
     <form
       id={fid}
-      onSubmit={form.handleSubmit(onSubmit)}
+      onSubmit={form.handleSubmit(onSubmit, (errors) => {
+        const msgs = collectAccionFormErrorMessages(errors)
+        onSubmitInvalid?.(msgs.length > 0 ? msgs : ['Revisa los campos obligatorios.'])
+      })}
       className="accion-form space-y-5"
       data-accion-form-mode={_isEdit ? 'edit' : 'create'}
     >
@@ -509,7 +500,9 @@ export function AccionForm({
           <div>
             <h4 className="text-sm font-semibold">Clasificación y vinculación O2C</h4>
             <p className="text-xs text-muted-foreground">
-              Prioridad, área, complejidad (tipo y puntos) y vinculación gap/KPI
+              {esTipoOtro
+                ? 'Indica los story points, elige la brecha a impactar y completa el resto del formulario. Prioridad y área no aplican en este tipo de acción.'
+                : 'Prioridad, área, complejidad (tipo y puntos) y vinculación gap/KPI'}
             </p>
           </div>
         </CardHeader>
@@ -522,10 +515,19 @@ export function AccionForm({
               <Select
                 value={form.watch('prioridad') ?? 'P2_Media'}
                 onValueChange={(v) => form.setValue('prioridad', v as AccionFormInput['prioridad'])}
+                disabled={esTipoOtro}
               >
                 <SelectTrigger
                   id={fieldId('prioridad')}
-                  className={`accion-form-field accion-form-field-prioridad ${inputBase} h-10 border-input bg-muted/30`}
+                  title={
+                    esTipoOtro
+                      ? 'Con tipo «Otro» la prioridad no se usa en esta sección.'
+                      : undefined
+                  }
+                  className={cn(
+                    `accion-form-field accion-form-field-prioridad ${inputBase} h-10 border-input bg-muted/30`,
+                    esTipoOtro && 'cursor-not-allowed opacity-60'
+                  )}
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -565,11 +567,19 @@ export function AccionForm({
               <Select
                 value={form.watch('area') ?? '__none__'}
                 onValueChange={(v) => form.setValue('area', v === '__none__' ? undefined : v)}
-                disabled={areasLoading && areas.length === 0}
+                disabled={(areasLoading && areas.length === 0) || esTipoOtro}
               >
                 <SelectTrigger
                   id={fieldId('area')}
-                  className={`accion-form-field accion-form-field-area ${inputBase} h-10 border-input bg-muted/30`}
+                  title={
+                    esTipoOtro
+                      ? 'Con tipo «Otro» el área no se elige aquí; puedes alinearla con la brecha seleccionada.'
+                      : undefined
+                  }
+                  className={cn(
+                    `accion-form-field accion-form-field-area ${inputBase} h-10 border-input bg-muted/30`,
+                    esTipoOtro && 'cursor-not-allowed opacity-60'
+                  )}
                 >
                   <SelectValue placeholder="Opcional" />
                 </SelectTrigger>
@@ -598,122 +608,151 @@ export function AccionForm({
                   Complejidad
                 </p>
                 <h4 className="text-sm font-semibold text-foreground">Complejidad y esfuerzo</h4>
-                <p className="text-xs text-muted-foreground">Tipo de trabajo y story points (Fibonacci)</p>
+                <p className="text-xs text-muted-foreground">
+                  {esTipoOtro
+                    ? 'Define los story points (Fibonacci) según el esfuerzo de esta acción.'
+                    : 'Elige el tipo: se asignan story points sugeridos automáticamente (no editables aquí). Para ajustar puntos a mano, elige «Otro».'}
+                </p>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="accion-form-field-group accion-form-field-group-tipo_accion space-y-2">
-                <Label htmlFor={fieldId('tipo_accion')} className="text-xs font-medium text-foreground">
-                  Tipo de acción
-                </Label>
-                <Select
-                  value={tipoSeleccionado ?? '__none__'}
-                  onValueChange={(v) => {
-                    if (v === '__none__') {
-                      form.setValue('tipo_accion', null)
-                      return
-                    }
-                    const next = v as TipoAccion
-                    form.setValue('tipo_accion', next)
-                    const cfg = TIPO_ACCION_CONFIG[next]
-                    if (cfg.puntosSugerido > 0) {
-                      form.setValue('story_points', cfg.puntosSugerido)
-                    }
-                  }}
-                >
-                  <SelectTrigger
-                    id={fieldId('tipo_accion')}
-                    className={`accion-form-field accion-form-field-tipo_accion ${inputBase} h-10 border-input bg-muted/30`}
+            <div
+              className={cn('grid gap-4', esTipoOtro && 'sm:grid-cols-[1fr_auto] sm:items-start')}
+            >
+              {!esTipoOtro ? (
+                <div className="accion-form-field-group accion-form-field-group-tipo_accion space-y-2">
+                  <Label htmlFor={fieldId('tipo_accion')} className="text-xs font-medium text-foreground">
+                    Tipo de acción
+                  </Label>
+                  <Select
+                    value={tipoSeleccionado ?? '__none__'}
+                    onValueChange={(v) => {
+                      if (v === '__none__') {
+                        form.setValue('tipo_accion', null)
+                        form.setValue('story_points', 0)
+                        return
+                      }
+                      const next = v as TipoAccion
+                      form.setValue('tipo_accion', next)
+                      const cfg = TIPO_ACCION_CONFIG[next]
+                      if (next === 'otro') {
+                        form.setValue('story_points', 0)
+                      } else if (cfg.puntosSugerido > 0) {
+                        form.setValue('story_points', cfg.puntosSugerido)
+                      }
+                    }}
                   >
-                    <SelectValue placeholder="Selecciona el tipo…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin tipo (definir puntos manualmente)</SelectItem>
-                    {TIPO_ACCION_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        <span className="font-medium">{opt.label}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {opt.puntosMin === opt.puntosMax
-                            ? `${opt.puntosMin} pts`
-                            : `${opt.puntosMin}–${opt.puntosMax} pts`}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {tipoSeleccionado && TIPO_ACCION_CONFIG[tipoSeleccionado] && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {TIPO_ACCION_CONFIG[tipoSeleccionado].description}
-                  </p>
-                )}
-              </div>
-
-              <div className="accion-form-field-group accion-form-field-group-story_points space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <Label className="text-xs font-medium text-foreground">Story Points</Label>
-                  <InfoHint text="Mide complejidad y esfuerzo relativo, no impacto directo en el KPI." />
-                </div>
-                <Controller
-                  name="story_points"
-                  control={form.control}
-                  render={({ field }) => (
-                    <>
-                      <div className="flex flex-wrap gap-1.5">
-                        {STORY_POINTS_OPTIONS.map((pts) => {
-                          const cfg = tipoSeleccionado ? TIPO_ACCION_CONFIG[tipoSeleccionado] : null
-                          const esSugerido =
-                            !!cfg && cfg.puntosSugerido > 0 && cfg.puntosSugerido === pts
-                          const current = field.value ?? 0
-                          return (
-                            <button
-                              key={pts}
-                              type="button"
-                              onClick={() => field.onChange(pts)}
-                              className={cn(
-                                'h-9 w-9 rounded-lg border text-sm font-semibold transition-colors',
-                                current === pts
-                                  ? 'border-primary bg-primary text-primary-foreground'
-                                  : 'border-border bg-background hover:border-primary/50',
-                                esSugerido &&
-                                  current !== pts &&
-                                  'border-primary/40 bg-primary/5 text-primary'
-                              )}
-                              title={esSugerido ? `Sugerido: ${pts} pts` : `${pts} pts`}
-                            >
-                              {pts}
-                            </button>
-                          )
-                        })}
-                      </div>
-                      {tipoSeleccionado &&
-                        tipoSeleccionado !== 'otro' &&
-                        TIPO_ACCION_CONFIG[tipoSeleccionado] && (
-                          <p className="text-[11px] text-muted-foreground">
-                            Sugerido:{' '}
-                            <span className="font-medium text-foreground">
-                              {TIPO_ACCION_CONFIG[tipoSeleccionado].puntosMin}–
-                              {TIPO_ACCION_CONFIG[tipoSeleccionado].puntosMax} pts
-                            </span>
-                          </p>
-                        )}
-                    </>
+                    <SelectTrigger
+                      id={fieldId('tipo_accion')}
+                      className={`accion-form-field accion-form-field-tipo_accion ${inputBase} h-10 border-input bg-muted/30`}
+                    >
+                      <SelectValue placeholder="Selecciona el tipo…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin tipo</SelectItem>
+                      {TIPO_ACCION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          <span className="font-medium">{opt.label}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {opt.puntosMin === opt.puntosMax
+                              ? `${opt.puntosMin} pts`
+                              : `${opt.puntosMin}–${opt.puntosMax} pts`}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {tipoSeleccionado && TIPO_ACCION_CONFIG[tipoSeleccionado] && (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {TIPO_ACCION_CONFIG[tipoSeleccionado].description}
+                    </p>
                   )}
-                />
-                {form.formState.errors.story_points && (
-                  <p className="text-xs text-destructive">
-                    {form.formState.errors.story_points.message}
-                  </p>
-                )}
-              </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      Tipo:{' '}
+                      <span className="font-semibold text-foreground">{TIPO_ACCION_CONFIG.otro.label}</span>
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0 px-2 text-xs"
+                      onClick={() => {
+                        form.setValue('tipo_accion', null)
+                        form.setValue('story_points', 0)
+                      }}
+                    >
+                      Cambiar tipo
+                    </Button>
+                  </div>
+
+                  <div className="accion-form-field-group accion-form-field-group-story_points space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs font-medium text-foreground">Story points</Label>
+                      <InfoHint text="Complejidad relativa (Fibonacci). En «Otro» no hay rango sugerido por tipo." />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Asigna el esfuerzo en puntos y elige las brechas a impactar más abajo.
+                    </p>
+                    <Controller
+                      name="story_points"
+                      control={form.control}
+                      render={({ field }) => (
+                        <div className="flex flex-wrap gap-1.5">
+                          {STORY_POINTS_OPTIONS.map((pts) => {
+                            const current = field.value ?? 0
+                            return (
+                              <button
+                                key={pts}
+                                type="button"
+                                onClick={() => field.onChange(pts)}
+                                className={cn(
+                                  'h-9 w-9 rounded-lg border text-sm font-semibold transition-colors',
+                                  current === pts
+                                    ? 'border-primary bg-primary text-primary-foreground'
+                                    : 'border-border bg-background hover:border-primary/50'
+                                )}
+                                title={`${pts} pts`}
+                              >
+                                {pts}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    />
+                    {form.formState.errors.story_points && (
+                      <p className="text-xs text-destructive">
+                        {form.formState.errors.story_points.message}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="accion-form-grid-o2c grid gap-4 sm:grid-cols-2">
+          <div className="accion-form-grid-o2c space-y-4">
             <div className="accion-form-field-group accion-form-field-group-gap_ids space-y-2">
-              <Label className="text-xs font-medium text-foreground">
-                Brechas O2C (gaps) a impactar
+              <Label htmlFor={fieldId('gap_ids')} className="text-xs font-medium text-foreground">
+                Brechas operativas a impactar
               </Label>
+              <p id={fieldId('gap_ids-hint')} className="text-xs leading-relaxed text-muted-foreground">
+                {esTipoOtro ? (
+                  <>
+                    Elige del catálogo las brechas que esta acción ayuda a avanzar. Puedes marcar varias. El
+                    cierre de la brecha es el vínculo con el tablero de operaciones.
+                  </>
+                ) : (
+                  <>
+                    Vincula la acción con las brechas que contribuye a cerrar. El avance del gap alimenta el
+                    seguimiento del portafolio.
+                  </>
+                )}
+              </p>
               {gapsLoading && <p className="text-xs text-muted-foreground">Cargando brechas…</p>}
               {gapsError && (
                 <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
@@ -740,7 +779,8 @@ export function AccionForm({
                     id={fieldId('gap_ids')}
                     disabled={(gapsLoading && gaps.length === 0) || gaps.length === 0}
                     className={`accion-form-field accion-form-field-gap_ids ${inputBase} h-10 border-input bg-muted/30 font-normal justify-between gap-2`}
-                    aria-label="Brechas O2C a impactar"
+                    aria-label="Brechas operativas a impactar"
+                    aria-describedby={fieldId('gap_ids-hint')}
                   >
                     <span className="min-w-0 flex-1 truncate text-left">
                       {gaps.length === 0 && !gapsLoading
@@ -778,90 +818,6 @@ export function AccionForm({
                 </div>
               )}
               <AccionImpactPreview gapIds={gapIds} storyPoints={storyPoints} />
-            </div>
-            <div className="accion-form-field-group accion-form-field-group-catalog_kpi_ids space-y-2">
-              <Label className="flex items-center gap-1 text-xs font-medium text-foreground">
-                KPIs de catálogo (O2C)
-                <Link2 className="h-3.5 w-3.5" />
-              </Label>
-              {catalogKpisLoading && (
-                <p className="text-xs text-muted-foreground">Cargando KPIs de catálogo…</p>
-              )}
-              {catalogKpisError && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
-                  <p className="text-xs text-destructive">
-                    No se pudo cargar el catálogo de KPIs.
-                    {catalogKpisErrorObj instanceof Error ? ` ${catalogKpisErrorObj.message}` : ''}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 h-7 px-2.5 text-xs"
-                    onClick={() => void retryCatalogKpis()}
-                  >
-                    Reintentar
-                  </Button>
-                </div>
-              )}
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    id={fieldId('catalog_kpi_ids')}
-                    disabled={
-                      (catalogKpisLoading && catalogKpis.length === 0) ||
-                      availableCatalogKpis.length === 0
-                    }
-                    className={`accion-form-field accion-form-field-catalog_kpi_ids ${inputBase} h-10 border-input bg-muted/30 font-normal justify-between gap-2`}
-                    aria-label="KPIs de catálogo O2C"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-left">
-                      {availableCatalogKpis.length === 0 && !catalogKpisLoading
-                        ? gapIds.length > 0
-                          ? 'No hay KPIs para las brechas elegidas'
-                          : 'No hay KPIs en catálogo'
-                        : o2cDropdownTriggerLabel(
-                            selectedCatalogKpis,
-                            'Elegir KPIs…',
-                            'KPIs'
-                          )}
-                    </span>
-                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" aria-hidden />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className="max-h-60 min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
-                  align="start"
-                >
-                  {availableCatalogKpis.map((k) => (
-                    <DropdownMenuCheckboxItem
-                      key={k.id}
-                      checked={catalogKpiIds.includes(k.id)}
-                      onCheckedChange={() => toggleCatalogKpi(k.id)}
-                    >
-                      {k.nombre}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {selectedCatalogKpis.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {selectedCatalogKpis.map((k) => (
-                    <span
-                      key={k.id}
-                      className="inline-flex items-center rounded-md border border-border/60 bg-muted/30 px-2 py-0.5 text-[11px] text-foreground"
-                    >
-                      {k.nombre}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Si eliges brechas, solo se listan KPIs de esas brechas (o sin brecha). Al marcar un KPI se
-                añade su brecha si faltaba.
-              </p>
             </div>
           </div>
         </CardContent>

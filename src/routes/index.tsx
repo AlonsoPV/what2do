@@ -25,13 +25,7 @@ import { DropdownCatalogsPage } from '@/features/catalogs/pages/DropdownCatalogs
 import { DropdownCatalogOptionsPage } from '@/features/catalogs/pages/DropdownCatalogOptionsPage'
 import { KpisPage } from '@/features/catalogs/pages/KpisPage'
 import { GapsPage } from '@/features/catalogs/pages/GapsPage'
-import {
-  DistanceDashboardPage,
-  DistanceSettingsPage,
-  DistanceOriginsCatalogPage,
-  DistanceDestinationsCatalogPage,
-  DistanceRequestsSavedPage,
-} from '@/features/distance'
+import { DistanceDashboardPage } from '@/features/distance'
 import { GapsDashboardPage, ImpactMatrixPage, KpisDashboardPage } from '@/features/kpi'
 import { AcademyPage } from '@/features/academy'
 import { ROUTES } from '@/constants'
@@ -77,7 +71,6 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to={ROUTES.SETTINGS_PROFILE} replace /> },
           { path: 'profile', element: <ProfilePage /> },
-          { path: 'distancias', element: <DistanceSettingsPage /> },
           { path: 'users', element: <UsersPage /> },
           { path: 'users/:id', element: <UserDetailPage /> },
           { path: 'catalogs', element: <CatalogsHomePage /> },
@@ -89,9 +82,6 @@ const router = createBrowserRouter([
           { path: 'catalogs/dropdowns/:catalogId', element: <DropdownCatalogOptionsPage /> },
           { path: 'catalogs/kpis', element: <KpisPage /> },
           { path: 'catalogs/gaps', element: <GapsPage /> },
-          { path: 'catalogs/origins', element: <DistanceOriginsCatalogPage /> },
-          { path: 'catalogs/destinations', element: <DistanceDestinationsCatalogPage /> },
-          { path: 'catalogs/solicitudes-guardadas', element: <DistanceRequestsSavedPage /> },
         ],
       },
     ],

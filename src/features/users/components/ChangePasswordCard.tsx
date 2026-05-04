@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,8 +19,31 @@ import {
   changePasswordFormSchema,
   type ChangePasswordFormValues,
 } from '@/features/auth/schemas/password.schema'
+import { cn } from '@/lib/utils'
 
-export function ChangePasswordCard() {
+export type ChangePasswordCardProps = {
+  /** Último inicio de sesión (Supabase `user.last_sign_in_at`) para contexto de seguridad. */
+  lastSignInAt?: string | null
+  className?: string
+}
+
+function formatRelativeAccess(iso: string): string {
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diffMs = Date.now() - then
+  const min = Math.floor(diffMs / 60_000)
+  const hr = Math.floor(min / 60)
+  const days = Math.floor(hr / 24)
+  if (min < 1) return 'hace un momento'
+  if (min < 60) return `hace ${min} min`
+  if (hr < 24) return `hace ${hr} h`
+  if (days === 1) return 'ayer'
+  if (days < 30) return `hace ${days} días`
+  if (days < 365) return `hace ${Math.floor(days / 30)} meses`
+  return `hace ${Math.floor(days / 365)} años`
+}
+
+export function ChangePasswordCard({ lastSignInAt, className }: ChangePasswordCardProps) {
   const [open, setOpen] = useState(false)
 
   const form = useForm<ChangePasswordFormValues>({
@@ -50,27 +72,42 @@ export function ChangePasswordCard() {
     }
   })
 
+  const accessHint =
+    lastSignInAt && !Number.isNaN(new Date(lastSignInAt).getTime())
+      ? formatRelativeAccess(lastSignInAt)
+      : null
+
   return (
     <>
-      <Card className="border-border/60">
-        <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <KeyRound className="h-5 w-5 text-primary" aria-hidden />
-                Contraseña
-              </CardTitle>
-              <CardDescription>
-                Cambia tu contraseña de acceso cuando quieras. Mínimo {PASSWORD_MIN_LENGTH} caracteres; si
-                puedes, combina letras y números.
-              </CardDescription>
+      <div
+        className={cn(
+          'rounded-2xl border border-border/40 bg-card/40 p-6 shadow-sm ring-1 ring-inset ring-black/[0.04] backdrop-blur-[2px] dark:bg-card/25 dark:ring-white/[0.06] sm:p-8',
+          className
+        )}
+      >
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center gap-2.5 text-foreground">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <KeyRound className="h-4 w-4" aria-hidden />
+              </span>
+              <h3 className="text-base font-semibold tracking-tight sm:text-lg">Contraseña</h3>
             </div>
-            <Button variant="outline" className="shrink-0" onClick={() => setOpen(true)}>
-              Cambiar contraseña
-            </Button>
+            <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
+              Actualiza tu contraseña cuando quieras. Usa al menos {PASSWORD_MIN_LENGTH} caracteres; si puedes,
+              combina letras y números.
+            </p>
+            {accessHint ? (
+              <p className="text-xs text-muted-foreground">
+                Último acceso a la cuenta: <span className="font-medium text-foreground/80">{accessHint}</span>
+              </p>
+            ) : null}
           </div>
-        </CardHeader>
-      </Card>
+          <Button size="default" className="h-10 w-full shrink-0 px-5 sm:w-auto" onClick={() => setOpen(true)}>
+            Cambiar contraseña
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent aria-describedby={undefined} className="sm:max-w-md">
@@ -80,8 +117,8 @@ export function ChangePasswordCard() {
               <DialogTitle className="text-left">Cambiar contraseña</DialogTitle>
             </div>
             <DialogDescription className="text-left text-sm leading-relaxed">
-              Por seguridad, primero pedimos tu contraseña actual. La nueva queda solo en el acceso; no
-              aparece en tu ficha del tablero.
+              Por seguridad, primero pedimos tu contraseña actual. La nueva queda solo en el acceso; no aparece en tu
+              ficha del tablero.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={onSubmit} className="space-y-4 pt-2">

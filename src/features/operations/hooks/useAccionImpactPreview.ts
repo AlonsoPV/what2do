@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
-import { useCatalogKpiO2cMetricItems, useGapAccionesForGapIds, useGaps } from '@/features/kpi/hooks'
-import { DEFAULT_O2C_TARGET_HORIZON } from '@/features/kpi/utils/kpiCalculations'
+import { useGapAccionesForGapIds, useGaps } from '@/features/kpi/hooks'
 import { computeGapStoryProgress } from '@/features/kpi/utils/gapProgress'
 
 type UseAccionImpactPreviewOptions = {
@@ -12,8 +11,6 @@ type UseAccionImpactPreviewOptions = {
 export type AccionImpactPreviewRow = {
   gapId: string
   gapNombre: string
-  kpiNombre: string | null
-  kpiPeso: number | null
   puntosCompletados: number
   totalPuntosGap: number
   contribucionPct: number | null
@@ -28,11 +25,6 @@ export function useAccionImpactPreview({
   const { data: gaps = [], isLoading: gapsLoading } = useGaps({
     filters: { activo: true },
   })
-  const { metricItems, isLoading: kpisLoading } = useCatalogKpiO2cMetricItems({
-    activo: true,
-    targetHorizon: DEFAULT_O2C_TARGET_HORIZON,
-    enabled: isEnabled,
-  })
   const { data: accionesData, isLoading: accionesLoading } = useGapAccionesForGapIds(
     isEnabled ? gapIds : []
   )
@@ -45,7 +37,6 @@ export function useAccionImpactPreview({
 
     return gapIds.map((gapId) => {
       const gap = gaps.find((g) => g.id === gapId)
-      const kpi = metricItems.find((m) => m.row.gap_id === gapId)
       const progress = computeGapStoryProgress(
         gapId,
         acciones,
@@ -58,17 +49,15 @@ export function useAccionImpactPreview({
       return {
         gapId,
         gapNombre: gap?.nombre ?? gapId,
-        kpiNombre: kpi?.row.nombre ?? null,
-        kpiPeso: kpi?.row.weight ?? null,
         puntosCompletados: progress.donePoints,
         totalPuntosGap: progress.totalPoints,
         contribucionPct: contribucion,
       }
     })
-  }, [acciones, gapIds, gaps, junctionAccionIdsByGap, metricItems, storyPoints])
+  }, [acciones, gapIds, gaps, junctionAccionIdsByGap, storyPoints])
 
   return {
     preview,
-    isLoading: gapsLoading || kpisLoading || accionesLoading,
+    isLoading: gapsLoading || accionesLoading,
   }
 }

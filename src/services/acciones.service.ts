@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { gapActionsLogService } from '@/services/gapActionsLog.service'
 import { listGapIdsForAccion } from '@/services/accionLinks.service'
 import { usuariosService } from '@/services/usuarios.service'
+import { assertAccionEstadoTransition } from '@/services/accionEstadoValidation.service'
 import type { AccionDiaria, ActionStatus, PrioridadNc } from '@/types'
 
 function isEnRetraso(a: AccionDiaria): boolean {
@@ -188,8 +189,12 @@ export const accionesService = {
   async update(id: string, payload: Partial<AccionDiaria>) {
     let prev: AccionDiaria | undefined
     const nextEstado = payload.estado
-    if (nextEstado === 'Hecho' || nextEstado === 'Verificado') {
+    if (nextEstado !== undefined) {
       prev = await this.getById(id)
+      if (nextEstado !== prev.estado) {
+        const merged = { ...prev, ...payload } as AccionDiaria
+        await assertAccionEstadoTransition(prev, nextEstado, merged)
+      }
     }
 
     const { data, error } = await supabase

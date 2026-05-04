@@ -74,7 +74,7 @@ export function CatalogKpiSemaforoGrid({
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="min-h-[118px] animate-pulse rounded-xl border border-border/50 bg-muted/20"
+            className="h-[110px] animate-pulse rounded-xl border border-border/60 bg-muted/20"
           />
         ))}
       </div>

@@ -1,5 +1,4 @@
 import { InfoHint } from '@/components/InfoHint'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { MD_SPEC_MAX_COMPLIANCE_PCT } from '../utils/kpiMdSpecCalculations'
 import type { MdSpecPortfolioDerived } from '../utils/kpiMdSpecCalculations'
@@ -8,13 +7,19 @@ type Props = {
   programMonthIndex: number | null
   programStartConfigured: boolean
   md: MdSpecPortfolioDerived
+  className?: string
 }
 
 /**
  * Score y semáforo según docs/KPIs.md secciones 3–4 (0–120% cumplimiento, umbrales 80/50).
  * Complementa el widget O2C (cumplimiento 0–1 y umbrales por KPI).
  */
-export function GlobalScoreMdSpecPanel({ programMonthIndex, programStartConfigured, md }: Props) {
+export function GlobalScoreMdSpecPanel({
+  programMonthIndex,
+  programStartConfigured,
+  md,
+  className,
+}: Props) {
   const { mdGlobalScorePoints, mdSemaphoreCounts, semaphoreCountsSource } = md
   const pillsO2c = semaphoreCountsSource === 'o2c'
   const pts =
@@ -23,10 +28,17 @@ export function GlobalScoreMdSpecPanel({ programMonthIndex, programStartConfigur
       : null
 
   return (
-    <Card className="border-dashed">
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <CardTitle className="text-base">Score global (metodología documento KPIs)</CardTitle>
+    <div
+      className={cn(
+        'overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm',
+        className
+      )}
+    >
+      <div className="border-b border-border/50 px-4 py-4 sm:px-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-base font-semibold text-foreground">
+            Score global (metodología documento KPIs)
+          </h3>
           <InfoHint
             text={
               pillsO2c
@@ -35,7 +47,7 @@ export function GlobalScoreMdSpecPanel({ programMonthIndex, programStartConfigur
             }
           />
         </div>
-        <CardDescription>
+        <p className="mt-2 text-sm text-muted-foreground">
           {programStartConfigured ? (
             <>
               Mes de programa actual:{' '}
@@ -52,9 +64,9 @@ export function GlobalScoreMdSpecPanel({ programMonthIndex, programStartConfigur
               calcular el mes de programa 1–18 y usar metas M3, M6, M12 o M18 según la etapa.
             </>
           )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        </p>
+      </div>
+      <div className="space-y-3 px-4 py-4 sm:px-5">
         <details className="md-score__help group rounded-md border border-border/70 bg-muted/25 text-[10px] leading-snug text-muted-foreground">
           <summary className="md-score__help-summary cursor-pointer list-none px-2.5 py-1.5 font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
             <span className="underline-offset-2 group-open:underline">Cómo se interpreta este score (documento KPIs)</span>
@@ -136,8 +148,8 @@ export function GlobalScoreMdSpecPanel({ programMonthIndex, programStartConfigur
           />
           <CountPill label="Sin datos" value={mdSemaphoreCounts.sin_datos} variant="muted" />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 
@@ -152,11 +164,11 @@ function CountPill({
 }) {
   const cls =
     variant === 'ok'
-      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100'
+      ? 'border-emerald-500/35 bg-emerald-500/15 text-emerald-900 dark:text-emerald-100'
       : variant === 'warn'
-        ? 'border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-100'
+        ? 'border-amber-500/35 bg-amber-500/15 text-amber-900 dark:text-amber-100'
         : variant === 'bad'
-          ? 'border-destructive/30 bg-destructive/10 text-destructive'
+          ? 'border-destructive/35 bg-destructive/15 text-destructive'
           : 'border-muted bg-muted/40 text-muted-foreground'
 
   return (

@@ -3,7 +3,7 @@
  * Columnas con acento visual, cards premium, empty states, scroll refinado.
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -19,7 +19,10 @@ import { cn } from '@/lib/utils'
 import type { AccionDiaria, ActionStatus, PrioridadNc } from '@/types'
 import { useUpdateAccionEstado } from '../hooks/useAccionMutations'
 import { useCommentCounts } from '../hooks/useCommentCounts'
+import { useActionEstadoPermissions } from '../hooks/useActionEstadoPermissions'
+import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import { isEnRetraso } from '../utils/accionUtils'
+import { isEstadoConPermisoEstricto } from '../utils/actionPermissions'
 import { CountdownTimer } from './CountdownTimer'
 import { AccionIdDisplay } from './AccionIdDisplay'
 import { EvidenciaCargadaIndicator } from './EvidenciaCargadaIndicator'
@@ -37,6 +40,12 @@ import {
   MoreVertical,
   MessageSquare,
   Info,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  Check,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -84,7 +93,7 @@ const COLUMN_DESCRIPTIONS: Record<ActionStatus, string> = {
   En_Ejecucion: 'Acción en curso.',
   Bloqueado: 'Acción detenida por un impedimento; requiere desbloqueo.',
   Retraso: 'Acción que superó su fecha o hora límite sin completarse.',
-  Hecho: 'Acción completada con evidencia cargada.',
+  Hecho: 'Acción completada.',
   Verificado: 'Acción cerrada y verificada.',
 }
 
@@ -134,6 +143,137 @@ const PRIORITY_STYLES: Record<PrioridadNc, { dot: string; label: string }> = {
   P3_Baja: { dot: 'bg-slate-400', label: 'Baja' },
 }
 
+/** Acciones visibles por columna antes de expandir (el resto queda colapsado). */
+const COLUMN_PREVIEW_LIMIT = 3
+
+type ColumnSortBy = 'fecha_entrega' | 'prioridad'
+
+const PRIORITY_SORT_RANK: Record<PrioridadNc, number> = {
+  P1_Critica: 0,
+  P2_Media: 1,
+  P3_Baja: 2,
+}
+
+function deliveryTimestampMs(a: AccionDiaria): number {
+  const time = a.hora_limite?.length === 5 ? `${a.hora_limite}:00` : a.hora_limite ?? '00:00:00'
+  const ms = Date.parse(`${a.fecha}T${time}`)
+  return Number.isFinite(ms) ? ms : 0
+}
+
+function sortAccionesByColumnPreference(actions: AccionDiaria[], sortBy: ColumnSortBy): AccionDiaria[] {
+  const list = [...actions]
+  if (sortBy === 'fecha_entrega') {
+    list.sort((a, b) => deliveryTimestampMs(a) - deliveryTimestampMs(b))
+  } else {
+    list.sort(
+      (a, b) =>
+        (PRIORITY_SORT_RANK[a.prioridad] ?? 99) - (PRIORITY_SORT_RANK[b.prioridad] ?? 99)
+    )
+  }
+  return list
+}
+
+/** Estilos compartidos del carril horizontal (tablero y skeleton). */
+const KANBAN_H_SCROLL_CLASSES =
+  '[&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:rounded [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/80 hover:[&::-webkit-scrollbar-thumb]:bg-border'
+
+function KanbanBoardScrollArea({
+  id,
+  columnCount,
+  children,
+}: {
+  id: string
+  columnCount: number
+  children: ReactNode
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+
+  const refreshEdges = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const { scrollLeft, scrollWidth, clientWidth } = el
+    const maxScroll = Math.max(0, scrollWidth - clientWidth)
+    if (maxScroll <= 0) {
+      setEdges({ left: false, right: false })
+      return
+    }
+    setEdges({
+      left: scrollLeft > 1,
+      right: scrollLeft < maxScroll - 1,
+    })
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    refreshEdges()
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(refreshEdges)
+    })
+    ro.observe(el)
+    el.addEventListener('scroll', refreshEdges, { passive: true })
+    window.addEventListener('resize', refreshEdges)
+    return () => {
+      ro.disconnect()
+      el.removeEventListener('scroll', refreshEdges)
+      window.removeEventListener('resize', refreshEdges)
+    }
+  }, [refreshEdges, columnCount])
+
+  const scrollByDir = useCallback((dir: -1 | 1) => {
+    const el = scrollRef.current
+    if (!el) return
+    const delta = Math.min(Math.floor(el.clientWidth * 0.72), 360)
+    el.scrollBy({ left: dir * delta, behavior: 'smooth' })
+  }, [])
+
+  const showNav = columnCount > 1
+
+  return (
+    <div className="relative min-w-0">
+      {/* Botones fuera del carril de scroll (capa superior solo en el margen); el padding del carril evita que las columnas queden debajo. */}
+      {showNav && edges.left ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon"
+          className="pointer-events-auto absolute left-1 top-1/2 z-30 h-8 w-8 -translate-y-1/2 rounded-full border border-border/50 bg-background shadow-md hover:bg-background"
+          onClick={() => scrollByDir(-1)}
+          aria-label="Desplazar columnas hacia la izquierda"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      ) : null}
+      {showNav && edges.right ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="icon"
+          className="pointer-events-auto absolute right-1 top-1/2 z-30 h-8 w-8 -translate-y-1/2 rounded-full border border-border/50 bg-background shadow-md hover:bg-background"
+          onClick={() => scrollByDir(1)}
+          aria-label="Desplazar columnas hacia la derecha"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      ) : null}
+      <div
+        ref={scrollRef}
+        id={id}
+        className={cn(
+          'kanban-board flex gap-4 overflow-x-auto overscroll-x-contain pb-4 pt-1 sm:gap-5',
+          /* Reserva fija para que el contenido (columnas) nunca quede bajo los botones ni se recorte con efecto de velo */
+          showNav ? 'scroll-pl-10 scroll-pr-10 px-10' : 'px-0.5',
+          'scroll-smooth snap-x snap-mandatory touch-pan-x',
+          KANBAN_H_SCROLL_CLASSES
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 export interface KanbanBoardProps {
   acciones: AccionDiaria[]
   isLoading?: boolean
@@ -142,6 +282,11 @@ export interface KanbanBoardProps {
   onNewAction?: () => void
   /** Cuando está definido, se muestra solo la columna de este estado (sincronizado con el filtro de la toolbar). */
   filterEstado?: ActionStatus
+  /**
+   * Si es true y no hay `filterEstado`, solo se muestran columnas con al menos una tarjeta
+   * (p. ej. filtro por prioridad/área/responsable ya aplicado en `acciones`).
+   */
+  narrowToOccupiedColumns?: boolean
   /** Progreso de checklist por acción (checkpoints activos). */
   checklistProgressByAccionId?: Record<string, { total: number; completed: number }>
 }
@@ -156,6 +301,7 @@ function KanbanCardInner({
   onClick,
   onMoveEstado,
   checklistProgress,
+  estadoPermission,
 }: {
   accion: AccionDiaria
   responsableName: string
@@ -166,6 +312,7 @@ function KanbanCardInner({
   onClick?: () => void
   onMoveEstado?: (estado: ActionStatus) => void
   checklistProgress?: { total: number; completed: number }
+  estadoPermission?: ReturnType<typeof useActionEstadoPermissions>
 }) {
   const priorityStyle = PRIORITY_STYLES[accion.prioridad] ?? PRIORITY_STYLES.P2_Media
   const displayStatus = isEnRetraso(accion) ? 'Retraso' : accion.estado
@@ -179,7 +326,7 @@ function KanbanCardInner({
       role={onClick ? 'button' : undefined}
       onClick={onClick}
       className={cn(
-        'group relative rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm',
+        'group relative rounded-xl border border-border/60 bg-card p-3.5 text-left shadow-sm',
         'transition-all duration-200 ease-out',
         !isOverlay && 'cursor-grab active:cursor-grabbing hover:shadow-md hover:border-border',
         isDragging && 'opacity-40 scale-[0.98]',
@@ -211,15 +358,26 @@ function KanbanCardInner({
                   <MoreVertical className="h-3.5 w-3.5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[160px]">
-                {COLUMN_ORDER.filter((s) => s !== displayStatus).map((status) => (
-                  <DropdownMenuItem
-                    key={status}
-                    onClick={() => onMoveEstado(status)}
-                  >
-                    {COLUMN_LABELS[status]}
-                  </DropdownMenuItem>
-                ))}
+              <DropdownMenuContent align="end" className="min-w-[200px]">
+                {COLUMN_ORDER.filter((s) => s !== displayStatus).map((status) => {
+                  const restricted =
+                    estadoPermission && isEstadoConPermisoEstricto(status)
+                      ? !estadoPermission.canChangeTo(accion, status)
+                      : false
+                  const denyTitle = restricted
+                    ? estadoPermission?.denialMessage(accion, status) ?? undefined
+                    : undefined
+                  return (
+                    <DropdownMenuItem
+                      key={status}
+                      disabled={restricted}
+                      title={denyTitle}
+                      onClick={() => onMoveEstado?.(status)}
+                    >
+                      {COLUMN_LABELS[status]}
+                    </DropdownMenuItem>
+                  )
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -261,7 +419,10 @@ function KanbanCardInner({
           </span>
         )}
         {accion.estado === 'Bloqueado' && (
-          <span className="inline-flex items-center gap-0.5 rounded bg-red-500/10 px-1.5 py-0.5 text-xs text-red-600" title="Bloqueado">
+          <span
+            className="inline-flex items-center gap-0.5 rounded border border-destructive/30 bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive"
+            title="Bloqueado"
+          >
             <AlertCircle className="h-3 w-3" />
           </span>
         )}
@@ -289,6 +450,7 @@ function KanbanCard({
   onSelectAccion,
   onMoveEstado,
   checklistProgress,
+  estadoPermission,
 }: {
   accion: AccionDiaria
   responsableName: string
@@ -296,6 +458,7 @@ function KanbanCard({
   onSelectAccion?: (accion: AccionDiaria) => void
   onMoveEstado?: (accion: AccionDiaria, estado: ActionStatus) => void
   checklistProgress?: { total: number; completed: number }
+  estadoPermission?: ReturnType<typeof useActionEstadoPermissions>
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: accion.id,
@@ -314,6 +477,7 @@ function KanbanCard({
           onMoveEstado ? (estado) => onMoveEstado(accion, estado) : undefined
         }
         checklistProgress={checklistProgress}
+        estadoPermission={estadoPermission}
       />
     </div>
   )
@@ -353,6 +517,9 @@ function KanbanColumn({
   onNewAction,
   onMoveEstado,
   checklistProgressByAccionId = {},
+  /** Tarjeta activa no puede entrar a esta columna (Hecho/Verificado); solo UI — la validación final es al soltar. */
+  dropForbidden = false,
+  estadoPermission,
 }: {
   status: ActionStatus
   actions: AccionDiaria[]
@@ -362,7 +529,25 @@ function KanbanColumn({
   onNewAction?: () => void
   onMoveEstado?: (accion: AccionDiaria, estado: ActionStatus) => void
   checklistProgressByAccionId?: Record<string, { total: number; completed: number }>
+  dropForbidden?: boolean
+  estadoPermission?: ReturnType<typeof useActionEstadoPermissions>
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const [sortBy, setSortBy] = useState<ColumnSortBy>('fecha_entrega')
+
+  const sortedActions = useMemo(
+    () => sortAccionesByColumnPreference(actions, sortBy),
+    [actions, sortBy]
+  )
+
+  const hasOverflow = sortedActions.length > COLUMN_PREVIEW_LIMIT
+  const visibleActions = useMemo(() => {
+    if (!hasOverflow || expanded) return sortedActions
+    return sortedActions.slice(0, COLUMN_PREVIEW_LIMIT)
+  }, [sortedActions, hasOverflow, expanded])
+
+  const hiddenCount = sortedActions.length - COLUMN_PREVIEW_LIMIT
+
   const { setNodeRef, isOver } = useDroppable({ id: status })
   const style = COLUMN_STYLES[status]
   const Icon = COLUMN_ICONS[status]
@@ -373,10 +558,13 @@ function KanbanColumn({
       ref={setNodeRef}
       data-status={status}
       className={cn(
-        'kanban-column flex min-w-[280px] max-w-[300px] shrink-0 flex-col rounded-2xl border border-border/50 border-l-4 transition-all duration-200',
+        'kanban-column flex w-[min(300px,calc(100vw-1.25rem))] shrink-0 snap-start flex-col rounded-2xl border border-border/50 border-l-4 transition-all duration-200 sm:w-[300px] sm:min-w-[280px] sm:max-w-[300px]',
         style.border,
         style.bg,
-        isOver && 'ring-2 ring-primary/20 ring-offset-2 ring-offset-background'
+        isOver &&
+          (dropForbidden
+            ? 'ring-2 ring-destructive/35 ring-offset-2 ring-offset-background'
+            : 'ring-2 ring-primary/20 ring-offset-2 ring-offset-background')
       )}
     >
       <div className="kanban-column-header flex items-center justify-between gap-2 px-4 py-3">
@@ -413,25 +601,89 @@ function KanbanColumn({
             </div>
           </div>
         </div>
-        <span className="shrink-0 rounded-full bg-background/80 px-2.5 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
-          {actions.length}
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          {actions.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 rounded-md text-muted-foreground hover:text-foreground"
+                  title="Ordenar"
+                  aria-label="Ordenar acciones de la columna"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => setSortBy('fecha_entrega')}
+                >
+                  <span className="flex-1">Fecha de entrega</span>
+                  {sortBy === 'fecha_entrega' ? (
+                    <Check className="h-4 w-4 shrink-0 opacity-80" />
+                  ) : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="gap-2"
+                  onClick={() => setSortBy('prioridad')}
+                >
+                  <span className="flex-1">Prioridad</span>
+                  {sortBy === 'prioridad' ? (
+                    <Check className="h-4 w-4 shrink-0 opacity-80" />
+                  ) : null}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          <span className="min-w-[24px] rounded-full bg-background/80 px-2.5 py-0.5 text-center text-xs font-medium tabular-nums text-muted-foreground">
+            {actions.length}
+          </span>
+        </div>
       </div>
       <div className="kanban-column-cards flex min-h-[200px] flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4 pt-0 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:rounded [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-border">
         {actions.length === 0 ? (
           <KanbanColumnEmpty status={status} onNewAction={onNewAction} />
         ) : (
-          actions.map((accion) => (
-            <KanbanCard
-              key={accion.id}
-              accion={accion}
-              responsableName={responsableNames[accion.responsable] ?? accion.responsable ?? '—'}
-              commentCount={commentCounts[accion.id] ?? 0}
-              onSelectAccion={onSelectAccion}
-              onMoveEstado={onMoveEstado}
-              checklistProgress={checklistProgressByAccionId[accion.id]}
-            />
-          ))
+          <>
+            {visibleActions.map((accion) => (
+              <KanbanCard
+                key={accion.id}
+                accion={accion}
+                responsableName={responsableNames[accion.responsable] ?? accion.responsable ?? '—'}
+                commentCount={commentCounts[accion.id] ?? 0}
+                onSelectAccion={onSelectAccion}
+                onMoveEstado={onMoveEstado}
+                checklistProgress={checklistProgressByAccionId[accion.id]}
+                estadoPermission={estadoPermission}
+              />
+            ))}
+            {hasOverflow ? (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                className={cn(
+                  'flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/70 bg-muted/20 py-2.5 text-xs font-medium text-muted-foreground',
+                  'transition-colors hover:border-border hover:bg-muted/40 hover:text-foreground'
+                )}
+                aria-expanded={expanded}
+              >
+                {expanded ? (
+                  <>
+                    <ChevronUp className="h-3.5 w-3.5" />
+                    Mostrar menos
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    Ver {hiddenCount} más
+                  </>
+                )}
+              </button>
+            ) : null}
+          </>
         )}
       </div>
     </div>
@@ -440,11 +692,18 @@ function KanbanColumn({
 
 function KanbanBoardSkeleton({ columns = COLUMN_ORDER }: { columns?: ActionStatus[] }) {
   return (
-    <div id="kanban-board" className="kanban-board kanban-board-skeleton flex gap-4 overflow-hidden pb-4">
+    <div
+      id="kanban-board"
+      className={cn(
+        'kanban-board kanban-board-skeleton relative min-w-0 flex gap-4 overflow-x-auto overscroll-x-contain px-0.5 pb-4 sm:gap-5',
+        'scroll-smooth snap-x snap-mandatory touch-pan-x',
+        KANBAN_H_SCROLL_CLASSES
+      )}
+    >
       {columns.map((status) => (
         <div
           key={status}
-          className="kanban-column flex min-w-[280px] max-w-[300px] shrink-0 flex-col rounded-2xl border border-border/50 bg-muted/10 p-4"
+          className="kanban-column flex w-[min(300px,calc(100vw-1.25rem))] shrink-0 snap-start flex-col rounded-2xl border border-border/50 bg-muted/10 p-4 sm:w-[300px] sm:min-w-[280px] sm:max-w-[300px]"
         >
           <div className="mb-3 flex items-center justify-between">
             <div className="h-4 w-24 animate-pulse rounded bg-muted" />
@@ -472,22 +731,14 @@ export function KanbanBoard({
   onSelectAccion,
   onNewAction,
   filterEstado,
+  narrowToOccupiedColumns = false,
   checklistProgressByAccionId = {},
 }: KanbanBoardProps) {
   const updateEstado = useUpdateAccionEstado()
   const [activeId, setActiveId] = useState<string | null>(null)
+  const { data: currentUser } = useCurrentUser()
+  const estadoPermission = useActionEstadoPermissions(currentUser ?? undefined)
   const { data: commentCounts = {} } = useCommentCounts(acciones.map((a) => a.id))
-
-  const columnsToShow = useMemo(() => {
-    if (filterEstado && COLUMN_ORDER.includes(filterEstado)) return [filterEstado]
-    return COLUMN_ORDER
-  }, [filterEstado])
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    })
-  )
 
   const byStatus = useMemo(() => {
     const map: Record<ActionStatus, AccionDiaria[]> = {
@@ -506,9 +757,34 @@ export function KanbanBoard({
     return map
   }, [acciones])
 
+  const columnsToShow = useMemo(() => {
+    if (filterEstado && COLUMN_ORDER.includes(filterEstado)) return [filterEstado]
+    if (narrowToOccupiedColumns) {
+      const occupied = COLUMN_ORDER.filter((s) => (byStatus[s]?.length ?? 0) > 0)
+      return occupied.length > 0 ? occupied : COLUMN_ORDER
+    }
+    return COLUMN_ORDER
+  }, [filterEstado, narrowToOccupiedColumns, byStatus])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    })
+  )
+
   const activeAccion = useMemo(
     () => (activeId ? acciones.find((a) => a.id === activeId) : null),
     [activeId, acciones]
+  )
+
+  const isColumnDropDisabled = useCallback(
+    (columnStatus: ActionStatus) => {
+      if (!activeAccion) return false
+      const currentDisplay = isEnRetraso(activeAccion) ? 'Retraso' : activeAccion.estado
+      if (currentDisplay === columnStatus) return false
+      return !estadoPermission.canChangeTo(activeAccion, columnStatus)
+    },
+    [activeAccion, estadoPermission]
   )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -527,6 +803,11 @@ export function KanbanBoard({
       if (!accion) return
       const currentDisplay = isEnRetraso(accion) ? 'Retraso' : accion.estado
       if (currentDisplay === newStatus) return
+      const denied = estadoPermission.denialMessage(accion, newStatus)
+      if (denied) {
+        toast.error(denied)
+        return
+      }
       updateEstado.mutate(
         { id: accion.id, estado: newStatus },
         {
@@ -535,11 +816,16 @@ export function KanbanBoard({
         }
       )
     },
-    [acciones, updateEstado]
+    [acciones, updateEstado, estadoPermission]
   )
 
   const handleMoveEstado = useCallback(
     (accion: AccionDiaria, estado: ActionStatus) => {
+      const denied = estadoPermission.denialMessage(accion, estado)
+      if (denied) {
+        toast.error(denied)
+        return
+      }
       updateEstado.mutate(
         { id: accion.id, estado },
         {
@@ -548,7 +834,7 @@ export function KanbanBoard({
         }
       )
     },
-    [updateEstado]
+    [updateEstado, estadoPermission]
   )
 
   if (isLoading) {
@@ -561,13 +847,7 @@ export function KanbanBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div
-        id="kanban-board"
-        className={cn(
-          'kanban-board flex gap-5 overflow-x-auto pb-4 pt-1',
-          '[&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:rounded [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/80 hover:[&::-webkit-scrollbar-thumb]:bg-border'
-        )}
-      >
+      <KanbanBoardScrollArea id="kanban-board" columnCount={columnsToShow.length}>
         {columnsToShow.map((status) => (
           <KanbanColumn
             key={status}
@@ -579,9 +859,11 @@ export function KanbanBoard({
             onNewAction={onNewAction}
             onMoveEstado={handleMoveEstado}
             checklistProgressByAccionId={checklistProgressByAccionId}
+            dropForbidden={isColumnDropDisabled(status)}
+            estadoPermission={estadoPermission}
           />
         ))}
-      </div>
+      </KanbanBoardScrollArea>
       <DragOverlay dropAnimation={null}>
         {activeAccion ? (
           <div className="w-[280px]">

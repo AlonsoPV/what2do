@@ -1,8 +1,12 @@
-import { CheckCircle2, ChevronDown, ClipboardList, Info, XCircle } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import type { ReactNode } from 'react'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { CheckCircle2, ClipboardList, FileText, Info, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { ROUTES } from '@/constants'
 import { KpiSparkline } from './KpiSparkline'
 import type { CatalogKpiO2cRow } from '../types/kpi.types'
 import {
@@ -11,7 +15,7 @@ import {
   resolveEffectiveCalcType,
   resolveEffectiveStatusThresholds,
 } from '../utils/kpiCalculations'
-import type { ReactNode } from 'react'
+import { buildKpiExecutiveInterpretation } from '../utils/kpiExecutiveInterpretation'
 
 export type KpiCardViewModel = {
   row: CatalogKpiO2cRow
@@ -21,47 +25,42 @@ export type KpiCardViewModel = {
   status: KpiComplianceStatus | null
   weight: number | null
   trendDelta: number | null
-  /** Cumplimiento de la penúltima medición (0–1), para comparar con la última. */
   prevCompliancePct: number | null
-  /** Sin medición reciente ni current_value válido */
   noData: boolean
-  /** `gap_id` en BD pero el gap no está en la lista cargada (referencia rota). */
   orphanGap?: boolean
-  /** Meta efectiva y umbrales de semáforo (horizonte M6/M12/M18). */
   metaLine?: string | null
   currentValue: number | null
   targetValue: number | null
   unit: string | null
-  /** Últimos valores medidos (orden cronológico) para mini serie. */
   sparklineValues?: number[]
-  /** Meta numérica cumplida en valor (actual vs meta), distinto del % de avance. */
   literalMetaCumplida: boolean | null
+  /** Ej. KPI-03 — desde `orden` del catálogo. */
+  kpiShortCode?: string | null
+  /** Brechas no cerradas vinculadas a este KPI (conteo motor tablero). */
+  activeBrechasCount?: number | null
+  /** Etiqueta corta de horizonte de meta (M6/M12/M18). */
+  targetHorizonShort?: string | null
 }
 
 type KpiCardProps = {
   vm: KpiCardViewModel
-  /** Si se pasa, muestra acción para abrir el diálogo de medición (p. ej. tablero /dashboard/kpis). */
   onRegisterMeasurement?: () => void
-  /** Clases extra en la tarjeta (p. ej. `kpi-dashboard__card` en el tablero KPIs). */
   className?: string
 }
 
-function statusBadgeVariant(
-  status: KpiComplianceStatus | null,
-  noData: boolean
-): 'success' | 'secondary' | 'destructive' | 'muted' {
-  if (noData) return 'muted'
-  if (status === 'on_track') return 'success'
-  if (status === 'at_risk') return 'secondary'
-  return 'destructive'
-}
-
-function statusLabel(status: KpiComplianceStatus | null, noData: boolean): string {
+function statusExecutiveLabel(status: KpiComplianceStatus | null, noData: boolean): string {
   if (noData) return 'Sin datos'
   if (status === 'on_track') return 'En meta'
   if (status === 'at_risk') return 'En riesgo'
   if (status === 'off_track') return 'Fuera de meta'
   return '—'
+}
+
+function statusDotClass(status: KpiComplianceStatus | null, noData: boolean): string {
+  if (noData) return 'bg-muted-foreground/40'
+  if (status === 'on_track') return 'bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.25)]'
+  if (status === 'at_risk') return 'bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.25)]'
+  return 'bg-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.2)]'
 }
 
 function formatValueWithUnit(value: number | null, unit: string | null): string {
@@ -127,9 +126,6 @@ function calcModeLabel(
   }
 }
 
-/**
- * Explica qué significa el badge de estado en términos de negocio (valores medidos vs meta), no solo el % abstracto.
- */
 function KpiOperationalStatusInterpretation({
   kpiNombre,
   calcMode,
@@ -154,17 +150,16 @@ function KpiOperationalStatusInterpretation({
   barPct: number
 }): ReactNode {
   const u = unit ? ` ${unit}` : ''
-  const cur =
-    currentValue != null && Number.isFinite(currentValue) ? formatNum(currentValue) : null
+  const cur = currentValue != null && Number.isFinite(currentValue) ? formatNum(currentValue) : null
   const tgt = targetValue != null && Number.isFinite(targetValue) ? formatNum(targetValue) : null
   const base = baseline != null && Number.isFinite(baseline) ? formatNum(baseline) : null
-  const badge = statusLabel(status, noData)
+  const badge = statusExecutiveLabel(status, noData)
 
   if (noData) {
     return (
       <p className="leading-snug text-muted-foreground">
-        Sin medición reciente no hay lectura operativa: no sabes si —por ejemplo— las reasignaciones, el tiempo de
-        carta porte u otro valor de este indicador están por encima o por debajo de la meta hasta registrar el dato.
+        Sin medición reciente no hay lectura operativa: no sabes si el valor de este indicador está por encima o por
+        debajo de la meta hasta registrar el dato.
       </p>
     )
   }
@@ -202,9 +197,8 @@ function KpiOperationalStatusInterpretation({
     return (
       <div className="space-y-2 leading-snug">
         <p>
-          En indicadores donde <strong className="text-foreground">menor es mejor</strong> (p. ej. reasignaciones al día,
-          tiempo de generación de carta porte, días de ciclo de cobro —según lo que mida «{kpiNombre}»), el valor de{' '}
-          <strong className="text-foreground">Actual</strong> es lo que está ocurriendo en operación frente a la{' '}
+          En indicadores donde <strong className="text-foreground">menor es mejor</strong>, el valor de{' '}
+          <strong className="text-foreground">Actual</strong> es lo que ocurre en operación frente a la{' '}
           <strong className="text-foreground">meta</strong>.
           {cur != null && tgt != null ? (
             <>
@@ -223,7 +217,7 @@ function KpiOperationalStatusInterpretation({
         </p>
         {status === 'on_track' ? (
           <p>
-            El badge <strong className="text-foreground">{badge}</strong> significa que el <strong>avance</strong> (
+            El estado <strong className="text-foreground">{badge}</strong> significa que el <strong>avance</strong> (
             {barPct}%), es decir el progreso desde la línea base
             {base != null ? (
               <>
@@ -232,31 +226,26 @@ function KpiOperationalStatusInterpretation({
                 {u})
               </>
             ) : null}{' '}
-            hacia la meta, <strong className="text-foreground">supera el umbral verde</strong>. Eso puede darse aunque
-            en absoluto aún veas cifras incómodas —por ejemplo <strong className="text-foreground">1,5</strong> frente
-            a meta <strong className="text-foreground">0</strong> en reasignaciones—: el semáforo mide el trayecto de
-            mejora, no solo si ya estás en el número ideal.
+            hacia la meta, <strong className="text-foreground">supera el umbral verde</strong>.
           </p>
         ) : status === 'at_risk' ? (
           <p>
-            El badge <strong className="text-foreground">{badge}</strong> indica <strong>avance intermedio</strong> (
-            {barPct}%): el indicador avanza hacia la meta pero sin alcanzar aún el margen del umbral verde; en operación
-            suele traducirse en que el valor medido sigue alejado del objetivo (p. ej. tiempo de carta porte o volumen
-            de incidencias aún por reducir).
+            El estado <strong className="text-foreground">{badge}</strong> indica <strong>avance intermedio</strong> (
+            {barPct}%): avanzas hacia la meta pero sin el margen del umbral verde.
           </p>
         ) : (
           <p>
-            El badge <strong className="text-foreground">{badge}</strong> indica que el avance ({barPct}%) está{' '}
-            <strong className="text-foreground">por debajo del umbral amarillo</strong>: en la práctica el indicador
-            sigue lejos de donde debe estar en terreno (demasiadas reasignaciones, tiempos altos, etc., según este KPI).
+            El estado <strong className="text-foreground">{badge}</strong> indica que el avance ({barPct}%) está{' '}
+            <strong className="text-foreground">por debajo del umbral amarillo</strong>.
           </p>
         )}
         {literalMetaCumplida === false && cur != null && tgt != null ? (
           <p className="border-t border-border/40 pt-2 text-muted-foreground">
-            <strong className="text-foreground">Meta en valor: No cumple</strong> confirma que{' '}
+            <strong className="text-foreground">Meta en valor</strong>:{' '}
             <span className="tabular-nums">{cur}</span>
-            {u} aún no iguala o no está por debajo de la exigencia <span className="tabular-nums">{tgt}</span>
-            {u}: hay que seguir bajando el número en operación, no solo mirar el % de avance.
+            {u} aún no iguala o no está por debajo de{' '}
+            <span className="tabular-nums">{tgt}</span>
+            {u}.
           </p>
         ) : null}
       </div>
@@ -267,15 +256,15 @@ function KpiOperationalStatusInterpretation({
     return (
       <div className="space-y-2 leading-snug">
         <p>
-          En indicadores donde <strong className="text-foreground">mayor es mejor</strong> (p. ej. % PODs a tiempo,
-          cobertura), el <strong className="text-foreground">Actual</strong> es el resultado en operación frente a la{' '}
+          En indicadores donde <strong className="text-foreground">mayor es mejor</strong>, el{' '}
+          <strong className="text-foreground">Actual</strong> es el resultado frente a la{' '}
           <strong className="text-foreground">meta</strong>.
           {cur != null && tgt != null ? (
             <>
               {' '}
               Aquí: <span className="tabular-nums font-medium text-foreground">{cur}</span>
               {u} vs <span className="tabular-nums font-medium text-foreground">{tgt}</span>
-              {u} como objetivo.
+              {u}.
             </>
           ) : cur != null ? (
             <>
@@ -287,35 +276,24 @@ function KpiOperationalStatusInterpretation({
         </p>
         {status === 'on_track' ? (
           <p>
-            El badge <strong className="text-foreground">{badge}</strong> indica que el avance ({barPct}%) —progreso
-            desde la línea base
-            {base != null ? (
-              <>
-                {' '}
-                (<span className="tabular-nums">{base}</span>
-                {u})
-              </>
-            ) : null}{' '}
-            hacia la meta— <strong className="text-foreground">supera el umbral verde</strong>: el desempeño del
-            indicador va en la dirección correcta.
+            El estado <strong className="text-foreground">{badge}</strong> indica que el avance ({barPct}%) supera el
+            umbral verde.
           </p>
         ) : status === 'at_risk' ? (
           <p>
-            El badge <strong className="text-foreground">{badge}</strong> indica avance intermedio ({barPct}%): el
-            resultado mejora pero aún no alcanza el margen exigido para considerarse “en meta” en el tablero.
+            El estado <strong className="text-foreground">{badge}</strong> indica avance intermedio ({barPct}%).
           </p>
         ) : (
           <p>
-            El badge <strong className="text-foreground">{badge}</strong> indica avance bajo: el valor medido sigue
-            lejos de la meta operativa (p. ej. cobertura o cumplimiento por debajo del objetivo).
+            El estado <strong className="text-foreground">{badge}</strong> indica avance bajo respecto a la meta.
           </p>
         )}
         {literalMetaCumplida === false && cur != null && tgt != null ? (
           <p className="border-t border-border/40 pt-2 text-muted-foreground">
-            <strong className="text-foreground">Meta en valor: No cumple</strong> indica que{' '}
+            <strong className="text-foreground">Meta en valor</strong>:{' '}
             <span className="tabular-nums">{cur}</span>
-            {u} aún no alcanza el nivel <span className="tabular-nums">{tgt}</span>
-            {u} exigido en valor absoluto.
+            {u} aún no alcanza <span className="tabular-nums">{tgt}</span>
+            {u}.
           </p>
         ) : null}
       </div>
@@ -325,20 +303,25 @@ function KpiOperationalStatusInterpretation({
   return (
     <p className="leading-snug">
       El estado <strong className="text-foreground">{badge}</strong> clasifica el avance ({barPct}%) frente a los
-      umbrales. Para la lectura operativa, compara el valor actual
+      umbrales.
       {cur != null ? (
         <>
           {' '}
-          (<span className="tabular-nums">{cur}</span>
-          {u})
+          Valor actual{' '}
+          <span className="tabular-nums">
+            ({cur}
+            {u})
+          </span>
         </>
-      ) : null}{' '}
-      con la meta
+      ) : null}
       {tgt != null ? (
         <>
           {' '}
-          (<span className="tabular-nums">{tgt}</span>
-          {u})
+          · Meta{' '}
+          <span className="tabular-nums">
+            ({tgt}
+            {u})
+          </span>
         </>
       ) : null}
       .
@@ -347,6 +330,7 @@ function KpiOperationalStatusInterpretation({
 }
 
 export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) {
+  const [detailOpen, setDetailOpen] = useState(false)
   const {
     row,
     gapLabel,
@@ -363,7 +347,11 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
     unit,
     sparklineValues,
     literalMetaCumplida,
+    kpiShortCode,
+    activeBrechasCount,
+    targetHorizonShort,
   } = vm
+
   const barPct = compliancePct != null ? Math.round(compliancePct * 100) : 0
   const prevBarPct = prevCompliancePct != null ? Math.round(prevCompliancePct * 100) : null
   const showTrendBars = prevCompliancePct != null && compliancePct != null && !noData
@@ -378,104 +366,203 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
   const thHelp = resolveEffectiveStatusThresholds(metricForHelp)
   const unitSuffix = unit ? ` ${unit}` : ''
 
-  const metaParts = [
-    !row.gap_id ? 'Sin gap' : null,
-    orphanGap ? 'Gap no encontrado' : null,
-    gapLabel ? `Gap: ${gapLabel}` : null,
-    ownerLabel ? `Resp.: ${ownerLabel}` : null,
+  const executiveLine = buildKpiExecutiveInterpretation({
+    noData,
+    status,
+    calcMode,
+    currentValue,
+    targetValue,
+    compliancePct,
+    unit,
+    literalMetaCumplida,
+  })
+
+  const titleHead =
+    kpiShortCode && kpiShortCode.trim().length > 0 ? `${kpiShortCode} · ${row.nombre}` : row.nombre
+
+  const brechasN = activeBrechasCount ?? 0
+  const detalleMetaParts = [
     metaLine,
-    weight != null && Number.isFinite(weight) ? `Peso: ${(weight * 100).toFixed(1)}%` : null,
+    ownerLabel ? `Responsable: ${ownerLabel}` : null,
+    weight != null && Number.isFinite(weight) ? `Peso en portafolio: ${(weight * 100).toFixed(1)}%` : null,
+    !row.gap_id ? 'Sin gap vinculado en catálogo' : null,
+    orphanGap ? 'Referencia de gap no encontrada en el tablero' : null,
+    gapLabel ? `Brecha: ${gapLabel}` : null,
   ].filter(Boolean) as string[]
 
   return (
     <Card
       data-kpi-id={row.id}
       data-kpi-name={row.nombre}
-      className={cn('kpi-dashboard__card overflow-hidden rounded-xl border-border/60 shadow-sm', className)}
+      className={cn(
+        'kpi-dashboard__card overflow-hidden rounded-2xl border border-border/50 bg-card/80 shadow-sm ring-1 ring-black/[0.03] backdrop-blur-[1px] dark:ring-white/[0.05]',
+        className
+      )}
     >
-      <CardHeader className="kpi-card__header px-4 pb-3 pt-4">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="kpi-card__title text-sm font-semibold leading-snug text-foreground">
-            {row.nombre}
-          </CardTitle>
-          <Badge variant={statusBadgeVariant(status, noData)} className="shrink-0 text-[10px]">
-            {statusLabel(status, noData)}
-          </Badge>
+      <CardContent className="space-y-5 p-5 sm:p-6">
+        {/* Header ejecutivo */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <h3 className="text-sm font-semibold leading-snug tracking-tight text-foreground sm:text-[15px]">
+              {titleHead}
+            </h3>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-2.5 py-1">
+            <span
+              className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClass(status, noData))}
+              aria-hidden
+            />
+            <span className="text-[11px] font-semibold text-foreground">
+              {statusExecutiveLabel(status, noData)}
+            </span>
+          </div>
         </div>
-        {metaParts.length > 0 ? (
-          <p className="mt-1 text-[11px] text-muted-foreground">{metaParts.join(' · ')}</p>
+
+        {orphanGap ? (
+          <p className="text-xs text-amber-800 dark:text-amber-200">
+            El KPI referencia un gap que no aparece cargado; revisa catálogo o permisos.
+          </p>
         ) : null}
-      </CardHeader>
-      <CardContent className="kpi-card__content space-y-3 px-4 pb-4">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">
-            Actual:{' '}
-            <span className="font-medium text-foreground tabular-nums">
-              {formatNum(currentValue)}
-              {unit ? ` ${unit}` : ''}
-            </span>
-          </span>
-          <span className="text-muted-foreground">
-            Meta:{' '}
-            <span className="font-medium text-foreground tabular-nums">
-              {formatNum(targetValue)}
-              {unit ? ` ${unit}` : ''}
-            </span>
-          </span>
+
+        {/* Métrica protagonista */}
+        <div className="space-y-1 border-b border-border/40 pb-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Valor actual</p>
+          <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground sm:text-4xl">
+            {noData ? '—' : formatNum(currentValue)}
+            {unit ? <span className="ml-1.5 text-xl font-medium text-muted-foreground sm:text-2xl">{unit}</span> : null}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Meta{targetHorizonShort ? ` (${targetHorizonShort})` : ''}:{' '}
+            <span className="font-medium tabular-nums text-foreground">{formatNum(targetValue)}</span>
+            {unit ? <span className="text-muted-foreground">{unitSuffix}</span> : null}
+          </p>
         </div>
-        <details className="kpi-card__help group rounded-lg border border-border/60 bg-gradient-to-b from-muted/40 to-muted/15 text-xs leading-relaxed text-muted-foreground shadow-sm">
-          <summary className="kpi-card__help-summary flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
-            <Info className="h-3.5 w-3.5 shrink-0 text-primary/80" aria-hidden />
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Guía de lectura
-              </span>
-              <span className="mt-0.5 block text-sm font-semibold leading-snug text-foreground">{row.nombre}</span>
-            </span>
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
-          </summary>
-          <div className="space-y-3 border-t border-border/50 px-3 pb-3 pt-3">
+
+        {/* Interpretación + avance */}
+        <div
+          className={cn(
+            'rounded-xl border px-3.5 py-3 text-sm leading-relaxed',
+            noData && 'border-border/60 bg-muted/20 text-muted-foreground',
+            !noData && status === 'on_track' && 'border-emerald-500/25 bg-emerald-500/[0.07]',
+            !noData && status === 'at_risk' && 'border-amber-500/25 bg-amber-500/[0.08]',
+            !noData && status === 'off_track' && 'border-destructive/30 bg-destructive/[0.06]'
+          )}
+        >
+          {executiveLine}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-medium text-muted-foreground">Avance hacia la meta</span>
+            <span className="tabular-nums font-semibold text-foreground">{noData ? '—' : `${barPct}%`}</span>
+          </div>
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all',
+                noData && 'bg-muted-foreground/25',
+                !noData && status === 'on_track' && 'bg-emerald-500',
+                !noData && status === 'at_risk' && 'bg-amber-500',
+                !noData && status === 'off_track' && 'bg-destructive'
+              )}
+              style={{ width: noData ? '0%' : `${Math.min(100, barPct)}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Conexión negocio */}
+        <div className="text-sm">
+          {brechasN > 0 ? (
+            <p className="leading-snug">
+              <span className="font-medium text-foreground">Relacionado con </span>
+              <Link
+                to={ROUTES.DASHBOARD_GAPS}
+                className="font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                {brechasN === 1 ? '1 brecha activa' : `${brechasN} brechas activas`}
+              </Link>
+              <span className="text-muted-foreground"> en el tablero de gaps.</span>
+            </p>
+          ) : row.gap_id ? (
+            <p className="text-muted-foreground">
+              Brecha vinculada{gapLabel ? ` «${gapLabel}»` : ''}: sin pendientes activos o ya cerrada en el tablero.
+            </p>
+          ) : (
+            <p className="text-muted-foreground">Sin brecha vinculada en catálogo.</p>
+          )}
+        </div>
+
+        {onRegisterMeasurement ? (
+          <Button type="button" className="h-10 w-full font-medium shadow-sm" onClick={onRegisterMeasurement}>
+            <ClipboardList className="mr-2 h-4 w-4" aria-hidden />
+            Registrar medición
+          </Button>
+        ) : null}
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 w-full border-border/70 font-medium text-foreground"
+          onClick={() => setDetailOpen(true)}
+        >
+          <FileText className="mr-2 h-4 w-4 text-muted-foreground" aria-hidden />
+          Ver detalle técnico
+        </Button>
+
+        <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+          <DialogContent
+            showClose
+            aria-describedby={undefined}
+            className="flex max-h-[min(85vh,800px)] max-w-xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          >
+            <div className="shrink-0 border-b border-border/60 px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
+              <DialogTitle className="text-left text-base font-semibold sm:text-lg">Detalle técnico</DialogTitle>
+              <DialogDescription className="pt-1.5 text-left text-sm">{titleHead}</DialogDescription>
+            </div>
+            <div className="kpi-card__detail-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 text-xs leading-relaxed text-muted-foreground sm:px-6">
+            {detalleMetaParts.length > 0 ? (
+              <p className="rounded-md border border-border/40 bg-background/50 px-2.5 py-2 text-[11px]">
+                {detalleMetaParts.join(' · ')}
+              </p>
+            ) : null}
+
             <div className="rounded-md border border-border/50 bg-background/60 px-2.5 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">{modeCopy.title}</p>
-              <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">{modeCopy.explain}</p>
-              <p className="mt-2 text-[11px] leading-snug text-muted-foreground/95">{modeCopy.advanceExplain}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Guía de lectura</p>
+              <p className="mt-1.5 text-[11px] font-semibold text-foreground">{modeCopy.title}</p>
+              <p className="mt-1.5 text-[11px] leading-snug">{modeCopy.explain}</p>
+              <p className="mt-2 text-[11px] leading-snug opacity-95">{modeCopy.advanceExplain}</p>
             </div>
 
-            <dl className="kpi-card__help-numbers grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
-              <dt className="text-muted-foreground">Línea base</dt>
+            <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
+              <dt>Línea base</dt>
               <dd className="font-medium tabular-nums text-foreground">
                 {formatNum(row.baseline)}
                 {unitSuffix}
               </dd>
-              <dt className="text-muted-foreground">Meta (horizonte del tablero)</dt>
+              <dt>Meta (horizonte tablero)</dt>
               <dd className="font-medium tabular-nums text-foreground">
                 {formatNum(targetValue)}
                 {unitSuffix}
               </dd>
-              <dt className="text-muted-foreground">Valor actual</dt>
+              <dt>Valor actual</dt>
               <dd className="font-medium tabular-nums text-foreground">
                 {currentValue != null && Number.isFinite(currentValue) ? formatNum(currentValue) : '—'}
                 {unitSuffix}
               </dd>
             </dl>
 
-            <div className="rounded-md border border-border/40 bg-muted/30 px-2.5 py-2 text-[11px]">
-              <p className="font-semibold text-foreground">Semáforo sobre el % de avance</p>
+            <div className="mt-4 rounded-md border border-border/40 bg-muted/30 px-2.5 py-2 text-[11px]">
+              <p className="font-semibold text-foreground">Semáforo sobre % de avance</p>
               <p className="mt-1 leading-snug">
-                Verde (En meta): avance ≥{' '}
-                <span className="tabular-nums font-medium text-foreground">
-                  {(thHelp.greenMin * 100).toFixed(0)}%
-                </span>
-                . Amarillo (En riesgo): entre{' '}
-                <span className="tabular-nums font-medium text-foreground">
-                  {(thHelp.yellowMin * 100).toFixed(0)}%
-                </span>{' '}
-                y ese umbral. Rojo (Fuera): por debajo del amarillo.
+                Verde: avance ≥ <span className="tabular-nums font-medium">{(thHelp.greenMin * 100).toFixed(0)}%</span>.
+                Amarillo: entre{' '}
+                <span className="tabular-nums font-medium">{(thHelp.yellowMin * 100).toFixed(0)}%</span> y ese umbral.
+                Rojo: por debajo.
               </p>
             </div>
 
-            <div className="kpi-card__help-interpretation space-y-2 rounded-md border border-dashed border-border/60 bg-background/50 px-2.5 py-2 text-[11px]">
-              <p className="font-semibold text-foreground">Qué indica el estado en la operación</p>
+            <div className="mt-4 space-y-2 rounded-md border border-dashed border-border/60 bg-background/50 px-2.5 py-2">
+              <p className="font-semibold text-foreground">Interpretación extendida</p>
               <KpiOperationalStatusInterpretation
                 kpiNombre={row.nombre}
                 calcMode={calcMode}
@@ -488,157 +575,111 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
                 literalMetaCumplida={literalMetaCumplida}
                 barPct={barPct}
               />
-              {!noData ? (
-                <p className="border-t border-border/40 pt-2 text-[10px] leading-snug text-muted-foreground">
-                  Avance {barPct}%:{' '}
-                  {calcMode === 'binary'
-                    ? 'solo 0% o 100% según coincidencia con la meta.'
-                    : 'progreso en el tramo línea base → meta; el badge resume ese avance frente a umbrales, no sustituye al valor medido.'}
-                </p>
-              ) : null}
             </div>
 
-            <p className="text-[10px] leading-snug text-muted-foreground/90">
-              «Actual» es el último valor registrado en medición. El avance y el semáforo son derivados para el tablero;
-              no sustituyen al dato fuente.
-            </p>
-          </div>
-        </details>
-        <div
-          className={cn(
-            'kpi-card__literal-meta flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-xs',
-            literalMetaCumplida === true && 'border-emerald-500/35 bg-emerald-500/5',
-            literalMetaCumplida === false && 'border-destructive/35 bg-destructive/5',
-            literalMetaCumplida === null && 'border-border bg-muted/30'
-          )}
-        >
-          <span className="text-muted-foreground">Meta en valor</span>
-          {literalMetaCumplida === null ? (
-            <span className="font-medium text-muted-foreground">—</span>
-          ) : literalMetaCumplida ? (
-            <span className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-300">
-              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-              Cumple
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 font-semibold text-destructive">
-              <XCircle className="h-4 w-4 shrink-0" aria-hidden />
-              No cumple
-            </span>
-          )}
-        </div>
-        <div className="kpi-card__compliance">
-          <div className="kpi-card__compliance-head mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="min-w-0">
-              <span>Avance</span>
-              <span className="ml-1 text-[10px] font-normal leading-tight text-muted-foreground/90">
-                (respecto a línea base y meta)
-              </span>
-            </div>
-            <span className="shrink-0 font-medium tabular-nums text-foreground">
-              {noData ? '—' : `${barPct}%`}
-            </span>
-          </div>
-          <div className="kpi-card__compliance-track h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
               className={cn(
-                'kpi-card__compliance-fill',
-                'h-full rounded-full transition-all',
-                noData && 'bg-muted-foreground/30',
-                !noData && status === 'on_track' && 'bg-emerald-500',
-                !noData && status === 'at_risk' && 'bg-amber-500',
-                !noData && status === 'off_track' && 'bg-destructive'
+                'mt-4 flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-[11px]',
+                literalMetaCumplida === true && 'border-emerald-500/35 bg-emerald-500/5',
+                literalMetaCumplida === false && 'border-destructive/35 bg-destructive/5',
+                literalMetaCumplida === null && 'border-border bg-muted/30'
               )}
-              style={{ width: noData ? '0%' : `${barPct}%` }}
-            />
-          </div>
-        </div>
-        <div className="kpi-card__evolution space-y-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
-          <div className="kpi-card__evolution-head flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            <span>Evolución individual</span>
-            <span>{measurementCount > 0 ? `${measurementCount} medición${measurementCount === 1 ? '' : 'es'}` : 'Sin histórico'}</span>
-          </div>
-          {hasEvolutionChart ? (
-            <div className="kpi-card__evolution-chart flex items-center gap-3">
-              <KpiSparkline
-                values={sparklineValues!}
-                width={176}
-                height={42}
-                className="min-w-0 flex-1 text-primary"
-                label={`Evolución individual de mediciones: ${row.nombre}`}
-              />
-              <div className="kpi-card__evolution-legend grid shrink-0 gap-1 text-[10px] tabular-nums">
-                <div>
-                  <p className="text-muted-foreground">Inicio</p>
-                  <p className="font-medium text-foreground">{formatValueWithUnit(firstMeasurement, unit)}</p>
+            >
+              <span>Meta en valor (absoluto)</span>
+              {literalMetaCumplida === null ? (
+                <span className="font-medium text-muted-foreground">—</span>
+              ) : literalMetaCumplida ? (
+                <span className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+                  Cumple
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 font-semibold text-destructive">
+                  <XCircle className="h-4 w-4 shrink-0" aria-hidden />
+                  No cumple
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-start gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-2">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
+              <p className="text-[10px] leading-snug">
+                «Actual» es el último valor registrado. El avance y el semáforo son derivados para el tablero; no
+                sustituyen al dato fuente.
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+              <div className="flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                <span>Evolución de mediciones</span>
+                <span>
+                  {measurementCount > 0 ? `${measurementCount} medición${measurementCount === 1 ? '' : 'es'}` : 'Sin histórico'}
+                </span>
+              </div>
+              {hasEvolutionChart ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <KpiSparkline
+                    values={sparklineValues!}
+                    width={176}
+                    height={42}
+                    className="min-w-0 flex-1 text-primary"
+                    label={`Evolución de mediciones: ${row.nombre}`}
+                  />
+                  <div className="grid shrink-0 gap-1 text-[10px] tabular-nums">
+                    <div>
+                      <p className="text-muted-foreground">Inicio</p>
+                      <p className="font-medium text-foreground">{formatValueWithUnit(firstMeasurement, unit)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Última</p>
+                      <p className="font-medium text-foreground">{formatValueWithUnit(lastMeasurement, unit)}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Última</p>
-                  <p className="font-medium text-foreground">{formatValueWithUnit(lastMeasurement, unit)}</p>
+              ) : measurementCount === 1 ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span>Una sola medición registrada.</span>
+                  <span className="font-medium tabular-nums text-foreground">
+                    {formatValueWithUnit(lastMeasurement, unit)}
+                  </span>
+                </div>
+              ) : (
+                <p>Aún no hay suficiente histórico. Registra mediciones para ver la serie.</p>
+              )}
+            </div>
+
+            {showTrendBars ? (
+              <div className="mt-4 space-y-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-2">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Última vs penúltima medición
+                </p>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="w-16 shrink-0 text-muted-foreground">Anterior</span>
+                  <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-muted-foreground/45" style={{ width: `${prevBarPct}%` }} />
+                  </div>
+                  <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">{prevBarPct}%</span>
+                </div>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <span className="w-16 shrink-0 font-medium text-foreground">Última</span>
+                  <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        'h-full rounded-full',
+                        status === 'on_track' && 'bg-emerald-500',
+                        status === 'at_risk' && 'bg-amber-500',
+                        status === 'off_track' && 'bg-destructive'
+                      )}
+                      style={{ width: `${barPct}%` }}
+                    />
+                  </div>
+                  <span className="w-9 shrink-0 text-right tabular-nums font-medium text-foreground">{barPct}%</span>
                 </div>
               </div>
+            ) : null}
             </div>
-          ) : measurementCount === 1 ? (
-            <div className="kpi-card__evolution-single flex items-center justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">Solo hay una medición registrada.</span>
-              <span className="font-medium tabular-nums text-foreground">
-                {formatValueWithUnit(lastMeasurement, unit)}
-              </span>
-            </div>
-          ) : (
-            <p className="kpi-card__evolution-empty text-xs text-muted-foreground">
-              Aún no hay suficiente histórico para mostrar evolución. Registra mediciones para ver la serie.
-            </p>
-          )}
-        </div>
-        {showTrendBars && (
-          <div className="kpi-card__trend-compare space-y-1.5 rounded-md border border-border/60 bg-muted/30 px-2 py-2">
-            <p className="kpi-card__trend-compare-title text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Última vs penúltima medición
-            </p>
-            <div className="flex items-center gap-2 text-[10px]">
-              <span className="w-16 shrink-0 text-muted-foreground">Anterior</span>
-              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-muted-foreground/45"
-                  style={{ width: `${prevBarPct}%` }}
-                />
-              </div>
-              <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">
-                {prevBarPct}%
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[10px]">
-              <span className="w-16 shrink-0 font-medium text-foreground">Última</span>
-              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-                <div
-                  className={cn(
-                    'h-full rounded-full',
-                    status === 'on_track' && 'bg-emerald-500',
-                    status === 'at_risk' && 'bg-amber-500',
-                    status === 'off_track' && 'bg-destructive'
-                  )}
-                  style={{ width: `${barPct}%` }}
-                />
-              </div>
-              <span className="w-9 shrink-0 text-right tabular-nums font-medium text-foreground">
-                {barPct}%
-              </span>
-            </div>
-          </div>
-        )}
-        {onRegisterMeasurement ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="kpi-card__btn-measure w-full"
-            onClick={onRegisterMeasurement}
-          >
-            <ClipboardList className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-            Registrar medición
-          </Button>
-        ) : null}
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   )

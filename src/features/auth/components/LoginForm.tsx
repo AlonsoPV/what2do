@@ -3,11 +3,13 @@
  */
 
 import { Link } from 'react-router-dom'
+import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import { loginFormSchema, type LoginFormValues } from '../schemas/login.schema'
 import { ROUTES } from '@/constants'
 
@@ -40,7 +42,10 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
           placeholder="nombre@empresa.com"
           disabled={isLoading}
           {...form.register('email')}
-          className={form.formState.errors.email ? 'border-destructive' : ''}
+          className={cn(
+            'h-11 rounded-lg text-base sm:text-sm',
+            form.formState.errors.email && 'border-destructive'
+          )}
         />
         {form.formState.errors.email && (
           <p className="text-sm text-destructive">
@@ -65,7 +70,10 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
           placeholder="••••••••"
           disabled={isLoading}
           {...form.register('password')}
-          className={form.formState.errors.password ? 'border-destructive' : ''}
+          className={cn(
+            'h-11 rounded-lg text-base sm:text-sm',
+            form.formState.errors.password && 'border-destructive'
+          )}
         />
         {form.formState.errors.password && (
           <p className="text-sm text-destructive">
@@ -73,8 +81,20 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
           </p>
         )}
       </div>
-      <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-        {isLoading ? 'Iniciando sesión…' : 'Iniciar sesión'}
+      <Button
+        type="submit"
+        className="h-11 w-full rounded-lg text-base font-semibold shadow-md transition-shadow hover:shadow-lg"
+        size="lg"
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+            Iniciando sesión…
+          </>
+        ) : (
+          'Iniciar sesión'
+        )}
       </Button>
     </form>
   )

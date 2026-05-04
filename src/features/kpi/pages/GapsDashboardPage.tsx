@@ -24,10 +24,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useUsers } from '@/features/users/hooks/useUsers'
-import { GapCard, type GapCardViewModel, type KpiSemaforoCounts } from '../components/GapCard'
+import { GapCard, type GapBusinessSeverity, type GapCardViewModel, type KpiSemaforoCounts } from '../components/GapCard'
 import { useCatalogKpiO2cMetricItems, useGapAccionesForGapIds, useGapKpiLinks, useGaps } from '../hooks'
-import type { CatalogKpiO2cRow, GapStatus } from '../types/kpi.types'
-import { accionStoryPoints, computeGapStoryProgress } from '../utils/gapProgress'
+import type { CatalogKpiMetricItem } from '../hooks/useCatalogKpiMetricsList'
+import type { CatalogKpiO2cRow, Gap, GapStatus } from '../types/kpi.types'
+import { accionStoryPoints, computeGapStoryProgress, isAccionEstadoDone } from '../utils/gapProgress'
 import {
   computeStoryGlobalImpactPercent,
   FIBONACCI_STORY_POINTS,
@@ -38,6 +39,24 @@ import { getGapWeight } from '../utils/kpiCalculations'
 
 type SortKey = 'nombre' | 'progress' | 'status' | 'prioridad'
 type SortDir = 'asc' | 'desc'
+
+function deriveGapSeveridad(gap: Gap, primary: CatalogKpiMetricItem | null): GapBusinessSeverity {
+  if (gap.status === 'closed' || gap.status === 'resolved') return 'controlado'
+  if (!primary) return 'riesgo'
+  if (primary.status === 'off_track') return 'critico'
+  if (primary.status === 'at_risk') return 'riesgo'
+  if (primary.status === 'on_track') return 'controlado'
+  return 'riesgo'
+}
+
+function gapProblemaHumanLine(gap: Gap): string {
+  const d = gap.descripcion?.trim()
+  if (!d) {
+    return 'Aún no hay una descripción clara del problema; complétala en catálogo para alinear al equipo.'
+  }
+  const oneLine = d.replace(/\s+/g, ' ')
+  return oneLine.length > 140 ? `${oneLine.slice(0, 137)}…` : oneLine
+}
 
 export function GapsDashboardPage() {
   const { data: gaps = [], isLoading: gapsLoading } = useGaps({ filters: { activo: true } })
@@ -84,6 +103,21 @@ export function GapsDashboardPage() {
     return m
   }, [metricItems])
 
+  const metricItemsByGapId = useMemo(() => {
+    const m = new Map<string, CatalogKpiMetricItem[]>()
+    for (const item of metricItems) {
+      const gid = item.row.gap_id
+      if (!gid) continue
+      const list = m.get(gid) ?? []
+      list.push(item)
+      m.set(gid, list)
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => a.row.orden - b.row.orden)
+    }
+    return m
+  }, [metricItems])
+
   const gapKpiLinkById = useMemo(() => {
     const map = new Map<string, (typeof gapKpiLinks)[number]>()
     for (const link of gapKpiLinks) map.set(link.gapId, link)
@@ -97,6 +131,22 @@ export function GapsDashboardPage() {
         (a) => a.gap_id === gap.id || junctionSet?.has(a.id)
       )
       const accionesCount = forGap.length
+      const accionesActivasCount = forGap.filter((a) => !isAccionEstadoDone(a.estado)).length
+      const metricsForGap = metricItemsByGapId.get(gap.id) ?? []
+      const primaryMetric = metricsForGap[0] ?? null
+      const severidad = deriveGapSeveridad(gap, primaryMetric)
+      const primaryKpi = primaryMetric
+        ? {
+            code: `KPI-${String(primaryMetric.row.orden).padStart(2, '0')}`,
+            nombre: primaryMetric.row.nombre,
+            compliancePct:
+              primaryMetric.compliance != null ? Math.round(primaryMetric.compliance * 100) : null,
+            status: primaryMetric.status,
+            weightPct:
+              primaryMetric.row.weight != null ? Math.round(primaryMetric.row.weight * 100) : null,
+          }
+        : null
+      const problemaHumanLine = gapProblemaHumanLine(gap)
       const { donePoints, totalPoints } = computeGapStoryProgress(
         gap.id,
         acciones,
@@ -149,9 +199,13 @@ export function GapsDashboardPage() {
         kpiWeightSum,
         kpiSemaforoCounts,
         accionesCount,
+        accionesActivasCount,
         ownerLabel,
         noAccionesWarning: accionesCount === 0,
         storyImpactRows,
+        severidad,
+        primaryKpi,
+        problemaHumanLine,
       }
     })
     if (import.meta.env.DEV && gaps.length > 0) {
@@ -168,6 +222,7 @@ export function GapsDashboardPage() {
     userById,
     kpiRows,
     kpiSemaforoByGapId,
+    metricItemsByGapId,
   ])
 
   const [areaFilter, setAreaFilter] = useState<string>('all')
@@ -202,12 +257,16 @@ export function GapsDashboardPage() {
     })
   }, [baseCards, areaFilter, ownerFilter, statusFilter])
 
-  const chainHeader = useMemo(() => ({
-    cerrados: filtered.filter((vm) => vm.gapKpiLink?.estado === 'cerrado').length,
-    enProgreso: filtered.filter((vm) => vm.gapKpiLink?.estado === 'en_progreso').length,
-    ptsDone: filtered.reduce((sum, vm) => sum + (vm.donePoints ?? 0), 0),
-    ptsTotal: filtered.reduce((sum, vm) => sum + (vm.totalPoints ?? 0), 0),
-  }), [filtered])
+  const chainHeader = useMemo(
+    () => ({
+      visibles: filtered.length,
+      cerrados: filtered.filter((vm) => vm.gapKpiLink?.estado === 'cerrado').length,
+      enProgreso: filtered.filter((vm) => vm.gapKpiLink?.estado === 'en_progreso').length,
+      ptsDone: filtered.reduce((sum, vm) => sum + (vm.donePoints ?? 0), 0),
+      ptsTotal: filtered.reduce((sum, vm) => sum + (vm.totalPoints ?? 0), 0),
+    }),
+    [filtered]
+  )
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -299,69 +358,79 @@ export function GapsDashboardPage() {
   )
 
   const loading = gapsLoading || kpisLoading || accionesLoading || gapKpiLinksLoading
-  const hasActiveFilters = areaFilter !== 'all' || ownerFilter !== 'all' || statusFilter !== 'all'
-  const avancePortafolio = chainHeader.ptsTotal > 0 ? chainHeader.ptsDone / chainHeader.ptsTotal : 0
+  const avancePortafolioPct =
+    chainHeader.ptsTotal > 0
+      ? Math.round((chainHeader.ptsDone / chainHeader.ptsTotal) * 100)
+      : 0
+
+  const gapGroups = useMemo(() => {
+    const critico: GapCardViewModel[] = []
+    const riesgo: GapCardViewModel[] = []
+    const controlado: GapCardViewModel[] = []
+    for (const vm of sorted) {
+      if (vm.severidad === 'critico') critico.push(vm)
+      else if (vm.severidad === 'riesgo') riesgo.push(vm)
+      else controlado.push(vm)
+    }
+    return { critico, riesgo, controlado }
+  }, [sorted])
 
   const moscowBudget = useMemo(() => moscowPointsBudget(TARGET_SPRINT_VELOCITY_POINTS), [])
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-6 sm:px-6">
+    <div className="mx-auto w-full max-w-7xl space-y-8 overflow-x-hidden px-4 py-6 sm:px-6">
       <header className="space-y-1">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Brechas O2C</p>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Gaps operativos</h1>
-              <InfoHint text="Vista de brechas operativas con avance por story points, estado del gap y semáforo agregado de KPIs vinculados." />
-            </div>
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              Brechas operativas con avance por story points en acciones (Hecho / Verificado), estado de la brecha y
-              resumen de semáforo por KPIs de catálogo vinculados.
-            </p>
-            <details className="mt-3 max-w-3xl rounded-lg border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
-              <summary className="cursor-pointer list-none font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
-                Metodología: story points, MoSCoW e impacto en score global
-              </summary>
-              <div className="mt-2 space-y-2 border-t border-border/60 pt-2">
-                <p>
-                  <span className="font-medium text-foreground">Fibonacci ({FIBONACCI_STORY_POINTS.join(', ')}):</span>{' '}
-                  escala de estimación relativa (complejidad + incertidumbre) por acción.
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">
-                    MoSCoW y velocidad objetivo (~{TARGET_SPRINT_VELOCITY_POINTS} pts/sprint):
-                  </span>{' '}
-                  capacidad orientativa Must ~{moscowBudget.must} pts, Should ~{moscowBudget.should} pts, Could ~
-                  {moscowBudget.could} pts (60% / 25% / 15%).
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Impacto en score global:</span> (Σ peso KPI del
-                  gap / nº acciones) × (pts de la acción / pts totales del gap). No sustituye al cumplimiento por
-                  medición del KPI; es reparto analítico del peso del gap entre historias.
-                </p>
-              </div>
-            </details>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Brechas O2C</h1>
+          <InfoHint text="Problemas de negocio priorizados: severidad según el indicador vinculado, progreso en story points y acciones en el Kanban. El detalle técnico es opcional." />
+        </div>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Cada brecha es un problema a resolver, no un reporte: primero entiende qué está mal y qué indicador lo refleja;
+          luego ejecuta con acciones en el tablero.
+        </p>
+        <div className="flex flex-wrap gap-2 pt-1 text-xs">
+          <div className="flex min-w-0 items-center gap-1.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+            <Target className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="text-muted-foreground">Visibles:</span>
+            <span className="font-medium tabular-nums text-foreground">{chainHeader.visibles}</span>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-card px-3 py-2 shadow-sm">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Visibles:</span>
-              <span className="font-medium tabular-nums text-foreground">{filteredSummary.total}</span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-card px-3 py-2 shadow-sm">
-              <span className="text-muted-foreground">Cerrados:</span>
-              <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                {chainHeader.cerrados}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-card px-3 py-2 shadow-sm">
-              <span className="text-muted-foreground">Story pts:</span>
-              <span className="font-medium tabular-nums text-foreground">
-                {chainHeader.ptsDone} / {chainHeader.ptsTotal}
-              </span>
-            </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+            <span className="text-muted-foreground">Cerrados:</span>
+            <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {chainHeader.cerrados}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+            <span className="text-muted-foreground">Story pts:</span>
+            <span className="font-medium tabular-nums text-foreground">
+              {chainHeader.ptsDone} / {chainHeader.ptsTotal}
+            </span>
           </div>
         </div>
+        <details className="mt-3 max-w-3xl rounded-lg border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
+          <summary className="cursor-pointer list-none font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+            Metodología: story points, MoSCoW e impacto en score global
+          </summary>
+          <div className="mt-2 space-y-2 border-t border-border/60 pt-2">
+            <p>
+              <span className="font-medium text-foreground">Fibonacci ({FIBONACCI_STORY_POINTS.join(', ')}):</span>{' '}
+              escala de estimación relativa (complejidad + incertidumbre) por acción.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">
+                MoSCoW y velocidad objetivo (~{TARGET_SPRINT_VELOCITY_POINTS} pts/sprint):
+              </span>{' '}
+              capacidad orientativa Must ~{moscowBudget.must} pts, Should ~{moscowBudget.should} pts, Could ~
+              {moscowBudget.could} pts (60% / 25% / 15%).
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Impacto en score global:</span> (Σ peso KPI del gap / nº
+              acciones) × (pts de la acción / pts totales del gap). No sustituye al cumplimiento por medición del KPI;
+              es reparto analítico del peso del gap entre historias.
+            </p>
+          </div>
+        </details>
       </header>
 
       <section className="scroll-mt-4">
@@ -373,14 +442,12 @@ export function GapsDashboardPage() {
           <SectionCardBody className="space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>Progreso (Done)</span>
-          <span className="tabular-nums font-medium text-foreground">
-            {Math.round(avancePortafolio * 100)}%
-          </span>
+          <span className="font-medium tabular-nums text-foreground">{avancePortafolioPct}%</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-500"
-            style={{ width: `${Math.round(avancePortafolio * 100)}%` }}
+            className="h-2 rounded-full bg-primary transition-all duration-700 ease-out"
+            style={{ width: `${avancePortafolioPct}%` }}
           />
         </div>
         <p className="text-[11px] text-muted-foreground">
@@ -413,43 +480,45 @@ export function GapsDashboardPage() {
                     setOwnerFilter('all')
                     setStatusFilter('all')
                   }}
-                  disabled={!hasActiveFilters}
+                  disabled={
+                    areaFilter === 'all' && ownerFilter === 'all' && statusFilter === 'all'
+                  }
                 >
-                  <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                   Limpiar filtros
                 </Button>
               </div>
             }
           />
           <SectionCardBody className="space-y-4">
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Brechas</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{filteredSummary.total}</p>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+            <p className="text-muted-foreground">Total</p>
+            <p className="text-lg font-semibold tabular-nums text-foreground">{filteredSummary.total}</p>
           </div>
-          <div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Abiertas</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{filteredSummary.open}</p>
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+            <p className="text-muted-foreground">Abiertas</p>
+            <p className="text-lg font-semibold tabular-nums text-foreground">{filteredSummary.open}</p>
           </div>
-          <div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">En curso</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+            <p className="text-muted-foreground">En curso</p>
+            <p className="text-lg font-semibold tabular-nums text-amber-600 dark:text-amber-400">
               {filteredSummary.inProgress}
             </p>
           </div>
-          <div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Resueltas</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+            <p className="text-muted-foreground">Resueltas</p>
+            <p className="text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
               {filteredSummary.resolved}
             </p>
           </div>
-          <div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Cerradas</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{filteredSummary.closed}</p>
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+            <p className="text-muted-foreground">Cerradas</p>
+            <p className="text-lg font-semibold tabular-nums text-foreground">{filteredSummary.closed}</p>
           </div>
-          <div className="rounded-xl border border-border/60 bg-card px-3 py-2.5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Avance prom.</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
+          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+            <p className="text-muted-foreground">Avance prom.</p>
+            <p className="text-lg font-semibold tabular-nums text-foreground">
               {Number.isFinite(filteredSummary.avgProgress)
                 ? `${Math.round(filteredSummary.avgProgress)}%`
                 : '0%'}
@@ -523,10 +592,10 @@ export function GapsDashboardPage() {
           <SectionCardHeader
             icon={ListChecks}
             titleId="gaps-list-title"
-            title={`Detalle de brechas (${sorted.length})`}
-            subtitle="Avance por story points, KPIs vinculados y semáforo."
+            title={`Problemas operativos (${sorted.length})`}
+            subtitle="Agrupados por gravedad (indicador principal). Abre «Detalle técnico» solo si necesitas pesos, semáforos o tablas."
             action={
-              <InfoHint text="Cada tarjeta muestra avance por story points, estado de la brecha, KPIs vinculados y resumen de semáforo." />
+              <InfoHint text="Crítico = KPI principal fuera de meta. En riesgo = KPI en zona intermedia o sin dato claro. Controlado = KPI en meta o brecha cerrada/resuelta." />
             }
           />
           <SectionCardBody>
@@ -535,10 +604,55 @@ export function GapsDashboardPage() {
         ) : sorted.length === 0 ? (
           <p className="text-sm text-muted-foreground">No hay gaps que coincidan con los filtros.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {sorted.map((vm) => (
-              <GapCard key={vm.gap.id} vm={vm} />
-            ))}
+          <div className="space-y-10">
+            {gapGroups.critico.length > 0 ? (
+              <div className="space-y-4" data-gap-group="criticos">
+                <div className="flex flex-wrap items-center gap-2 px-0.5">
+                  <span className="h-2 w-2 rounded-full bg-destructive" aria-hidden />
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">Críticos</h3>
+                  <span className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-medium tabular-nums text-destructive">
+                    {gapGroups.critico.length}
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {gapGroups.critico.map((vm) => (
+                    <GapCard key={vm.gap.id} vm={vm} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {gapGroups.riesgo.length > 0 ? (
+              <div className="space-y-4" data-gap-group="riesgo">
+                <div className="flex flex-wrap items-center gap-2 px-0.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden />
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">En riesgo</h3>
+                  <span className="rounded-md border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-950 dark:text-amber-100">
+                    {gapGroups.riesgo.length}
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {gapGroups.riesgo.map((vm) => (
+                    <GapCard key={vm.gap.id} vm={vm} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {gapGroups.controlado.length > 0 ? (
+              <div className="space-y-4" data-gap-group="controlados">
+                <div className="flex flex-wrap items-center gap-2 px-0.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">Controlados</h3>
+                  <span className="rounded-md border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium tabular-nums text-emerald-950 dark:text-emerald-100">
+                    {gapGroups.controlado.length}
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {gapGroups.controlado.map((vm) => (
+                    <GapCard key={vm.gap.id} vm={vm} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
           </SectionCardBody>

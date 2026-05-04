@@ -104,6 +104,8 @@ export function AccionFormDialog({
   const [pendingNewEvidencias, setPendingNewEvidencias] = useState<File[]>([])
   const [dragOverNew, setDragOverNew] = useState(false)
   const [checklistDrafts, setChecklistDrafts] = useState<LocalCheckpointDraft[]>([])
+  /** Resumen de validación bajo los botones del pie (RHF/Zod y reglas del diálogo). */
+  const [submitFooterErrors, setSubmitFooterErrors] = useState<string[] | null>(null)
 
   useEffect(() => {
     if (open && !isEdit) {
@@ -111,6 +113,10 @@ export function AccionFormDialog({
       setChecklistDrafts([])
     }
   }, [open, isEdit])
+
+  useEffect(() => {
+    setSubmitFooterErrors(null)
+  }, [open, accion?.id])
 
   useEffect(() => {
     if (!open) return
@@ -209,6 +215,7 @@ export function AccionFormDialog({
   }, [accion, defaultFecha, o2cLinksQuery.data])
 
   const handleSubmit = (values: AccionCreateInput) => {
+    setSubmitFooterErrors(null)
     const gapIds = values.gap_ids ?? []
     const catalogKpiIds = values.catalog_kpi_ids ?? []
     const fecha = values.fecha ?? todayISO()
@@ -270,7 +277,9 @@ export function AccionFormDialog({
     } else {
       const badCheckpoint = checklistDrafts.some((d) => d.texto.trim().length < 3)
       if (badCheckpoint) {
-        toast.error('Cada punto a validar debe tener al menos 3 caracteres o elimínalo.')
+        setSubmitFooterErrors([
+          'Cada punto a validar debe tener al menos 3 caracteres o elimínalo.',
+        ])
         return
       }
       const responsable = payload.responsable ?? null
@@ -286,6 +295,8 @@ export function AccionFormDialog({
           }
 
           const createdId = created.id
+          refreshActionViews()
+
           const deferredOps: Promise<unknown>[] = []
 
           deferredOps.push(
@@ -436,6 +447,7 @@ export function AccionFormDialog({
             formId={formBaseId}
             defaultValues={defaultValues}
             onSubmit={handleSubmit}
+            onSubmitInvalid={(messages) => setSubmitFooterErrors(messages)}
             onCancel={() => onOpenChange(false)}
             isSubmitting={createAccion.isPending || updateAccion.isPending}
             isEdit={isEdit}
@@ -569,31 +581,49 @@ export function AccionFormDialog({
         </div>
         <div
           id={`${formBaseId}-dialog-footer`}
-          className="accion-form-dialog-footer flex shrink-0 justify-end gap-3 border-t border-border/70 bg-muted/20 px-5 py-4 sm:px-6"
+          className="accion-form-dialog-footer flex shrink-0 flex-col gap-3 border-t border-border/70 bg-muted/20 px-5 py-4 sm:px-6"
         >
-          <Button
-            type="button"
-            variant="ghost"
-            id={`${formBaseId}-cancel`}
-            className="accion-form-dialog-cancel"
-            onClick={() => onOpenChange(false)}
-            disabled={createAccion.isPending || updateAccion.isPending}
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="submit"
-            form={formBaseId}
-            id={`${formBaseId}-submit`}
-            className="accion-form-dialog-submit"
-            disabled={createAccion.isPending || updateAccion.isPending}
-          >
-            {createAccion.isPending || updateAccion.isPending
-              ? 'Guardando…'
-              : isEdit
-                ? 'Guardar cambios'
-                : 'Crear acción'}
-          </Button>
+          <div className="flex w-full justify-end gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              id={`${formBaseId}-cancel`}
+              className="accion-form-dialog-cancel"
+              onClick={() => onOpenChange(false)}
+              disabled={createAccion.isPending || updateAccion.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form={formBaseId}
+              id={`${formBaseId}-submit`}
+              variant="default"
+              className="accion-form-dialog-submit"
+              disabled={createAccion.isPending || updateAccion.isPending}
+            >
+              {createAccion.isPending || updateAccion.isPending
+                ? 'Guardando…'
+                : isEdit
+                  ? 'Guardar cambios'
+                  : 'Crear acción'}
+            </Button>
+          </div>
+          {submitFooterErrors && submitFooterErrors.length > 0 ? (
+            <div
+              id={`${formBaseId}-submit-validation-summary`}
+              role="alert"
+              aria-live="assertive"
+              className="w-full rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2.5 text-left text-xs text-destructive"
+            >
+              <p className="font-medium">No se puede guardar aún:</p>
+              <ul className="mt-1.5 list-disc space-y-1 pl-4">
+                {submitFooterErrors.map((msg, idx) => (
+                  <li key={idx}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

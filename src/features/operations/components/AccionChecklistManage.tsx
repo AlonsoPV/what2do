@@ -339,8 +339,8 @@ export function AccionChecklistManage({
               <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center">
                 <p className="text-sm font-medium text-foreground/80">Sin puntos en el checklist</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Agrega ítems arriba cuando quieras. Si dejas la lista vacía, solo se exige evidencia para cerrar la
-                  acción.
+                  Agrega ítems arriba cuando quieras. Si dejas la lista vacía, no hay puntos de validación que
+                  bloqueen el cierre.
                 </p>
               </div>
             )}

@@ -61,6 +61,45 @@ export function academyGlobalProgressPercent(completedCount: number, totalModule
   return Math.min(100, Math.round((completedCount / totalModules) * 100))
 }
 
+/**
+ * Clasifica módulos para resúmenes compactos (p. ej. Disciplina): completados, en progreso, pendientes/bloqueados.
+ */
+export function countAcademyModuleBuckets(
+  progress: AcademyProgressState,
+  modules: LearningModule[],
+  isModuleUnlockedFn: (moduleId: number) => boolean
+): { completados: number; enProgreso: number; pendientes: number } {
+  let completados = 0
+  let enProgreso = 0
+  let pendientes = 0
+  for (const m of modules) {
+    if (progress.completedModules.has(m.id)) {
+      completados++
+      continue
+    }
+    if (!isModuleUnlockedFn(m.id)) {
+      pendientes++
+      continue
+    }
+    let started = false
+    for (let i = 0; i < m.steps.length; i++) {
+      if (progress.completedSteps.has(moduleStepKey(m.id, i))) {
+        started = true
+        break
+      }
+    }
+    if (!started && progress.completedSteps.has(moduleExerciseStepKey(m.id))) {
+      started = true
+    }
+    if (started || progress.passedQuizzes.has(m.id)) {
+      enProgreso++
+    } else {
+      pendientes++
+    }
+  }
+  return { completados, enProgreso, pendientes }
+}
+
 export function allQuizAnswersCorrect(module: LearningModule, answers: number[]): boolean {
   return module.quiz.every((q, i) => answers[i] === q.correctIndex)
 }

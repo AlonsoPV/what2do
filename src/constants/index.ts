@@ -20,7 +20,6 @@ export const ROUTES = {
   MANUAL: '/manual',
   SETTINGS: '/settings',
   SETTINGS_PROFILE: '/settings/profile',
-  SETTINGS_DISTANCIAS: '/settings/distancias',
   SETTINGS_USERS: '/settings/users',
   SETTINGS_USERS_DETAIL: '/settings/users/:id',
   SETTINGS_CATALOGS: '/settings/catalogs',
@@ -32,7 +31,4 @@ export const ROUTES = {
   SETTINGS_CATALOGS_DROPDOWNS_OPTIONS: '/settings/catalogs/dropdowns/:catalogId',
   SETTINGS_CATALOGS_KPIS: '/settings/catalogs/kpis',
   SETTINGS_CATALOGS_GAPS: '/settings/catalogs/gaps',
-  SETTINGS_CATALOGS_ORIGINS: '/settings/catalogs/origins',
-  SETTINGS_CATALOGS_DESTINATIONS: '/settings/catalogs/destinations',
-  SETTINGS_CATALOGS_SOLICITUDES_GUARDADAS: '/settings/catalogs/solicitudes-guardadas',
 } as const

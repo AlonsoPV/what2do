@@ -55,6 +55,12 @@ export interface AccionDiaria {
   repeticion: boolean
   verificador_dato: string | null
   verificador_gobierno: string | null
+  /** Auditoría opcional (migración 20260413120000): quién/cuándo cerró operativamente. */
+  completed_at?: string | null
+  completed_by?: string | null
+  /** Auditoría opcional: verificación final. */
+  verified_at?: string | null
+  verified_by?: string | null
   created_at: string
   updated_at: string
 }

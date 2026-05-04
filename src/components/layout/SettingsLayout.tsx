@@ -11,14 +11,11 @@ import {
   List,
   Target,
   UserCircle,
-  MapPinned,
-  Navigation,
-  ClipboardList,
+  AlertTriangle,
 } from 'lucide-react'
 
 const SETTINGS_LINKS = [
   { to: ROUTES.SETTINGS_PROFILE, label: 'Mi perfil', icon: UserCircle },
-  { to: ROUTES.SETTINGS_DISTANCIAS, label: 'Distancias', icon: MapPin },
   { to: ROUTES.SETTINGS_USERS, label: 'Usuarios', icon: Users },
   { to: ROUTES.SETTINGS_CATALOGS, label: 'Catálogos', icon: FolderOpen },
 ] as const
@@ -31,9 +28,7 @@ const CATALOG_LINKS = [
   { to: ROUTES.SETTINGS_CATALOGS_PRIORITIES, label: 'Prioridades', icon: ArrowUpCircle },
   { to: ROUTES.SETTINGS_CATALOGS_DROPDOWNS, label: 'Listas desplegables', icon: List },
   { to: ROUTES.SETTINGS_CATALOGS_KPIS, label: 'KPIs', icon: Target },
-  { to: ROUTES.SETTINGS_CATALOGS_ORIGINS, label: 'Orígenes', icon: MapPinned },
-  { to: ROUTES.SETTINGS_CATALOGS_DESTINATIONS, label: 'Destinos', icon: Navigation },
-  { to: ROUTES.SETTINGS_CATALOGS_SOLICITUDES_GUARDADAS, label: 'Solicitudes guardadas', icon: ClipboardList },
+  { to: ROUTES.SETTINGS_CATALOGS_GAPS, label: 'Brechas O2C', icon: AlertTriangle },
 ] as const
 
 export function SettingsLayout() {

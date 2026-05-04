@@ -31,7 +31,7 @@ export function SectionCardHeader({
   return (
     <div
       className={cn(
-        'flex items-start justify-between gap-4 border-b border-border/50 px-5 py-4 sm:px-6',
+        'flex flex-col gap-3 border-b border-border/50 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-6',
         className
       )}
     >
@@ -45,13 +45,17 @@ export function SectionCardHeader({
           {eyebrow ? (
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{eyebrow}</p>
           ) : null}
-          <h2 id={titleId} className="text-base font-semibold text-foreground">
+          <h2 id={titleId} className="text-[15px] font-semibold leading-snug text-foreground sm:text-base">
             {title}
           </h2>
           {subtitle ? <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p> : null}
         </div>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? (
+        <div className="w-full min-w-0 shrink-0 sm:w-auto sm:max-w-[min(100%,28rem)]">
+          {action}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -63,5 +67,5 @@ export function SectionCardBody({
   children: ReactNode
   className?: string
 }) {
-  return <div className={cn('p-5 sm:p-6', className)}>{children}</div>
+  return <div className={cn('p-4 sm:p-6', className)}>{children}</div>
 }

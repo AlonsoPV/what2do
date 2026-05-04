@@ -29,8 +29,18 @@ export { AccionChecklistManage } from './components/AccionChecklistManage'
 export { AccionChecklistProgress, AccionChecklistProgressBadge } from './components/AccionChecklistProgress'
 export { MSJ_HECHO_CHECKPOINTS_PENDIENTES } from './constants/checkpoints'
 export { KanbanBoard } from './components/KanbanBoard'
+export {
+  canChangeAccionEstado,
+  canMoveToHecho,
+  canMoveToVerificado,
+  getAccionEstadoChangeDenialMessage,
+  MSJ_PERMISO_HECHO,
+  MSJ_PERMISO_VERIFICADO,
+} from './utils/actionPermissions'
+export { useActionEstadoPermissions } from './hooks/useActionEstadoPermissions'
 export { KanbanHeader } from './components/KanbanHeader'
 export { KanbanToolbar } from './components/KanbanToolbar'
+export type { KanbanToolbarLayout } from './components/KanbanToolbar'
 export { CountdownTimer } from './components/CountdownTimer'
 export { metricasFromAcciones, type MetricasAcciones } from './utils/metricas'
 export type { AccionCreateInput, AccionFormInput, AccionUpdateInput } from './schemas/accion.schema'

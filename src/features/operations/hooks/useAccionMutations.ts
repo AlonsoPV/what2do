@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { kpiQueryKeys } from '@/features/kpi/kpiQueryKeys'
 import { accionesService } from '@/services/acciones.service'
-import { assertCanCloseAccion } from '@/services/accionCloseValidation.service'
 import type { AccionDiaria } from '@/types'
 import type { ActionStatus } from '@/types'
 
@@ -47,7 +46,11 @@ export function useCreateAccion() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (payload: Partial<AccionDiaria>) => accionesService.create(payload),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
+      if (data?.id) {
+        qc.invalidateQueries({ queryKey: [...KEY, data.id] })
+      }
       qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact })
     },
   })
@@ -56,13 +59,10 @@ export function useCreateAccion() {
 export function useUpdateAccion() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, payload }: { id: string; payload: Partial<AccionDiaria> }) => {
-      if (payload.estado === 'Hecho') {
-        await assertCanCloseAccion(id)
-      }
-      return accionesService.update(id, payload)
-    },
+    mutationFn: async ({ id, payload }: { id: string; payload: Partial<AccionDiaria> }) =>
+      accionesService.update(id, payload),
     onMutate: async ({ id, payload }) => {
+      await qc.cancelQueries({ queryKey: KEY })
       const snapshot = snapshotAccionesCache(qc)
       patchAccionInCache(qc, id, payload)
       return { snapshot }
@@ -71,6 +71,7 @@ export function useUpdateAccion() {
       restoreAccionesCache(qc, ctx?.snapshot)
     },
     onSuccess: (data) => {
+      patchAccionInCache(qc, data.id, data)
       qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
       qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps })
       qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones })
@@ -94,13 +95,9 @@ export function useUpdateAccionEstado() {
       id: string
       estado: ActionStatus
       extra?: Partial<AccionDiaria>
-    }) => {
-      if (estado === 'Hecho') {
-        await assertCanCloseAccion(id)
-      }
-      return accionesService.updateEstado(id, estado, extra)
-    },
+    }) => accionesService.updateEstado(id, estado, extra),
     onMutate: async ({ id, estado, extra }) => {
+      await qc.cancelQueries({ queryKey: KEY })
       const snapshot = snapshotAccionesCache(qc)
       patchAccionInCache(qc, id, {
         estado,
@@ -112,6 +109,7 @@ export function useUpdateAccionEstado() {
       restoreAccionesCache(qc, ctx?.snapshot)
     },
     onSuccess: (data) => {
+      patchAccionInCache(qc, data.id, data)
       qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
       qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps })
       qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones })

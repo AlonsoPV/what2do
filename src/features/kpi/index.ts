@@ -41,7 +41,7 @@ export { KpiCard } from './components/KpiCard'
 export type { KpiCardViewModel } from './components/KpiCard'
 export { ChainStatCard } from './components/ChainStatCard'
 export { GapCard } from './components/GapCard'
-export type { GapCardViewModel, GapStoryImpactRow, KpiSemaforoCounts } from './components/GapCard'
+export type { GapCardViewModel, GapStoryImpactRow, GapBusinessSeverity, KpiSemaforoCounts } from './components/GapCard'
 export {
   CatalogKpiSemaforoGrid,
   type CatalogKpiSemaforoGridProps,

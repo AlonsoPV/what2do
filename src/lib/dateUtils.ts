@@ -5,9 +5,19 @@ const CDMX_TZ = 'America/Mexico_City'
 
 /**
  * Fecha de hoy en CDMX (YYYY-MM-DD).
+ * Usa `getAppNow()` (respeta `VITE_DEV_FIXED_NOW` en demos).
  */
 export function todayCDMX(): string {
   return getAppNow().toLocaleDateString('en-CA', { timeZone: CDMX_TZ })
+}
+
+/**
+ * Fecha de hoy en CDMX (YYYY-MM-DD) según el reloj del sistema.
+ * Ignora `VITE_DEV_FIXED_NOW`. Úsala en filtros `type="date"` donde el usuario
+ * espera el calendario real aunque el resto de la app esté congelada en una demo.
+ */
+export function todayWallClockCDMX(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: CDMX_TZ })
 }
 
 /** Formatea fecha/hora ISO para visualización en CDMX */
@@ -45,4 +55,32 @@ export function addCalendarDays(ymd: string, delta: number): string {
   const [y, m, d] = ymd.split('-').map(Number)
   const next = new Date(y, m - 1, d + delta)
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Domingo de la semana que contiene `ymd` (YYYY-MM-DD en calendario local del navegador).
+ */
+export function endOfWeekSundayFromYmd(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const dow = date.getDay()
+  const daysUntilSunday = dow === 0 ? 0 : 7 - dow
+  const end = new Date(date)
+  end.setDate(date.getDate() + daysUntilSunday)
+  return `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`
+}
+
+/** Preset de “acciones creadas hasta” alineado al corte de `fecha_creacion` del listado. */
+export type CreationDatePresetKey = 'hoy' | 'semana' | 'mes' | 'todo' | 'custom'
+
+export function matchCreationDatePreset(
+  fechaCreacion: string | undefined,
+  todayYmd: string
+): CreationDatePresetKey {
+  if (fechaCreacion === undefined || fechaCreacion === '') return 'todo'
+  if (fechaCreacion === todayYmd) return 'hoy'
+  if (fechaCreacion === endOfWeekSundayFromYmd(todayYmd)) return 'semana'
+  const [y, m] = todayYmd.split('-').map(Number)
+  if (fechaCreacion === lastDayOfMonth(y, m)) return 'mes'
+  return 'custom'
 }

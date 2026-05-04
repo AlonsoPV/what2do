@@ -66,7 +66,7 @@ export function AccionChecklistEditor({ items, onChange, disabled }: AccionCheck
           <h4 className="text-sm font-semibold leading-tight">Puntos a validar</h4>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Opcional. Si agregas ítems, deberán completarse todos (en el seguimiento) antes de marcar la acción como
-            Hecha. Lista vacía = solo evidencia.
+            Hecha. Lista vacía = no hay checklist que bloquee el cierre.
           </p>
         </div>
       </CardHeader>
@@ -181,7 +181,7 @@ export function AccionChecklistEditor({ items, onChange, disabled }: AccionCheck
         {items.length === 0 && (
           <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-6 text-center">
             <p className={cn('text-xs text-muted-foreground', disabled && 'opacity-50')}>
-              Aún no agregaste puntos. La acción podrá cerrarse cumpliendo la evidencia esperada y el resto de reglas.
+              Aún no agregaste puntos. La acción podrá cerrarse sin checklist si el resto de reglas lo permiten.
             </p>
           </div>
         )}

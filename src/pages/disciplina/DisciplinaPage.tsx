@@ -40,32 +40,41 @@ export function DisciplinaPage() {
         </p>
       </header>
 
-      <SectionCard>
-        <SectionCardHeader title="Fecha de referencia" subtitle="Las métricas inferiores usan acciones de esta fecha." />
-        <SectionCardBody>
-          <div className="max-w-xs space-y-2">
-            <Label htmlFor="disciplina-fecha">Fecha</Label>
-            <Input
-              id="disciplina-fecha"
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-            />
-          </div>
-        </SectionCardBody>
-      </SectionCard>
-
       <section aria-labelledby="disciplina-seguimiento-heading">
         <SectionCard>
           <SectionCardHeader
             titleId="disciplina-seguimiento-heading"
-            title="Seguimiento: registro de Academia y acciones"
-            subtitle="Vista compacta del avance formativo y del trabajo diario."
+            title="Seguimiento del día"
+            subtitle="Primero la fecha; después acciones del día y Academia, cada una en su columna."
           />
-          <SectionCardBody>
-            <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
-              <DisciplinaAcademyRegistro />
-              <DisciplinaAccionesCard fecha={fecha} usuarioId={currentUser?.id} />
+          <SectionCardBody className="space-y-6 p-4 sm:p-6 lg:p-8">
+            <div className="disciplina-seguimiento__row-fecha flex flex-col gap-4 border-b border-border/50 pb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+              <div className="space-y-2">
+                <Label htmlFor="disciplina-fecha">Fecha de referencia</Label>
+                <p className="text-xs text-muted-foreground">
+                  Acciones y métricas inferiores usan responsable + fecha elegida (CDMX).
+                </p>
+                <Input
+                  id="disciplina-fecha"
+                  type="date"
+                  className="max-w-[10rem]"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value || today)}
+                  title="Fecha de referencia (Ciudad de México); vacío vuelve a hoy"
+                />
+              </div>
+            </div>
+
+            <div
+              className="disciplina-seguimiento__row-dos-columnas grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch lg:gap-8"
+              aria-label="Acciones del día y Academia"
+            >
+              <div className="min-w-0">
+                <DisciplinaAccionesCard fecha={fecha} usuarioId={currentUser?.id} />
+              </div>
+              <div className="min-w-0">
+                <DisciplinaAcademyRegistro />
+              </div>
             </div>
           </SectionCardBody>
         </SectionCard>

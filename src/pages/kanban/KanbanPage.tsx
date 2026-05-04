@@ -24,16 +24,18 @@ import {
   dropdownOptionsByCatalogKeyQueryKey,
   fetchDropdownOptionsByCatalogKey,
 } from '@/features/catalogs/hooks/useDropdownOptions'
-import type { AccionDiaria } from '@/types'
+import type { AccionDiaria, ActionStatus } from '@/types'
 import type { AccionesFilter } from '@/services/acciones.service'
-import { todayCDMX } from '@/lib/dateUtils'
+import { todayWallClockCDMX } from '@/lib/dateUtils'
 import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
+import { useGapAccionesForGapIds } from '@/features/kpi/hooks/useGapAccionesForGapIds'
+import { useGap } from '@/features/kpi/hooks/useGaps'
 
 const DEFAULT_FILTER: AccionesFilter = {}
 
 export function KanbanPage() {
   const qc = useQueryClient()
-  const today = todayCDMX()
+  const today = todayWallClockCDMX()
   const prefetchEvidenceCatalog = useCallback(async () => {
     await qc.prefetchQuery({
       queryKey: dropdownOptionsByCatalogKeyQueryKey('evidencia_esperada'),
@@ -51,14 +53,33 @@ export function KanbanPage() {
   }))
   const [filtersExpanded, setFiltersExpanded] = useState(true)
   const [viewMode, setViewMode] = useState<KanbanViewMode>('kanban')
-  const { data: acciones = [], isLoading } = useAcciones(filter)
-  const accionIds = useMemo(() => acciones.map((a) => a.id), [acciones])
+  const filterForQuery = useMemo(
+    () => ({ ...filter, fecha_creacion: filter.fecha_creacion ?? today }),
+    [filter, today]
+  )
+  const { data: acciones = [], isLoading } = useAcciones(filterForQuery)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const gapIdFromUrl = searchParams.get('gap')
+  const { data: gapAccionesBundle, isLoading: gapAccionesLoading } = useGapAccionesForGapIds(
+    gapIdFromUrl ? [gapIdFromUrl] : []
+  )
+  const { data: gapFromUrl } = useGap(gapIdFromUrl)
+
+  const accionesDisplay = useMemo(() => {
+    if (!gapIdFromUrl) return acciones
+    if (gapAccionesLoading || !gapAccionesBundle) return []
+    const ids = new Set(gapAccionesBundle.acciones.map((a) => a.id))
+    return acciones.filter((a) => ids.has(a.id))
+  }, [acciones, gapIdFromUrl, gapAccionesBundle, gapAccionesLoading])
+
+  const listLoading = isLoading || Boolean(gapIdFromUrl && gapAccionesLoading)
+
+  const accionIds = useMemo(() => accionesDisplay.map((a) => a.id), [accionesDisplay])
   const { data: checklistProgressByAccionId = {} } = useChecklistProgressByAccionIds(accionIds)
-  const { data: commentCounts = {} } = useCommentCounts(acciones.map((a) => a.id))
+  const { data: commentCounts = {} } = useCommentCounts(accionesDisplay.map((a) => a.id))
   const { data: users = [] } = useUsers({ activo: true })
   const [editingAccion, setEditingAccion] = useState<AccionDiaria | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [searchParams, setSearchParams] = useSearchParams()
   const accionIdFromUrl = searchParams.get('accion')
   const fechaFromUrl = searchParams.get('fecha')
   const { data: accionFromUrl } = useAccion(accionIdFromUrl)
@@ -89,12 +110,32 @@ export function KanbanPage() {
   }, [accionFromUrl, accionIdFromUrl, setSearchParams])
 
   const handleFilterChange = useCallback((next: AccionesFilter | Partial<AccionesFilter>) => {
-    setFilter((prev) => ({ ...prev, ...next }))
-  }, [])
+    setFilter((prev) => {
+      const merged = { ...prev, ...next }
+      const f = merged.fecha_creacion
+      if (f == null || f === '' || !/^\d{4}-\d{2}-\d{2}$/.test(f)) {
+        merged.fecha_creacion = today
+      }
+      return merged
+    })
+  }, [today])
 
   const handleClearFilters = useCallback(() => {
     setFilter({ ...DEFAULT_FILTER, fecha_creacion: today })
-  }, [today])
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('gap')
+      return next
+    }, { replace: true })
+  }, [today, setSearchParams])
+
+  const clearGapFilter = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('gap')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
 
   const responsableNames = useMemo(() => {
     const map: Record<string, string> = {}
@@ -105,7 +146,7 @@ export function KanbanPage() {
   }, [users])
 
   const nextDeadline = useMemo(() => {
-    const pending = acciones.filter(
+    const pending = accionesDisplay.filter(
       (a) => a.estado !== 'Hecho' && a.estado !== 'Verificado'
     )
     if (pending.length === 0) return null
@@ -115,7 +156,24 @@ export function KanbanPage() {
       return da - db
     })
     return sorted[0]
-  }, [acciones])
+  }, [accionesDisplay])
+
+  const filterEstadoSingle = useMemo((): ActionStatus | undefined => {
+    if (filter.estado != null && !Array.isArray(filter.estado)) return filter.estado
+    if (Array.isArray(filter.estado) && filter.estado.length === 1) return filter.estado[0]
+    return undefined
+  }, [filter.estado])
+
+  const narrowKanbanToOccupiedColumns = useMemo(
+    () =>
+      filterEstadoSingle == null &&
+      ((filter.search != null && filter.search.trim() !== '') ||
+        filter.prioridad != null ||
+        (filter.area != null && filter.area !== '') ||
+        (filter.responsable != null && filter.responsable !== '') ||
+        Boolean(gapIdFromUrl)),
+    [filterEstadoSingle, filter.search, filter.prioridad, filter.area, filter.responsable, gapIdFromUrl]
+  )
 
   const handleSelectAccion = useCallback((accion: AccionDiaria) => {
     void prefetchEvidenceCatalog()
@@ -137,7 +195,7 @@ export function KanbanPage() {
   return (
     <div
       id="kanban-page"
-      className="kanban-page mx-auto flex w-full max-w-7xl flex-col space-y-8 px-4 py-6 sm:px-6"
+      className="kanban-page mx-auto flex w-full max-w-7xl flex-col space-y-6 overflow-x-hidden px-3 py-5 sm:space-y-8 sm:px-6 sm:py-6"
     >
       <KanbanHeader
         filtersExpanded={filtersExpanded}
@@ -147,8 +205,11 @@ export function KanbanPage() {
         onViewModeChange={setViewMode}
         rightOfTitle={
           nextDeadline ? (
-            <span id="kanban-next-deadline" className="kanban-next-deadline inline-flex items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground">
-              Próximo límite
+            <span
+              id="kanban-next-deadline"
+              className="kanban-next-deadline inline-flex max-w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-full border border-border/50 bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground sm:text-xs"
+            >
+              <span className="shrink-0">Próximo límite</span>
               <CountdownTimer
                 fecha={nextDeadline.fecha}
                 hora_limite={nextDeadline.hora_limite}
@@ -160,32 +221,58 @@ export function KanbanPage() {
         }
       />
 
-      <div id="kanban-toolbar" className="kanban-toolbar-wrapper">
-        <KanbanToolbar
-          filter={filter}
-          onFilterChange={handleFilterChange}
-          onClear={handleClearFilters}
-          visible={filtersExpanded}
-        />
-      </div>
+      {gapIdFromUrl ? (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-xl border border-primary/25 bg-primary/[0.06] px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="min-w-0 text-foreground">
+            <span className="font-semibold">Acciones de la brecha: </span>
+            <span className="text-muted-foreground">
+              {gapFromUrl?.nombre ?? 'Cargando nombre…'}
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Solo se listan acciones vinculadas a este problema (fecha del tablero sigue aplicando).
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={clearGapFilter}
+            className="shrink-0 text-left text-xs font-semibold text-primary underline-offset-4 hover:underline sm:text-sm"
+          >
+            Quitar filtro de brecha
+          </button>
+        </div>
+      ) : null}
 
-      <section id="kanban-content" className="kanban-content min-h-[420px]">
-        {viewMode === 'kanban' ? (
-          <KanbanBoard
-            acciones={acciones}
-            isLoading={isLoading}
-            responsableNames={responsableNames}
-            checklistProgressByAccionId={checklistProgressByAccionId}
-            onSelectAccion={handleSelectAccion}
-            onNewAction={handleNewAction}
-            filterEstado={
-              filter.estado != null && !Array.isArray(filter.estado)
-                ? filter.estado
-                : Array.isArray(filter.estado) && filter.estado.length === 1
-                  ? filter.estado[0]
-                  : undefined
-            }
+      {filtersExpanded ? (
+        <div id="kanban-toolbar" className="kanban-toolbar-wrapper">
+          <KanbanToolbar
+            filter={filter}
+            onFilterChange={handleFilterChange}
+            onClear={handleClearFilters}
+            visible
           />
+        </div>
+      ) : null}
+
+      <section
+        id="kanban-content"
+        className="kanban-content min-h-[360px] sm:min-h-[420px]"
+      >
+        {viewMode === 'kanban' ? (
+          <div className="-mx-3 min-w-0 sm:mx-0">
+            <KanbanBoard
+              acciones={accionesDisplay}
+              isLoading={listLoading}
+              responsableNames={responsableNames}
+              checklistProgressByAccionId={checklistProgressByAccionId}
+              onSelectAccion={handleSelectAccion}
+              onNewAction={handleNewAction}
+              filterEstado={filterEstadoSingle}
+              narrowToOccupiedColumns={narrowKanbanToOccupiedColumns}
+            />
+          </div>
         ) : (
           <SectionCard className="kanban-grid-view overflow-hidden">
             <SectionCardHeader
@@ -193,14 +280,14 @@ export function KanbanPage() {
               subtitle="Clic en una fila para editar la acción."
               action={
                 <span className="text-xs tabular-nums text-muted-foreground">
-                  <span className="font-semibold text-foreground">{acciones.length}</span> acciones
+                  <span className="font-semibold text-foreground">{accionesDisplay.length}</span> acciones
                 </span>
               }
             />
             <SectionCardBody className="p-0">
               <AccionesControlTable
-                acciones={acciones}
-                isLoading={isLoading}
+                acciones={accionesDisplay}
+                isLoading={listLoading}
                 commentCounts={commentCounts}
                 onSelectAccion={handleSelectAccion}
                 responsableNames={responsableNames}
