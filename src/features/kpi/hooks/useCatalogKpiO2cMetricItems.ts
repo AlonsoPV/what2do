@@ -3,12 +3,17 @@ import { useCatalogKpiRecentMeasurementsBatch } from './useCatalogKpiMeasurement
 import { useCatalogKpiMetricsList, type CatalogKpiMetricItem } from './useCatalogKpiMetricsList'
 import { useWeightedKpis } from './useWeightedKpis'
 import type { CatalogKpiMeasurement, CatalogKpiO2cRow, CatalogKpisO2cListOpts } from '../types/kpi.types'
-import { DEFAULT_O2C_TARGET_HORIZON, type TargetHorizon } from '../utils/kpiCalculations'
+import {
+  DEFAULT_O2C_TARGET_HORIZON,
+  type CatalogObservationPolicy,
+  type TargetHorizon,
+} from '../utils/kpiCalculations'
 
 const EMPTY_RECENT_MEASUREMENTS_MAP = new Map<string, CatalogKpiMeasurement[]>()
 
 export type UseCatalogKpiO2cMetricItemsOptions = CatalogKpisO2cListOpts & {
   targetHorizon?: TargetHorizon
+  observationPolicy?: CatalogObservationPolicy
   enabled?: boolean
 }
 
@@ -29,7 +34,12 @@ export type CatalogKpiO2cMetricItemsResult = {
 export function useCatalogKpiO2cMetricItems(
   options: UseCatalogKpiO2cMetricItemsOptions = {}
 ): CatalogKpiO2cMetricItemsResult {
-  const { targetHorizon = DEFAULT_O2C_TARGET_HORIZON, enabled = true, ...listOpts } = options
+  const {
+    targetHorizon = DEFAULT_O2C_TARGET_HORIZON,
+    observationPolicy = 'measurement_only',
+    enabled = true,
+    ...listOpts
+  } = options
 
   const { data: kpiRows = [], isLoading: kpisLoading, isError: kpisError } = useWeightedKpis({
     ...listOpts,
@@ -60,7 +70,10 @@ export function useCatalogKpiO2cMetricItems(
     return out
   }, [recentById])
 
-  const metricItems = useCatalogKpiMetricsList(kpiRows, latestById, { targetHorizon })
+  const metricItems = useCatalogKpiMetricsList(kpiRows, latestById, {
+    targetHorizon,
+    observationPolicy,
+  })
 
   const isLoading = kpisLoading || measLoading
   const isError = kpisError || measError

@@ -6,7 +6,7 @@
 /** Umbral superior por defecto: cumplimiento ≥ este valor → on_track */
 export const KPI_COMPLIANCE_ON_TRACK_MIN = 0.85
 /** Umbral medio por defecto: cumplimiento ≥ este valor (y < on_track) → at_risk */
-export const KPI_COMPLIANCE_AT_RISK_MIN = 0.65
+export const KPI_COMPLIANCE_AT_RISK_MIN = 0.6
 
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0

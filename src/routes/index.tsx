@@ -2,32 +2,9 @@ import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { SettingsLayout } from '@/components/layout/SettingsLayout'
-import { DashboardPage } from '@/pages/dashboard/DashboardPage'
-import { KanbanPage } from '@/pages/kanban/KanbanPage'
-import { DisciplinaPage } from '@/pages/disciplina/DisciplinaPage'
-import { AreasPage as PanelAreasPage } from '@/pages/areas/AreasPage'
-import { CalendarPage } from '@/pages/calendar/CalendarPage'
-import { ReportesPage } from '@/pages/reportes/ReportesPage'
-import { NotificacionesPage } from '@/pages/notificaciones/NotificacionesPage'
-import { ManualPage } from '@/pages/manual/ManualPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
-import { ProfilePage } from '@/features/users/pages/ProfilePage'
-import { UsersPage } from '@/features/users/pages/UsersPage'
-import { UserDetailPage } from '@/features/users/pages/UserDetailPage'
-import { CatalogsHomePage } from '@/features/catalogs/pages/CatalogsHomePage'
-import { RolesPage } from '@/features/catalogs/pages/RolesPage'
-import { CatalogAreasPage } from '@/features/catalogs/pages/AreasPage'
-import { StatusesPage } from '@/features/catalogs/pages/StatusesPage'
-import { PrioritiesPage } from '@/features/catalogs/pages/PrioritiesPage'
-import { DropdownCatalogsPage } from '@/features/catalogs/pages/DropdownCatalogsPage'
-import { DropdownCatalogOptionsPage } from '@/features/catalogs/pages/DropdownCatalogOptionsPage'
-import { KpisPage } from '@/features/catalogs/pages/KpisPage'
-import { GapsPage } from '@/features/catalogs/pages/GapsPage'
-import { DistanceDashboardPage } from '@/features/distance'
-import { GapsDashboardPage, ImpactMatrixPage, KpisDashboardPage } from '@/features/kpi'
-import { AcademyPage } from '@/features/academy'
 import { ROUTES } from '@/constants'
 
 const router = createBrowserRouter([
@@ -52,39 +29,197 @@ const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { index: true, element: <Navigate to={ROUTES.DASHBOARD} replace /> },
-      { path: ROUTES.DASHBOARD, element: <DashboardPage /> },
-      { path: ROUTES.DASHBOARD_KPIS, element: <KpisDashboardPage /> },
-      { path: ROUTES.DASHBOARD_GAPS, element: <GapsDashboardPage /> },
-      { path: ROUTES.DASHBOARD_IMPACTO, element: <ImpactMatrixPage /> },
-      { path: ROUTES.KANBAN, element: <KanbanPage /> },
-      { path: ROUTES.DISCIPLINA, element: <DisciplinaPage /> },
-      { path: ROUTES.AREAS, element: <PanelAreasPage /> },
-      { path: ROUTES.CALENDARIO, element: <CalendarPage /> },
-      { path: ROUTES.REPORTES, element: <ReportesPage /> },
-      { path: ROUTES.NOTIFICACIONES, element: <NotificacionesPage /> },
-      { path: ROUTES.DISTANCIAS, element: <DistanceDashboardPage /> },
-      { path: ROUTES.ACADEMIA, element: <AcademyPage /> },
-      { path: ROUTES.MANUAL, element: <ManualPage /> },
-      {
-        path: ROUTES.SETTINGS,
-        element: <SettingsLayout />,
-        children: [
-          { index: true, element: <Navigate to={ROUTES.SETTINGS_PROFILE} replace /> },
-          { path: 'profile', element: <ProfilePage /> },
-          { path: 'users', element: <UsersPage /> },
-          { path: 'users/:id', element: <UserDetailPage /> },
-          { path: 'catalogs', element: <CatalogsHomePage /> },
-          { path: 'catalogs/roles', element: <RolesPage /> },
-          { path: 'catalogs/areas', element: <CatalogAreasPage /> },
-          { path: 'catalogs/statuses', element: <StatusesPage /> },
-          { path: 'catalogs/priorities', element: <PrioritiesPage /> },
-          { path: 'catalogs/dropdowns', element: <DropdownCatalogsPage /> },
-          { path: 'catalogs/dropdowns/:catalogId', element: <DropdownCatalogOptionsPage /> },
-          { path: 'catalogs/kpis', element: <KpisPage /> },
-          { path: 'catalogs/gaps', element: <GapsPage /> },
+          {
+            path: ROUTES.DASHBOARD,
+            lazy: async () => {
+              const { DashboardPage } = await import('@/pages/dashboard/DashboardPage')
+              return { Component: DashboardPage }
+            },
+          },
+          {
+            path: ROUTES.DASHBOARD_KPIS,
+            lazy: async () => {
+              const { KpisDashboardPage } = await import('@/features/kpi/pages/KpisDashboardPage')
+              return { Component: KpisDashboardPage }
+            },
+          },
+          {
+            path: ROUTES.DASHBOARD_GAPS,
+            lazy: async () => {
+              const { GapsDashboardPage } = await import('@/features/kpi/pages/GapsDashboardPage')
+              return { Component: GapsDashboardPage }
+            },
+          },
+          {
+            path: ROUTES.DASHBOARD_IMPACTO,
+            lazy: async () => {
+              const { ImpactMatrixPage } = await import('@/features/kpi/pages/ImpactMatrixPage')
+              return { Component: ImpactMatrixPage }
+            },
+          },
+          {
+            path: ROUTES.KANBAN,
+            lazy: async () => {
+              const { KanbanPage } = await import('@/pages/kanban/KanbanPage')
+              return { Component: KanbanPage }
+            },
+          },
+          {
+            path: ROUTES.DISCIPLINA,
+            lazy: async () => {
+              const { DisciplinaPage } = await import('@/pages/disciplina/DisciplinaPage')
+              return { Component: DisciplinaPage }
+            },
+          },
+          {
+            path: ROUTES.AREAS,
+            lazy: async () => {
+              const { AreasPage } = await import('@/pages/areas/AreasPage')
+              return { Component: AreasPage }
+            },
+          },
+          {
+            path: ROUTES.CALENDARIO,
+            lazy: async () => {
+              const { CalendarPage } = await import('@/pages/calendar/CalendarPage')
+              return { Component: CalendarPage }
+            },
+          },
+          {
+            path: ROUTES.REPORTES,
+            lazy: async () => {
+              const { ReportesPage } = await import('@/pages/reportes/ReportesPage')
+              return { Component: ReportesPage }
+            },
+          },
+          {
+            path: ROUTES.NOTIFICACIONES,
+            lazy: async () => {
+              const { NotificacionesPage } = await import('@/pages/notificaciones/NotificacionesPage')
+              return { Component: NotificacionesPage }
+            },
+          },
+          {
+            path: ROUTES.DISTANCIAS,
+            lazy: async () => {
+              const { DistanceDashboardPage } = await import('@/features/distance')
+              return { Component: DistanceDashboardPage }
+            },
+          },
+          {
+            path: ROUTES.ACADEMIA,
+            lazy: async () => {
+              const { AcademyPage } = await import('@/features/academy')
+              return { Component: AcademyPage }
+            },
+          },
+          {
+            path: ROUTES.AI_ASSIST,
+            lazy: async () => {
+              const { AiAssistPage } = await import('@/features/ai-support')
+              return { Component: AiAssistPage }
+            },
+          },
+          {
+            path: ROUTES.MANUAL,
+            lazy: async () => {
+              const { ManualPage } = await import('@/pages/manual/ManualPage')
+              return { Component: ManualPage }
+            },
+          },
+          {
+            path: ROUTES.SETTINGS,
+            element: <SettingsLayout />,
+            children: [
+              { index: true, element: <Navigate to={ROUTES.SETTINGS_PROFILE} replace /> },
+              {
+                path: 'profile',
+                lazy: async () => {
+                  const { ProfilePage } = await import('@/features/users/pages/ProfilePage')
+                  return { Component: ProfilePage }
+                },
+              },
+              {
+                path: 'users',
+                lazy: async () => {
+                  const { UsersPage } = await import('@/features/users/pages/UsersPage')
+                  return { Component: UsersPage }
+                },
+              },
+              {
+                path: 'users/:id',
+                lazy: async () => {
+                  const { UserDetailPage } = await import('@/features/users/pages/UserDetailPage')
+                  return { Component: UserDetailPage }
+                },
+              },
+              {
+                path: 'catalogs',
+                lazy: async () => {
+                  const { CatalogsHomePage } = await import('@/features/catalogs/pages/CatalogsHomePage')
+                  return { Component: CatalogsHomePage }
+                },
+              },
+              {
+                path: 'catalogs/roles',
+                lazy: async () => {
+                  const { RolesPage } = await import('@/features/catalogs/pages/RolesPage')
+                  return { Component: RolesPage }
+                },
+              },
+              {
+                path: 'catalogs/areas',
+                lazy: async () => {
+                  const { CatalogAreasPage } = await import('@/features/catalogs/pages/AreasPage')
+                  return { Component: CatalogAreasPage }
+                },
+              },
+              {
+                path: 'catalogs/statuses',
+                lazy: async () => {
+                  const { StatusesPage } = await import('@/features/catalogs/pages/StatusesPage')
+                  return { Component: StatusesPage }
+                },
+              },
+              {
+                path: 'catalogs/priorities',
+                lazy: async () => {
+                  const { PrioritiesPage } = await import('@/features/catalogs/pages/PrioritiesPage')
+                  return { Component: PrioritiesPage }
+                },
+              },
+              {
+                path: 'catalogs/dropdowns',
+                lazy: async () => {
+                  const { DropdownCatalogsPage } = await import('@/features/catalogs/pages/DropdownCatalogsPage')
+                  return { Component: DropdownCatalogsPage }
+                },
+              },
+              {
+                path: 'catalogs/dropdowns/:catalogId',
+                lazy: async () => {
+                  const { DropdownCatalogOptionsPage } =
+                    await import('@/features/catalogs/pages/DropdownCatalogOptionsPage')
+                  return { Component: DropdownCatalogOptionsPage }
+                },
+              },
+              {
+                path: 'catalogs/kpis',
+                lazy: async () => {
+                  const { KpisPage } = await import('@/features/catalogs/pages/KpisPage')
+                  return { Component: KpisPage }
+                },
+              },
+              {
+                path: 'catalogs/gaps',
+                lazy: async () => {
+                  const { GapsPage } = await import('@/features/catalogs/pages/GapsPage')
+                  return { Component: GapsPage }
+                },
+              },
+            ],
+          },
         ],
-      },
-    ],
       },
     ],
   },

@@ -68,6 +68,8 @@ export function KpisDashboardPage() {
   const {
     recentById,
     weightWarning,
+    weightSum,
+    portfolioMetricItems,
     isLoading: portfolioLoading,
     targetHorizon: pipelineHorizon,
     gapsLoading,
@@ -376,6 +378,20 @@ export function KpisDashboardPage() {
           </div>
         </div>
       </header>
+
+      {portfolioMetricItems.length > 0 && typeof weightSum === 'number' && Number.isFinite(weightSum) ? (
+        <div
+          className="rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-xs text-muted-foreground"
+          data-section="portfolio-weight-sum"
+        >
+          <span className="font-medium text-foreground">Suma de pesos del portafolio global </span>
+          <span className="tabular-nums font-semibold text-foreground">{weightSum.toFixed(4)}</span>
+          <span> (objetivo 1.0; </span>
+          <span className="text-muted-foreground">
+            no se exige que cada gap sume 1 — solo el portafolio global declarado en catálogo)
+          </span>
+        </div>
+      ) : null}
 
       {weightWarning && (
         <div

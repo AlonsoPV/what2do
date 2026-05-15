@@ -15,18 +15,17 @@ npm install
 
 ## Variables de entorno
 
-Copia el archivo de ejemplo y completa con tus credenciales de Supabase:
+Copia el archivo de ejemplo y completa **solo** lo que corresponda a tu entorno:
 
 ```bash
 cp .env.example .env
 ```
 
-Edita `.env` y define:
+**Frontend (Vite):** en `.env` defínelas con prefijo `VITE_` — `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (Dashboard → Settings → API). Esas variables se inyectan en el **build**; **no** van en Supabase Secrets.
 
-- `VITE_SUPABASE_URL`: URL de tu proyecto Supabase
-- `VITE_SUPABASE_ANON_KEY`: Clave anónima (pública) de Supabase
+**Edge Functions:** API keys y rol de servicio del **backend** se configuran en **Supabase → Edge Functions → Secrets** (nombres **sin** `VITE_`), no en variables `VITE_*`.
 
-Puedes obtener estos valores en [Supabase Dashboard](https://app.supabase.com) → tu proyecto → Settings → API.
+**Guía detallada** (tabla frontend vs secrets vs scripts): [docs/environment-variables.md](docs/environment-variables.md).
 
 ## Desarrollo
 
@@ -66,7 +65,7 @@ src/
 ## Deploy en Vercel
 
 1. Conecta el repositorio en [Vercel](https://vercel.com).
-2. Añade las variables de entorno `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en el proyecto.
+2. Añade solo variables **`VITE_*`** del frontend (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) en el proyecto de Vercel; los **secrets** de Edge Functions se configuran en el **Dashboard de Supabase**, no en Vercel (ver [docs/environment-variables.md](docs/environment-variables.md)).
 3. El build usa por defecto `npm run build` y el directorio de salida `dist`.
 
 La configuración está en `vercel.json` (SPA: todas las rutas reescriben a `index.html`).

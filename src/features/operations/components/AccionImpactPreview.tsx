@@ -11,7 +11,22 @@ export function AccionImpactPreview({
 }: AccionImpactPreviewProps) {
   const { preview, isLoading } = useAccionImpactPreview({ gapIds, storyPoints })
 
-  if (!gapIds.length || isLoading) return null
+  if (!gapIds.length) return null
+
+  if (isLoading) {
+    return (
+      <div
+        className="space-y-2 rounded-lg border border-border/60 bg-muted/15 px-3 py-3"
+        role="status"
+        aria-busy="true"
+        aria-label="Calculando vista previa del gap"
+      >
+        <div className="h-3 w-40 animate-pulse rounded bg-muted" />
+        <div className="h-3 w-full max-w-md animate-pulse rounded bg-muted/80" />
+        <div className="h-3 w-3/4 max-w-sm animate-pulse rounded bg-muted/60" />
+      </div>
+    )
+  }
 
   return (
     <div

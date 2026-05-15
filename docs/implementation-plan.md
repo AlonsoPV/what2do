@@ -36,7 +36,7 @@ Derivado de `dashboard-spec.md`, `dashboard-spec-analysis.md` y `architecture-fr
 
 1. **Alinear y cerrar base**
    - Confirmar que migraciones aplicadas (incl. usuarios.rol como text y catálogos).
-   - Variables de entorno (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) y cliente en `src/lib/supabase/client.ts`.
+   - Variables de entorno: **frontend** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (ver [environment-variables.md](./environment-variables.md)) y cliente en `src/lib/supabase/client.ts`.
    - React Query provider y rutas actuales estables.
 
 2. **Dashboard**

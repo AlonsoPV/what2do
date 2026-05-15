@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowRight, ArrowUp } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { GLOBAL_PORTFOLIO_WEIGHT_TOLERANCE } from '../utils/kpiCalculations'
 import type { GlobalScoreTrend } from '../hooks/useGlobalScoreEvolution'
 
 export type GlobalScoreBreakdown = {
@@ -35,6 +36,8 @@ export function GlobalScoreWidget({
   subtitle,
   evolution,
   cardTitle = 'Score global (metodología documento KPIs)',
+  weightSum,
+  weightWarning,
 }: {
   /** 0–1 o null si no aplica */
   score: number | null
@@ -45,10 +48,18 @@ export function GlobalScoreWidget({
   evolution?: GlobalScoreEvolutionCopy
   /** Título de la tarjeta (p. ej. alineado al tablero ejecutivo). */
   cardTitle?: string
+  /** Σ pesos en catálogo para KPIs activos con gap y `in_global_portfolio` (debe ≈ 1). */
+  weightSum?: number | null
+  /** Mensaje si la suma no está en tolerancia (`globalPortfolioWeightWarning`). */
+  weightWarning?: string | null
 }) {
   const pct = score != null && Number.isFinite(score) ? Math.round(score * 1000) / 10 : null
   const coveragePct =
     coverage.totalWeight > 0 ? Math.round((coverage.eligibleWeight / coverage.totalWeight) * 1000) / 10 : 0
+  const weightsNominalOk =
+    typeof weightSum === 'number' &&
+    Number.isFinite(weightSum) &&
+    Math.abs(weightSum - 1) <= GLOBAL_PORTFOLIO_WEIGHT_TOLERANCE
 
   return (
     <Card>
@@ -56,7 +67,7 @@ export function GlobalScoreWidget({
         <CardTitle className="text-lg">{cardTitle}</CardTitle>
         <CardDescription>
           {subtitle ??
-            'Ponderado sobre KPIs del portafolio global (pesos activos). Usa medición o valor en catálogo; si faltan, la línea base como punto de partida para el cálculo.'}
+            'Ponderado sobre KPIs del portafolio global (pesos activos). Solo cuenta KPIs con valor observado (medición o valor actual en catálogo); sin dato operativo no entran al score y su peso se renormaliza entre los demás.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -104,7 +115,33 @@ export function GlobalScoreWidget({
               Falta {Math.round(coverage.missingWeight * 10000) / 100}% del peso por datos no elegibles.
             </span>
           ) : null}
+          {coverage.eligibleKpiCount < coverage.totalKpiCount ? (
+            <span className="mt-1 block text-[11px] text-muted-foreground/90">
+              El porcentaje del score usa solo KPIs medibles; los pesos se renormalizan entre ellos (no suman el 100 %
+              del portafolio hasta registrar mediciones).
+            </span>
+          ) : null}
         </div>
+
+        {coverage.totalKpiCount > 0 && typeof weightSum === 'number' && Number.isFinite(weightSum) ? (
+          <div className="rounded-lg border border-border/70 bg-muted/15 px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Pesos en catálogo (portafolio global): </span>
+            <span className="tabular-nums text-foreground">{weightSum.toFixed(4)}</span>
+            <span className="text-muted-foreground"> · objetivo 1.0</span>
+            {weightsNominalOk && !weightWarning ? (
+              <span className="ml-1 text-emerald-700 dark:text-emerald-400">— dentro de tolerancia</span>
+            ) : null}
+          </div>
+        ) : null}
+
+        {weightWarning ? (
+          <div
+            className="rounded-lg border border-amber-500/45 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-950 dark:text-amber-100"
+            role="status"
+          >
+            {weightWarning}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

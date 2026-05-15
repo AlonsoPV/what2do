@@ -76,7 +76,8 @@ Todas las rutas excepto `/login` están dentro de `ProtectedRoute`, que exige:
 
 4. **Secrets**
    - Nunca exponer `SUPABASE_SERVICE_ROLE_KEY` en frontend.
-   - Usar solo `VITE_SUPABASE_ANON_KEY` en cliente.
+   - Usar solo `VITE_SUPABASE_ANON_KEY` en cliente (variables `VITE_*` = build del front; **no** como `supabase secrets set VITE_*`).
+   - Tabla de referencia: [environment-variables.md](./environment-variables.md).
 
 ---
 

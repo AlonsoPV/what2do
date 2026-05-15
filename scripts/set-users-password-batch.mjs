@@ -4,8 +4,8 @@
  *
  * Edita USER_IDS abajo con los UUID de Auth (Dashboard → Authentication → Users).
  *
- * Variables en .env en la raíz del proyecto:
- *   VITE_SUPABASE_URL=https://xxx.supabase.co
+ * Variables en .env en la raíz del proyecto (scripts locales, no Edge Secrets con VITE_):
+ *   SUPABASE_URL=https://xxx.supabase.co   (o VITE_SUPABASE_URL con la misma URL)
  *   SUPABASE_SERVICE_ROLE_KEY=eyJ...   (service_role, no anon)
  */
 const USER_IDS = [
@@ -22,7 +22,7 @@ const USER_IDS = [
  * PowerShell (contraseña por variable):
  *   $env:NEW_PASSWORD="emx@2026"; node scripts/set-users-password-batch.mjs
  *
- * El .env debe tener VITE_SUPABASE_URL (o SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY.
+ * El .env debe tener SUPABASE_URL (o VITE_SUPABASE_URL) y SUPABASE_SERVICE_ROLE_KEY.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -30,7 +30,7 @@ import { loadDotenv } from './_load-dotenv.mjs'
 
 const envLoadedFrom = loadDotenv(import.meta.url)
 
-const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const password = process.argv[2] || process.env.NEW_PASSWORD
 
@@ -39,8 +39,8 @@ if (!url || !serviceRoleKey) {
     console.error('No se encontró archivo .env en la carpeta del proyecto ni en el directorio actual.')
   }
   console.error('Faltan variables de entorno. En .env (sin comillas rotas, una variable por línea):')
-  console.error('  VITE_SUPABASE_URL=https://xxx.supabase.co')
-  console.error('  SUPABASE_SERVICE_ROLE_KEY=... (Settings → API → service_role; no uses la anon key)')
+  console.error('  SUPABASE_URL=https://xxx.supabase.co   (o VITE_SUPABASE_URL con la misma URL)')
+  console.error('  SUPABASE_SERVICE_ROLE_KEY=... (Settings → API → service_role; no uses la anon key; no configures esto como variable VITE_)')
   console.error(`\nComprobación: URL=${Boolean(url)}  service_role=${Boolean(serviceRoleKey)}`)
   console.error('Ejecuta el comando desde la raíz del repo: cd ...\\tablero-operativo')
   process.exit(1)

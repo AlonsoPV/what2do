@@ -16,11 +16,11 @@ import {
 import {
   CatalogKpiSemaforoGrid,
   ChainStatCard,
-  GlobalScoreMdSpecPanel,
+  type GlobalScoreEvolutionCopy,
   useGapKpiLinks,
   useGlobalScoreEvolution,
-  useImpactMatrix,
 } from '@/features/kpi'
+import { useImpactMatrix } from '@/features/kpi/hooks/useImpactMatrix'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import type { AccionDiaria } from '@/types'
 import type { AccionesFilter } from '@/services/acciones.service'
@@ -28,6 +28,7 @@ import {
   dropdownOptionsByCatalogKeyQueryKey,
   fetchDropdownOptionsByCatalogKey,
 } from '@/features/catalogs/hooks/useDropdownOptions'
+import { DashboardScoreAndRoadmapSection } from './components/DashboardScoreAndRoadmapSection'
 import { DashboardHeader } from './components/DashboardHeader'
 import { DashboardKpiCards } from './components/DashboardKpiCards'
 import { DashboardActionsSection } from './components/DashboardActionsSection'
@@ -97,11 +98,38 @@ export function DashboardPage() {
 
   const {
     isLoading: o2cScoreLoading,
+    globalScore,
+    portfolioBreakdown,
+    coverage,
     portfolioMetricItems: o2cPortfolioMetricItems,
-    programMonthIndex,
-    programStartConfigured,
-    mdSpec,
+    snapshotsLoading,
+    snapshotsSortedAsc,
+    trend,
+    deltaVsPreviousLine,
+    trendLine,
+    windowLine,
+    weightSum,
+    weightWarning,
   } = useGlobalScoreEvolution({ snapshotLimit: 60 })
+
+  const evolutionCopy = useMemo((): GlobalScoreEvolutionCopy => {
+    return {
+      snapshotsLoading,
+      trend,
+      deltaVsPreviousLine,
+      trendLine,
+      windowLine,
+      canComparePrevious: snapshotsSortedAsc.length >= 2,
+    }
+  }, [
+    snapshotsLoading,
+    trend,
+    deltaVsPreviousLine,
+    trendLine,
+    windowLine,
+    snapshotsSortedAsc.length,
+  ])
+
   const { links, isLoading: gapLinksLoading } = useGapKpiLinks()
   const { rows: impactRows, isLoading: impactMatrixLoading } = useImpactMatrix()
 
@@ -203,26 +231,15 @@ export function DashboardPage() {
           </div>
         </section>
 
-        <section
-          id="dashboard-section-o2c-global"
-          data-section="portfolio-health"
-          className="scroll-mt-4"
-        >
-          {o2cScoreLoading ? (
-            <div
-              className="flex min-h-[200px] items-center justify-center rounded-xl border border-dashed border-border/50 bg-muted/10 px-4 py-8"
-              aria-busy="true"
-            >
-              <p className="text-sm text-muted-foreground">Cargando score global…</p>
-            </div>
-          ) : (
-            <GlobalScoreMdSpecPanel
-              programMonthIndex={programMonthIndex}
-              programStartConfigured={programStartConfigured}
-              md={mdSpec}
-            />
-          )}
-        </section>
+        <DashboardScoreAndRoadmapSection
+          scoreLoading={o2cScoreLoading}
+          globalScore={globalScore}
+          portfolioBreakdown={portfolioBreakdown}
+          coverage={coverage}
+          evolution={evolutionCopy}
+          weightSum={weightSum}
+          weightWarning={weightWarning}
+        />
 
         <section id="dashboard-section-semaforo" className="dashboard-section-semaforo scroll-mt-4">
           <SectionCard>
@@ -230,7 +247,7 @@ export function DashboardPage() {
               icon={Activity}
               eyebrow="Catálogo KPI"
               title="Semáforo por KPI"
-              subtitle="Cumplimiento, estado y vínculos con acciones por indicador O2C."
+              subtitle="Salud operativa por KPI: cumplimiento respecto a meta activa (no es el avance del roadmap)."
             />
             <SectionCardBody className="dashboard-semaforo-content">
               <CatalogKpiSemaforoGrid
@@ -251,7 +268,7 @@ export function DashboardPage() {
             <SectionCardBody>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
                 <ChainStatCard
-                  label="Avance global"
+                  label="Avance del roadmap"
                   value={`${Math.round(chainSummary.avanceGlobal * 100)}%`}
                   hint="Story points completados sobre el total del portafolio de gaps activos."
                   color="primary"

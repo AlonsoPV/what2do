@@ -8,6 +8,11 @@ export {
 export * from './hooks'
 export * from './types/kpi.types'
 export * from './utils/kpiCalculations'
+export {
+  calculateKpiCompliance,
+  getActiveTarget,
+  normalizeKpiWeightsForEligible,
+} from './utils/o2cScoreEngine'
 export type { GlobalScoreChartRange } from './utils/globalScoreEvolution'
 
 export {
@@ -35,7 +40,7 @@ export { GapsDashboardPage } from './pages/GapsDashboardPage'
 export { ImpactMatrixPage } from './pages/ImpactMatrixPage'
 export { GlobalScoreWidget } from './components/GlobalScoreWidget'
 export { GlobalScoreMdSpecPanel } from './components/GlobalScoreMdSpecPanel'
-export type { GlobalScoreBreakdown, GlobalScoreEvolutionCopy } from './components/GlobalScoreWidget'
+export type { GlobalScoreBreakdown, GlobalScoreCoverage, GlobalScoreEvolutionCopy } from './components/GlobalScoreWidget'
 export { GlobalScoreHistoryChart } from './components/GlobalScoreHistoryChart'
 export { KpiCard } from './components/KpiCard'
 export type { KpiCardViewModel } from './components/KpiCard'

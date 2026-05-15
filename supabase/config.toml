@@ -5,3 +5,20 @@ verify_jwt = false
 # a veces devuelve 401 con tokens de sesión refrescados. Con false la petición llega y validamos nosotros.
 [functions.calculate-distance]
 verify_jwt = false
+
+# IA O2C (proxy Lovable): JWT validado en código con SUPABASE_SERVICE_ROLE_KEY (mismo patrón que invite-user).
+[functions.ai-chat]
+verify_jwt = false
+
+[functions.ai-chat-stream]
+verify_jwt = false
+
+[functions.ai-insights]
+verify_jwt = false
+
+[functions.ai-report]
+verify_jwt = false
+
+# Proxy genérico chat/completions (clave solo en servidor).
+[functions.lovable-chat-completions]
+verify_jwt = false

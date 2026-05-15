@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -22,6 +23,9 @@ export const SUPABASE_URL = supabaseUrl ?? ''
  * No forzar `flowType: 'pkce'`: en algunos entornos provoca que `getSession()` no termine en el bootstrap.
  */
 export const supabase = createClient(supabaseUrl ?? '', supabaseAnonKey ?? '', {
+  global: {
+    fetch: fetchWithTimeout,
+  },
   auth: {
     persistSession: true,
     autoRefreshToken: true,

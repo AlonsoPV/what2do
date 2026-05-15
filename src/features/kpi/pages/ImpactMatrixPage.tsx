@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useImpactMatrix, type ImpactRow } from '../hooks'
+import { useImpactMatrix, type ImpactRow } from '../hooks/useImpactMatrix'
 import { buildImpactMatrixCsv, downloadImpactMatrixCsv } from '../utils/exportImpactMatrixCsv'
 
 function formatPercentFromFraction(value: number | null | undefined, digits = 2): string {

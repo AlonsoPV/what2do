@@ -8,7 +8,9 @@
  * Uso (bash):
  *   CREATE_USER_EMAIL=correo@ejemplo.com CREATE_USER_PASSWORD=tu_contraseña node scripts/create-auth-user.mjs
  *
- * Variables de entorno: VITE_SUPABASE_URL (o SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY, CREATE_USER_EMAIL, CREATE_USER_PASSWORD
+ * Variables en .env local (NO son secretos de Edge ni Vite embebidos en el navegador):
+ *   SUPABASE_URL (recomendado; misma URL que VITE_SUPABASE_URL) o VITE_SUPABASE_URL
+ *   SUPABASE_SERVICE_ROLE_KEY (Dashboard → API → service_role)
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -16,15 +18,15 @@ import { loadDotenv } from './_load-dotenv.mjs'
 
 loadDotenv(import.meta.url)
 
-const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const email = (process.env.CREATE_USER_EMAIL || '').trim().toLowerCase()
 const password = process.env.CREATE_USER_PASSWORD || ''
 
 if (!url || !serviceRoleKey) {
-  console.error('Faltan variables de entorno. Añade a .env:')
-  console.error('  VITE_SUPABASE_URL=https://xxx.supabase.co')
-  console.error('  SUPABASE_SERVICE_ROLE_KEY=eyJ... (desde Supabase → Settings → API → service_role)')
+  console.error('Faltan variables de entorno. En .env (local, solo scripts — no Supabase Secrets con prefijo VITE_):')
+  console.error('  SUPABASE_URL=https://xxx.supabase.co   (o VITE_SUPABASE_URL con la misma URL)')
+  console.error('  SUPABASE_SERVICE_ROLE_KEY=eyJ... (desde Supabase → Settings → API → service_role; nunca en frontend)')
   process.exit(1)
 }
 

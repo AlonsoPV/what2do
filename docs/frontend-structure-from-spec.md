@@ -46,7 +46,7 @@ src/
   hooks/                   # Hooks globales (useAuth, useMedia, etc.)
   lib/
     supabase/
-      client.ts            # Cliente Supabase (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
+      client.ts            # Cliente Supabase (solo VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY en build)
     utils.ts
   services/                # Servicios globales (auth, reportes, etc.) o re-export
   store/                   # Zustand (solo si se necesita estado global)

@@ -1,5 +1,25 @@
 # Supabase — Tablero Operativo
 
+## Edge Functions: IA O2C
+
+Tabla **frontend vs secrets vs scripts**: [docs/environment-variables.md](../docs/environment-variables.md).
+
+Las funciones `lovable-chat-completions` (proxy genérico), `ai-chat`, `ai-chat-stream`, `ai-insights` y `ai-report` llaman al proveedor de IA **solo desde el runtime de Edge Functions** (nunca en Vite ni en el navegador). La selección del backend está en `_shared/lovableGateway.ts` (`resolveChatBackend()`): gateway Lovable si existe `LOVABLE_API_KEY`, o API compatible OpenAI si existe `OPENAI_API_KEY`.
+
+**Lovable Cloud:** `LOVABLE_API_KEY` lo inyecta Lovable automáticamente; no ejecutes `supabase secrets set LOVABLE_API_KEY=...` con una “clave pegable” porque ese valor no está pensado para configuración manual en ese entorno.
+
+**Supabase externo:** configura secretos propios (`OPENAI_API_KEY` y opcionalmente `OPENAI_API_BASE_URL`, `OPENAI_MODEL`, `CHAT_DEFAULT_MODEL`) vía Dashboard o `npx supabase secrets set ...`.
+
+Detalle: [docs/lovable-ai-edge-function.md](../docs/lovable-ai-edge-function.md).
+
+```bash
+npx supabase functions deploy lovable-chat-completions --project-ref TU_PROJECT_REF
+npx supabase functions deploy ai-chat --project-ref TU_PROJECT_REF
+npx supabase functions deploy ai-chat-stream --project-ref TU_PROJECT_REF
+npx supabase functions deploy ai-insights --project-ref TU_PROJECT_REF
+npx supabase functions deploy ai-report --project-ref TU_PROJECT_REF
+```
+
 ## Migraciones
 
 - **Esquema inicial:** `migrations/20260313120000_initial_schema.sql`

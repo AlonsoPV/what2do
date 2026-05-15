@@ -5,7 +5,7 @@
 El frontend debe apuntar al **mismo** proyecto Supabase donde está la base.
 
 1. **Vercel** → proyecto → **Settings → Environment Variables**
-2. Comprueba `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (valores del panel Supabase → **Project Settings → API**).
+2. Comprueba `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` (valores del panel Supabase → **Project Settings → API**). Son variables **solo del build del front**; no confundir con secretos de Edge Functions (ver [environment-variables.md](./environment-variables.md)).
 3. **Redeploy** tras cambiar variables (`VITE_*` se inyectan en build).
 
 ## 2. Sesión OK pero «no hay fila en usuarios»

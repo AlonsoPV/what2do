@@ -3,6 +3,7 @@ import type { CatalogKpiMeasurement, CatalogKpiO2cRow } from '../types/kpi.types
 import {
   computeCatalogKpiMetricItem,
   type CatalogKpiMetricComputed,
+  type CatalogObservationPolicy,
   DEFAULT_O2C_TARGET_HORIZON,
   type TargetHorizon,
 } from '../utils/kpiCalculations'
@@ -13,6 +14,8 @@ export type CatalogKpiMetricItem = CatalogKpiMetricComputed
 export type UseCatalogKpiMetricsListOptions = {
   /** Meta efectiva por defecto M18 (ver `resolveTarget`). */
   targetHorizon?: TargetHorizon
+  /** Por defecto `measurement_only`: sin usar baseline como valor observado ficticio para el score. */
+  observationPolicy?: CatalogObservationPolicy
 }
 
 /**
@@ -25,11 +28,15 @@ export function useCatalogKpiMetricsList(
   options?: UseCatalogKpiMetricsListOptions
 ) {
   const horizon = options?.targetHorizon ?? DEFAULT_O2C_TARGET_HORIZON
+  const observationPolicy = options?.observationPolicy ?? 'measurement_only'
 
   return useMemo((): CatalogKpiMetricItem[] => {
     const map = latestById ?? new Map<string, CatalogKpiMeasurement>()
     return kpiRows.map((row) =>
-      computeCatalogKpiMetricItem(row, map.get(row.id), { targetHorizon: horizon })
+      computeCatalogKpiMetricItem(row, map.get(row.id), {
+        targetHorizon: horizon,
+        observationPolicy,
+      })
     )
-  }, [kpiRows, latestById, horizon])
+  }, [kpiRows, latestById, horizon, observationPolicy])
 }

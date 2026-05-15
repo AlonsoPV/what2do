@@ -1,8 +1,12 @@
 # Variables de entorno en Vercel
 
-Sin estas variables, el build puede completarse pero las peticiones a Supabase fallan (a menudo **404** en la pestaña Red, porque el navegador llama a `tu-app.vercel.app/rest/v1/...` en lugar de `xxx.supabase.co`).
+Solo configura aquí las variables del **build de Vite** (prefijo `VITE_*`). Los **secrets** de Edge Functions (`SUPABASE_SERVICE_ROLE_KEY`, `LOVABLE_API_KEY`, `OPENAI_API_KEY`, etc.) van en **Supabase → Edge Functions → Secrets**, nunca en Vercel y **nunca** con prefijo `VITE_`.
 
-## Obligatorias
+Guía general: [environment-variables.md](./environment-variables.md).
+
+Sin las `VITE_*` obligatorias, el build puede completarse pero las peticiones a Supabase fallan (a menudo **404** en la pestaña Red, porque el navegador llama a `tu-app.vercel.app/rest/v1/...` en lugar de `xxx.supabase.co`).
+
+## Obligatorias (solo frontend)
 
 En **Vercel → tu proyecto → Settings → Environment Variables**, añade para **Production** (y **Preview** si usas ramas):
 
@@ -12,6 +16,8 @@ En **Vercel → tu proyecto → Settings → Environment Variables**, añade par
 | `VITE_SUPABASE_ANON_KEY` | Clave `anon` `public` (misma pantalla) |
 
 **Importante:** las variables que empiezan por `VITE_` se inyectan en **tiempo de build**. Después de crear o cambiar variables, ejecuta un **nuevo deploy** (Redeploy).
+
+**Incorrecto:** `npx supabase secrets set VITE_SUPABASE_URL=...` — Supabase Secrets no son para variables Vite; y no copies `service_role` a Vercel.
 
 ## Comprobar
 

@@ -7,7 +7,7 @@
  * - **Modo:** `resolveEffectiveCalcType` (maximize | minimize | binary; legacy `direction`).
  * - **Fila → métrica:** `computeCatalogKpiMetricItem` (comparte lógica con `useCatalogKpiMetricsList`).
  * - **Cumplimiento:** `calculateCompliance` / `calculateComplianceForCatalogRow`.
- * - **Semáforo:** `getKpiStatus` / `getKpiStatusForMetric` (umbrales por KPI o defaults 0.85 / 0.65).
+ * - **Semáforo:** `getKpiStatus` / `getKpiStatusForMetric` (umbrales por KPI o defaults 0.85 / 0.60).
  * - **Agregación:** `calculateWeightedScore`, `sumWeightedComplianceParts`, `calculateGlobalScore`, `deriveGlobalPortfolioFromMetricItems`.
  * - **Umbrales:** `normalizeKpiComplianceBandThresholds` (verde ≥ amarillo).
  * - **Por gap:** `getGapWeights`, `getGapWeight` (suma de pesos sin validar a 1).
@@ -172,7 +172,7 @@ export function thresholdsFromKpiMetric(metric: KpiMetric): KpiStatusThresholds 
 }
 
 /**
- * Umbrales efectivos (0–1) para UI y `getKpiStatus`: columnas del KPI o defaults 0.85 / 0.65.
+ * Umbrales efectivos (0–1) para UI y `getKpiStatus`: columnas del KPI o defaults 0.85 / 0.60.
  * Si los datos vienen inconsistentes (umbral verde menor que el amarillo), se normaliza para que verde ≥ amarillo.
  */
 export function resolveEffectiveStatusThresholds(metric: KpiMetric): {
@@ -242,7 +242,7 @@ export function isLiteralMetaCumplida(
 }
 
 /**
- * Mapea cumplimiento [0, 1] a semáforo usando umbrales por KPI o defaults (0.85 / 0.65).
+ * Mapea cumplimiento [0, 1] a semáforo usando umbrales por KPI o defaults (0.85 / 0.60).
  */
 export function getKpiStatus(
   compliance: number | null,
@@ -412,18 +412,24 @@ export function globalPortfolioWeightWarning(weightSum: number, itemCount: numbe
 }
 
 /**
- * Métricas de catálogo para el portafolio global (misma forma que `CatalogKpiMetricComputed`).
- * El filtrado solo usa campos de `PortfolioFilterableKpiRow` sobre `row`.
+ * Resultado de aplicar mediciones + horizonte a una fila de catálogo (única fuente para hooks).
  */
-export type CatalogKpiMetricItemForPortfolio = {
+export type CatalogKpiMetricComputed = {
   row: CatalogKpiO2cRow
   metric: KpiMetric
   compliance: number | null
   status: KpiComplianceStatus | null
+  /** Última fila de medición conocida por el caller (si hubo batch reciente). */
+  latestMeasurement: CatalogKpiMeasurement | null
 }
 
+/**
+ * Métricas del portafolio global (`activo`, `gap_id`, `in_global_portfolio`): mismo tipo que métrica computada completa.
+ */
+export type CatalogKpiMetricItemForPortfolio = CatalogKpiMetricComputed
+
 export type GlobalPortfolioDerived = {
-  portfolioMetricItems: CatalogKpiMetricItemForPortfolio[]
+  portfolioMetricItems: CatalogKpiMetricComputed[]
   globalScore: number | null
   portfolioBreakdown: PortfolioComplianceBreakdown
   weightSum: number
@@ -548,6 +554,30 @@ export function resolveCatalogKpiCurrent(
 }
 
 /**
+ * Política del valor “actual” para cumplimiento:
+ * - `measurement_only`: última medición o `current_value` en catálogo; sin baseline como sustituto (score global honesto).
+ * - `baseline_fallback`: mismo comportamiento que `resolveCatalogKpiCurrent` (útil para demos o vistas exploratorias).
+ */
+export type CatalogObservationPolicy = 'measurement_only' | 'baseline_fallback'
+
+export function resolveCatalogKpiObservationValue(
+  row: CatalogKpiO2cRow,
+  latestMeasuredValor: number | undefined,
+  policy: CatalogObservationPolicy = 'measurement_only'
+): number | null {
+  if (policy === 'baseline_fallback') {
+    return resolveCatalogKpiCurrent(row, latestMeasuredValor)
+  }
+  const fromMeas =
+    latestMeasuredValor !== undefined && Number.isFinite(latestMeasuredValor)
+      ? latestMeasuredValor
+      : null
+  const explicit =
+    row.current_value != null && Number.isFinite(row.current_value) ? row.current_value : null
+  return fromMeas ?? explicit
+}
+
+/**
  * Construye `KpiMetric` desde fila de catálogo + valor actual resuelto.
  */
 export function buildKpiMetricFromCatalogRow(row: CatalogKpiO2cRow, current: number | null): KpiMetric {
@@ -568,29 +598,29 @@ export function buildKpiMetricFromCatalogRow(row: CatalogKpiO2cRow, current: num
 }
 
 /**
- * Resultado de aplicar mediciones + horizonte a una fila de catálogo (única fuente para hooks).
- */
-export type CatalogKpiMetricComputed = {
-  row: CatalogKpiO2cRow
-  metric: KpiMetric
-  compliance: number | null
-  status: KpiComplianceStatus | null
-}
-
-/**
  * Una fila de catálogo → métrica, cumplimiento y semáforo (misma lógica que `useCatalogKpiMetricsList`).
  */
 export function computeCatalogKpiMetricItem(
   row: CatalogKpiO2cRow,
   latest: CatalogKpiMeasurement | undefined,
-  opts?: { targetHorizon?: TargetHorizon }
+  opts?: {
+    targetHorizon?: TargetHorizon
+    observationPolicy?: CatalogObservationPolicy
+  }
 ): CatalogKpiMetricComputed {
   const horizon = opts?.targetHorizon ?? DEFAULT_O2C_TARGET_HORIZON
-  const current = resolveCatalogKpiCurrent(row, latest?.valor)
+  const observationPolicy = opts?.observationPolicy ?? 'measurement_only'
+  const current = resolveCatalogKpiObservationValue(row, latest?.valor, observationPolicy)
   const metric = buildKpiMetricFromCatalogRow(row, current)
   const compliance = calculateCompliance(metric, { targetHorizon: horizon })
   const status = getKpiStatusForMetric(compliance, metric)
-  return { row, metric, compliance, status }
+  return {
+    row,
+    metric,
+    compliance,
+    status,
+    latestMeasurement: latest ?? null,
+  }
 }
 
 /**

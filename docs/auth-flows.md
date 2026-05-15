@@ -21,13 +21,15 @@ Este proyecto usa **Supabase Auth** (`auth.users`) y una **ficha de negocio** en
 
 ## Variables de entorno (solo despliegue; no mostrar en UI)
 
-| Variable | Uso |
-|----------|-----|
-| `VITE_SUPABASE_URL` | URL del proyecto Supabase |
-| `VITE_SUPABASE_ANON_KEY` | Clave pública del cliente |
-| `VITE_APP_URL` | URL base del sitio (p. ej. producción en Vercel). Importante para que el enlace del correo de recuperación lleve a `/reset-password`. Si falta, en desarrollo suele usarse `window.location.origin`. |
+Referencias: [environment-variables.md](./environment-variables.md) (tabla frontend vs Edge vs scripts).
 
-No commitear `service_role` en el frontend.
+| Variable | Dónde | Uso |
+|----------|-------|-----|
+| `VITE_SUPABASE_URL` | Build Vite (`.env` local, Vercel, Lovable, etc.) | URL del proyecto Supabase en el navegador |
+| `VITE_SUPABASE_ANON_KEY` | Build Vite | Clave pública `anon` del cliente |
+| `VITE_APP_URL` | Build Vite | URL base del sitio (p. ej. producción en Vercel). Importante para que el enlace del correo de recuperación lleve a `/reset-password`. Si falta, en desarrollo suele usarse `window.location.origin`. |
+
+No commitear `service_role` en el frontend. Los secrets de Edge (`SUPABASE_SERVICE_ROLE_KEY`, `LOVABLE_API_KEY`, etc.) se configuran **solo** en Supabase Edge, no como `VITE_*`.
 
 ## Inicio de sesión
 

@@ -10,9 +10,11 @@ Si en el navegador ves **404** en `.../functions/v1/calculate-distance`, la func
 
 1. Instala/usa la CLI: `npx supabase@latest login` y `npx supabase@latest link --project-ref <tu_ref>`.
 2. Desde la raíz del repo: **`npm run supabase:deploy`** (equivale a `functions deploy calculate-distance`).
-3. En **Supabase Dashboard → Project Settings → Edge Functions → Secrets**, define al menos:
+3. En **Supabase Dashboard → Project Settings → Edge Functions → Secrets**, define (nombres **sin** `VITE_`):
    - `GOOGLE_MAPS_API_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` (la función ya usa `SUPABASE_URL` del entorno; confirma en la doc de Supabase si hace falta añadirla como secreto).
+   - `SUPABASE_SERVICE_ROLE_KEY` si tu proyecto no la inyecta automáticamente (la función también usa `SUPABASE_URL` del entorno Edge).
+
+Ver [environment-variables.md](./environment-variables.md) (frontend vs secrets).
 
 Para desplegar también `invite-user`: **`npm run supabase:deploy:all`**.
 

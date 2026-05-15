@@ -5,7 +5,7 @@
  * Uso: node scripts/set-user-password.mjs <user_id> <nueva_contraseña>
  * Ejemplo: node scripts/set-user-password.mjs 38e5276b-92f4-4c5f-b420-ba20e83e67c7 envialo_mexico26
  *
- * Variables de entorno (o en .env): VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ * Variables en .env: SUPABASE_URL (recomendado) o VITE_SUPABASE_URL, y SUPABASE_SERVICE_ROLE_KEY.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -13,7 +13,7 @@ import { loadDotenv } from './_load-dotenv.mjs'
 
 const envLoadedFrom = loadDotenv(import.meta.url)
 
-const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 const userId = process.argv[2]
 const password = process.argv[3]
@@ -23,8 +23,8 @@ if (!url || !serviceRoleKey) {
     console.error('No se encontró .env en la raíz del proyecto.')
   }
   console.error('Faltan variables de entorno. En .env:')
-  console.error('  VITE_SUPABASE_URL=https://xxx.supabase.co')
-  console.error('  SUPABASE_SERVICE_ROLE_KEY=... (service_role)')
+  console.error('  SUPABASE_URL=https://xxx.supabase.co   (o VITE_SUPABASE_URL con la misma URL)')
+  console.error('  SUPABASE_SERVICE_ROLE_KEY=... (service_role; solo scripts locales, nunca VITE_* ni Supabase secrets con nombre VITE_)')
   console.error(`\nComprobación: URL=${Boolean(url)}  service_role=${Boolean(serviceRoleKey)}`)
   process.exit(1)
 }

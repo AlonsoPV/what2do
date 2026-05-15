@@ -1,5 +1,16 @@
 # Cómo usar las Edge Functions (Supabase)
 
+## Frontend vs secrets (no mezclar)
+
+| Ubicación | Qué configurar |
+|-----------|----------------|
+| **Vite / Vercel / Lovable (build)** | Solo `VITE_*` — URL pública de Supabase y clave `anon`. |
+| **Supabase → Edge Functions → Secrets** (o `supabase secrets set ...`) | Nombres **sin** `VITE_`: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_MAPS_API_KEY`, `OPENAI_API_KEY`, etc. |
+
+**Nunca** ejecutes algo como `supabase secrets set VITE_SUPABASE_URL=...` o `VITE_SUPABASE_ANON_KEY=...`: el prefijo `VITE_` es solo del bundle del navegador.
+
+Tabla y reglas: [environment-variables.md](./environment-variables.md).
+
 ## Requisitos
 
 1. **Supabase CLI** instalado:
@@ -24,7 +35,7 @@
    supabase functions deploy calculate-distance
    ```
 
-2. Configurar el secret de Google (solo la primera vez):
+2. Configurar el secret de Google (solo la primera vez) — **nombre sin `VITE_`**:
    ```bash
    supabase secrets set GOOGLE_MAPS_API_KEY=tu_api_key_de_google
    ```
@@ -62,4 +73,4 @@ Se despliega igual:
 supabase functions deploy invite-user
 ```
 
-Esa función usa `SUPABASE_SERVICE_ROLE_KEY` (ya disponible en el entorno de Supabase); no hace falta configurar secrets extra.
+Esa función usa `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en runtime Edge; en muchos proyectos Supabase ya los inyecta. Si una función devuelve *Configuración de servidor incompleta*, revisa **Edge Functions → Secrets**. No confundir con variables `VITE_*` del frontend.
