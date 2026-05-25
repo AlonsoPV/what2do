@@ -9,6 +9,8 @@ type InviteUserPayload = {
   onboarding_completed?: boolean
 }
 
+const DEFAULT_INITIAL_PASSWORD = 'emx@2026'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -36,7 +38,7 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== 'POST') {
-    return json({ ok: false, message: 'Método no permitido' }, 405)
+    return json({ ok: false, message: 'Metodo no permitido' }, 405)
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -62,7 +64,7 @@ Deno.serve(async (req) => {
 
   const { data: userData, error: userError } = await adminClient.auth.getUser(token)
   if (userError || !userData.user) {
-    return json({ ok: false, message: 'Sesión inválida' }, 401)
+    return json({ ok: false, message: 'Sesion invalida' }, 401)
   }
 
   const { data: roleRow, error: roleError } = await adminClient
@@ -103,15 +105,44 @@ Deno.serve(async (req) => {
   )
 
   if (inviteError) {
-    const message = inviteError.message || 'No se pudo enviar la invitación'
+    const message = inviteError.message || 'No se pudo enviar la invitacion'
     const status = /already|exists|registered/i.test(message) ? 409 : 400
     return json({ ok: false, message }, status)
   }
 
+  const invitedUserId = inviteData.user?.id
+  if (!invitedUserId) {
+    return json({ ok: false, message: 'La invitacion se envio, pero no se pudo crear el usuario' }, 500)
+  }
+
+  const { error: confirmError } = await adminClient.auth.admin.updateUserById(invitedUserId, {
+    password: DEFAULT_INITIAL_PASSWORD,
+    email_confirm: true,
+    user_metadata: {
+      nombre,
+      rol,
+      area: area || undefined,
+      activo: body?.activo ?? true,
+      onboarding_completed: body?.onboarding_completed ?? false,
+    },
+  })
+
+  if (confirmError) {
+    return json(
+      {
+        ok: false,
+        message:
+          confirmError.message ||
+          'La invitacion se envio, pero no se pudo autoconfirmar el usuario',
+      },
+      500
+    )
+  }
+
   return json({
     ok: true,
-    message: 'Invitación enviada correctamente',
+    message: 'Usuario creado, autoconfirmado e invitacion enviada correctamente',
     email,
-    user_id: inviteData.user?.id ?? null,
+    user_id: invitedUserId,
   })
 })

@@ -22,6 +22,12 @@ function filterQueryKey(filter: AccionesFilter): unknown[] {
         : filter.prioridad
   const excluir =
     filter.excluir_estados?.length ? filter.excluir_estados.join(',') : ''
+  const tipoAccion =
+    filter.tipo_accion == null
+      ? ''
+      : Array.isArray(filter.tipo_accion)
+        ? filter.tipo_accion.join(',')
+        : filter.tipo_accion
   return [
     filter.fecha_creacion ?? '',
     filter.fecha ?? '',
@@ -33,6 +39,8 @@ function filterQueryKey(filter: AccionesFilter): unknown[] {
     prioridad,
     filter.area ?? '',
     filter.responsable ?? '',
+    tipoAccion,
+    filter.sprint_id ?? '',
     filter.search ?? '',
   ]
 }

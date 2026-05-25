@@ -2,7 +2,7 @@
  * Tablero KPIs O2C: score global, filtros, lista ordenable y tarjetas por KPI.
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Download,
   Filter,
@@ -11,6 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { getAppNow } from '@/lib/clock'
+import { ROUTES } from '@/constants'
 import { InfoHint } from '@/components/InfoHint'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -354,6 +355,21 @@ export function KpisDashboardPage() {
     downloadKpiDashboardCsv(csv, `kpi-dashboard-${getAppNow().toISOString().slice(0, 10)}.csv`)
   }, [sorted, pipelineHorizon])
 
+  const scrollToKpiList = useCallback(() => {
+    const target = document.getElementById('kpi-list-title')
+    if (!target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.history.replaceState(null, '', `${ROUTES.DASHBOARD_KPIS}#kpi-list-title`)
+  }, [])
+
+  useEffect(() => {
+    if (window.location.hash !== '#kpi-list-title') return
+    const id = window.setTimeout(() => {
+      document.getElementById('kpi-list-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
+    return () => window.clearTimeout(id)
+  }, [loading, viewModels.length])
+
   return (
     <div
       data-page="kpi-dashboard"
@@ -414,6 +430,7 @@ export function KpisDashboardPage() {
           chartSeries={scoreEvolution.chartSeries}
           chartRange={scoreChartRange}
           onChartRangeChange={setScoreChartRange}
+          onShowKpiList={scrollToKpiList}
           snapshotsLoading={scoreEvolution.snapshotsLoading}
           snapshotsError={scoreEvolution.snapshotsError}
         />
@@ -445,7 +462,7 @@ export function KpisDashboardPage() {
             icon={Filter}
             titleId="kpi-filters-title"
             title="Filtros y orden"
-            subtitle="Refinan la lista inferior; el semáforo arriba refleja solo lo visible."
+            subtitle="Refinan la lista inferior; el resumen de esta tarjeta refleja solo lo visible."
             action={
               <div className="flex flex-wrap items-center gap-2">
                 <InfoHint text="Los filtros afectan el listado de KPIs y sus tarjetas. El orden aplica al detalle visible." />
@@ -636,9 +653,9 @@ export function KpisDashboardPage() {
             icon={ListChecks}
             titleId="kpi-list-title"
             title={`Indicadores (${viewModels.length})`}
-            subtitle="Vista ejecutiva: primero lo crítico; el detalle técnico se abre en ventana desde cada tarjeta."
+            subtitle="Prioriza por semáforo, realiza mediciones y consulta el detalle técnico sin perder contexto."
             action={
-              <InfoHint text="Agrupados por semáforo. La frase bajo el valor resume qué implica el KPI para negocio; guía, umbrales y evolución están en «Ver detalle técnico» (popup)." />
+              <InfoHint text="Cada tarjeta muestra lectura ejecutiva, avance, relación con brechas y dos acciones: realizar medición o abrir detalle técnico." />
             }
           />
           <SectionCardBody>

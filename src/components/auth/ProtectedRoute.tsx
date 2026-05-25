@@ -6,21 +6,24 @@
  */
 
 import { useEffect } from 'react'
-import { Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ROUTES } from '@/constants'
 import { useAuth } from '@/features/auth/hooks/useAuth'
+import { canAccessRouteByRole, getDefaultRouteByRole } from '@/features/auth/lib/permissions'
 import { useAppStore } from '@/store'
 import { AuthLoader } from '@/features/auth/components/AuthLoader'
 import { Button } from '@/components/ui/button'
 
 export function ProtectedRoute() {
   const navigate = useNavigate()
+  const location = useLocation()
   const resetOnLogout = useAppStore((s) => s.resetOnLogout)
   const {
     authLoading,
     sessionStatus,
     profileStatus,
     isAuthenticated,
+    profile,
     error,
     logout,
     refetch,
@@ -102,6 +105,10 @@ export function ProtectedRoute() {
         </div>
       </div>
     )
+  }
+
+  if (profileStatus === 'loaded' && !canAccessRouteByRole(profile?.rol, location.pathname)) {
+    return <Navigate to={getDefaultRouteByRole(profile?.rol)} replace />
   }
 
   return <Outlet />

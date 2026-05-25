@@ -39,7 +39,7 @@ export interface AccionDiaria {
   /** Brecha O2C (catálogo); opcional; convive con kpi_afectado legacy */
   gap_id?: string | null
   /** Categoría de complejidad (requiere migración `tipo_accion_enum` en BD). */
-  tipo_accion: TipoAccion | null
+  tipo_accion: TipoAccion
   story_points: number
   catalog_kpi_id?: string | null
   okr_impactado: string | null
@@ -63,6 +63,8 @@ export interface AccionDiaria {
   verified_by?: string | null
   created_at: string
   updated_at: string
+  /** Sprint Scrum vinculado (opcional; migración 20260521120000). */
+  sprint_id?: string | null
 }
 
 /** Punto a validar (checklist) vinculado a una acción diaria. */
@@ -114,4 +116,34 @@ export interface Cliente {
 /** Vista/join: acción con nombre del responsable (si RLS lo permite) */
 export interface AccionDiariaConResponsable extends AccionDiaria {
   responsable_nombre?: string
+}
+
+export type SprintEstado = 'activo' | 'completado' | 'cancelado'
+export type RetroTipo = 'bien' | 'mejorar' | 'accion'
+
+export interface Sprint {
+  id: string
+  nombre: string
+  objetivo: string | null
+  descripcion?: string | null
+  fecha_inicio: string
+  fecha_fin: string
+  estado: SprintEstado
+  kpi_id?: string | null
+  gap_id?: string | null
+  responsable_id?: string | null
+  velocidad_planificada: number | null
+  velocidad_real: number | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SprintRetroItem {
+  id: string
+  sprint_id: string
+  tipo: RetroTipo
+  texto: string
+  autor_id: string | null
+  created_at: string
 }

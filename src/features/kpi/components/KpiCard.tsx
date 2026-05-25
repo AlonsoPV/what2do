@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, ClipboardList, FileText, Info, XCircle } from 'lucide-react'
+import { CheckCircle2, ClipboardList, FileText, Info, Target, TrendingUp, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -495,7 +495,7 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
         {onRegisterMeasurement ? (
           <Button type="button" className="h-10 w-full font-medium shadow-sm" onClick={onRegisterMeasurement}>
             <ClipboardList className="mr-2 h-4 w-4" aria-hidden />
-            Registrar medición
+            Realizar medición
           </Button>
         ) : null}
 
@@ -516,44 +516,65 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
             className="flex max-h-[min(85vh,800px)] max-w-xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
           >
             <div className="shrink-0 border-b border-border/60 px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
-              <DialogTitle className="text-left text-base font-semibold sm:text-lg">Detalle técnico</DialogTitle>
-              <DialogDescription className="pt-1.5 text-left text-sm">{titleHead}</DialogDescription>
+              <DialogTitle className="text-left text-base font-semibold sm:text-lg">Detalle técnico del KPI</DialogTitle>
+              <DialogDescription className="pt-1.5 text-left text-sm">
+                {titleHead}. Lee primero la configuración, luego la regla de cálculo y al final la evolución.
+              </DialogDescription>
             </div>
-            <div className="kpi-card__detail-body min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 text-xs leading-relaxed text-muted-foreground sm:px-6">
+            <div className="kpi-card__detail-body min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 text-sm leading-relaxed text-muted-foreground sm:px-6">
             {detalleMetaParts.length > 0 ? (
-              <p className="rounded-md border border-border/40 bg-background/50 px-2.5 py-2 text-[11px]">
-                {detalleMetaParts.join(' · ')}
-              </p>
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Configuración del indicador
+                </p>
+                <ul className="grid gap-2 text-xs sm:grid-cols-2">
+                  {detalleMetaParts.map((part) => (
+                    <li key={part} className="flex gap-2">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" aria-hidden />
+                      <span>{part}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
 
-            <div className="rounded-md border border-border/50 bg-background/60 px-2.5 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Guía de lectura</p>
-              <p className="mt-1.5 text-[11px] font-semibold text-foreground">{modeCopy.title}</p>
-              <p className="mt-1.5 text-[11px] leading-snug">{modeCopy.explain}</p>
-              <p className="mt-2 text-[11px] leading-snug opacity-95">{modeCopy.advanceExplain}</p>
+            <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
+                <Target className="h-4 w-4" aria-hidden />
+                Guía de lectura
+              </p>
+              <p className="mt-2 font-semibold text-foreground">{modeCopy.title}</p>
+              <p className="mt-1.5 text-sm leading-6">{modeCopy.explain}</p>
+              <p className="mt-2 text-sm leading-6">{modeCopy.advanceExplain}</p>
             </div>
 
-            <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[11px]">
-              <dt>Línea base</dt>
-              <dd className="font-medium tabular-nums text-foreground">
-                {formatNum(row.baseline)}
-                {unitSuffix}
-              </dd>
-              <dt>Meta (horizonte tablero)</dt>
-              <dd className="font-medium tabular-nums text-foreground">
-                {formatNum(targetValue)}
-                {unitSuffix}
-              </dd>
-              <dt>Valor actual</dt>
-              <dd className="font-medium tabular-nums text-foreground">
-                {currentValue != null && Number.isFinite(currentValue) ? formatNum(currentValue) : '—'}
-                {unitSuffix}
-              </dd>
+            <dl className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <dt className="text-xs text-muted-foreground">Línea base</dt>
+                <dd className="mt-1 font-semibold tabular-nums text-foreground">
+                  {formatNum(row.baseline)}
+                  {unitSuffix}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <dt className="text-xs text-muted-foreground">Meta tablero</dt>
+                <dd className="mt-1 font-semibold tabular-nums text-foreground">
+                  {formatNum(targetValue)}
+                  {unitSuffix}
+                </dd>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <dt className="text-xs text-muted-foreground">Valor actual</dt>
+                <dd className="mt-1 font-semibold tabular-nums text-foreground">
+                  {currentValue != null && Number.isFinite(currentValue) ? formatNum(currentValue) : '—'}
+                  {unitSuffix}
+                </dd>
+              </div>
             </dl>
 
-            <div className="mt-4 rounded-md border border-border/40 bg-muted/30 px-2.5 py-2 text-[11px]">
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-sm">
               <p className="font-semibold text-foreground">Semáforo sobre % de avance</p>
-              <p className="mt-1 leading-snug">
+              <p className="mt-1 leading-6">
                 Verde: avance ≥ <span className="tabular-nums font-medium">{(thHelp.greenMin * 100).toFixed(0)}%</span>.
                 Amarillo: entre{' '}
                 <span className="tabular-nums font-medium">{(thHelp.yellowMin * 100).toFixed(0)}%</span> y ese umbral.
@@ -561,7 +582,7 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
               </p>
             </div>
 
-            <div className="mt-4 space-y-2 rounded-md border border-dashed border-border/60 bg-background/50 px-2.5 py-2">
+            <div className="space-y-2 rounded-lg border border-dashed border-border/60 bg-background/50 p-3">
               <p className="font-semibold text-foreground">Interpretación extendida</p>
               <KpiOperationalStatusInterpretation
                 kpiNombre={row.nombre}
@@ -579,7 +600,7 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
 
             <div
               className={cn(
-                'mt-4 flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-[11px]',
+                'flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm',
                 literalMetaCumplida === true && 'border-emerald-500/35 bg-emerald-500/5',
                 literalMetaCumplida === false && 'border-destructive/35 bg-destructive/5',
                 literalMetaCumplida === null && 'border-border bg-muted/30'
@@ -601,17 +622,20 @@ export function KpiCard({ vm, onRegisterMeasurement, className }: KpiCardProps) 
               )}
             </div>
 
-            <div className="mt-4 flex items-start gap-2 rounded-md border border-border/50 bg-muted/20 px-2.5 py-2">
+            <div className="flex items-start gap-2 rounded-lg border border-border/50 bg-muted/20 px-3 py-2">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-              <p className="text-[10px] leading-snug">
+              <p className="text-xs leading-5">
                 «Actual» es el último valor registrado. El avance y el semáforo son derivados para el tablero; no
                 sustituyen al dato fuente.
               </p>
             </div>
 
-            <div className="mt-4 space-y-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
-              <div className="flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                <span>Evolución de mediciones</span>
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-3">
+              <div className="flex items-center justify-between gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" aria-hidden />
+                  Evolución de mediciones
+                </span>
                 <span>
                   {measurementCount > 0 ? `${measurementCount} medición${measurementCount === 1 ? '' : 'es'}` : 'Sin histórico'}
                 </span>

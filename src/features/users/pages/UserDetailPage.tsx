@@ -26,6 +26,8 @@ import type { UpdateUserInput } from '../types/user.types'
 import { toast } from 'sonner'
 import { ArrowLeft } from 'lucide-react'
 
+const USER_FORM_ID = 'user-detail-form'
+
 export function UserDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -111,24 +113,44 @@ export function UserDetailPage() {
       <PasswordManagementCard userEmail={email ?? null} />
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent aria-describedby={undefined}>
-          <DialogHeader>
+        <DialogContent
+          aria-describedby={undefined}
+          className="flex max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] max-w-lg grid-rows-none flex-col overflow-hidden p-0 gap-0"
+        >
+          <DialogHeader className="shrink-0 border-b border-border/60 px-6 pb-4 pt-6 pr-12 text-left">
             <DialogTitle>Editar usuario</DialogTitle>
           </DialogHeader>
-          <UserForm
-            key={`edit-user-${user.id}`}
-            defaultValues={{
-              nombre: user.nombre,
-              rol: user.rol,
-              area: user.area ?? undefined,
-              activo: user.activo,
-              onboarding_completed: user.onboarding_completed,
-            }}
-            onSubmit={handleFormSubmit}
-            onCancel={() => setFormOpen(false)}
-            isSubmitting={updateUser.isPending}
-            isCreate={false}
-          />
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+            <UserForm
+              key={`edit-user-${user.id}`}
+              formId={USER_FORM_ID}
+              hideActions
+              defaultValues={{
+                nombre: user.nombre,
+                rol: user.rol,
+                area: user.area ?? undefined,
+                activo: user.activo,
+                onboarding_completed: user.onboarding_completed,
+              }}
+              onSubmit={handleFormSubmit}
+              onCancel={() => setFormOpen(false)}
+              isSubmitting={updateUser.isPending}
+              isCreate={false}
+            />
+          </div>
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border/60 bg-muted/20 px-6 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFormOpen(false)}
+              disabled={updateUser.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" form={USER_FORM_ID} disabled={updateUser.isPending}>
+              {updateUser.isPending ? 'Guardando…' : 'Guardar cambios'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
-  Settings,
+  Map,
   Columns3,
+  TimerReset,
   Target,
   Calendar,
   FileBarChart,
-  Bell,
   BookOpen,
   GraduationCap,
   Sparkles,
@@ -19,14 +19,16 @@ import {
 import { cn } from '@/lib/utils'
 import { ROUTES, APP_NAME } from '@/constants'
 import { useAppStore } from '@/store'
-import { useNotifications } from '@/features/notifications'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
+import { canAccessRouteByRole } from '@/features/auth/lib/permissions'
 import { Button } from '@/components/ui/button'
 
 /** Navegación por módulos (spec §5). */
 const navItems = [
   { to: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
+  { to: ROUTES.ESTRATEGIA, label: 'Alineación estratégica', icon: Map },
   { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
+  { to: ROUTES.SPRINTS, label: 'Sprint Center', icon: TimerReset },
   { to: ROUTES.DASHBOARD_KPIS, label: 'KPIs O2C', icon: LineChart },
   { to: ROUTES.DASHBOARD_GAPS, label: 'Gaps O2C', icon: FolderKanban },
   { to: ROUTES.DASHBOARD_IMPACTO, label: 'Matriz de Impacto', icon: BarChart3 },
@@ -35,9 +37,7 @@ const navItems = [
   { to: ROUTES.DISCIPLINA, label: 'Disciplina', icon: Target },
   { to: ROUTES.CALENDARIO, label: 'Calendario', icon: Calendar },
   { to: ROUTES.REPORTES, label: 'Reportes', icon: FileBarChart },
-  { to: ROUTES.NOTIFICACIONES, label: 'Notificaciones', icon: Bell },
   { to: ROUTES.MANUAL, label: 'Manual', icon: BookOpen },
-  { to: ROUTES.SETTINGS, label: 'Configuración', icon: Settings },
 ] as const
 
 const MOBILE_MQ = '(max-width: 1023px)'
@@ -52,8 +52,7 @@ export function Sidebar() {
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const { data: currentUser } = useCurrentUser()
-  const { data: notifications = [] } = useNotifications(currentUser?.id, { leido: false })
-  const unreadCount = notifications.length
+  const visibleNavItems = navItems.filter((item) => canAccessRouteByRole(currentUser?.rol, item.to))
 
   /** Antes del primer pintado en móvil: menú cerrado para evitar flash del overlay a pantalla completa. */
   useLayoutEffect(() => {
@@ -89,9 +88,8 @@ export function Sidebar() {
 
   const renderNavItems = (opts: { showLabels: boolean; mobile?: boolean; onActivate?: () => void }) => {
     const { showLabels, mobile, onActivate } = opts
-    return navItems.map(({ to, label, icon: Icon }) => {
+    return visibleNavItems.map(({ to, label, icon: Icon }) => {
       const isActive = location.pathname === to
-      const showNotifBadge = to === ROUTES.NOTIFICACIONES && unreadCount > 0
       return (
         <Link
           key={to}
@@ -105,14 +103,7 @@ export function Sidebar() {
               : 'text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground'
           )}
         >
-          <span className="relative shrink-0">
-            <Icon className={mobile ? 'h-6 w-6' : 'h-5 w-5'} aria-hidden />
-            {showNotifBadge ? (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            ) : null}
-          </span>
+          <Icon className={mobile ? 'h-6 w-6' : 'h-5 w-5 shrink-0'} aria-hidden />
           {showLabels ? <span className="flex-1 truncate">{label}</span> : null}
         </Link>
       )

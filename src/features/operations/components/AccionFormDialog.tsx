@@ -183,8 +183,9 @@ export function AccionFormDialog({
         prioridad: 'P2_Media',
         gap_ids: [],
         catalog_kpi_ids: [],
-        tipo_accion: null,
+        tipo_accion: 'operativa',
         story_points: 0,
+        sprint_id: null,
       }
     }
     const tri = parseDescripcionTriada(accion.descripcion_accion)
@@ -206,11 +207,12 @@ export function AccionFormDialog({
       area: accion.area ?? undefined,
       gap_ids,
       catalog_kpi_ids,
-      tipo_accion: accion.tipo_accion ?? null,
+      tipo_accion: accion.tipo_accion === 'sprint' ? 'sprint' : 'operativa',
       story_points:
         typeof accion.story_points === 'number' && Number.isFinite(accion.story_points)
           ? accion.story_points
           : Number(accion.story_points) || 0,
+      sprint_id: accion.sprint_id ?? null,
     }
   }, [accion, defaultFecha, o2cLinksQuery.data])
 
@@ -231,10 +233,11 @@ export function AccionFormDialog({
       prioridad,
       estado,
       area: values.area ?? null,
-      tipo_accion: values.tipo_accion ?? null,
+      tipo_accion: values.tipo_accion ?? 'operativa',
       story_points: values.story_points ?? 0,
       gap_id: values.gap_id ?? null,
       catalog_kpi_id: values.catalog_kpi_id ?? null,
+      sprint_id: values.sprint_id ?? null,
       ...(isEdit
         ? { updated_by: currentUser?.id ?? null }
         : { created_by: currentUser?.id ?? null }),

@@ -18,6 +18,7 @@ import {
   CountdownTimer,
   AccionFormDialog,
 } from '@/features/operations'
+import { KanbanSprintSummary } from '@/features/operations/components/KanbanSprintSummary'
 import type { KanbanViewMode } from '@/features/operations'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import {
@@ -220,6 +221,8 @@ export function KanbanPage() {
           ) : null
         }
       />
+
+      <KanbanSprintSummary />
 
       {gapIdFromUrl ? (
         <div

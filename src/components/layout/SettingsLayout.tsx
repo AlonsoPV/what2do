@@ -1,6 +1,8 @@
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/constants'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import { canAccessRouteByRole, isAnalystByRole } from '@/features/auth/lib/permissions'
 import {
   Users,
   FolderOpen,
@@ -33,13 +35,20 @@ const CATALOG_LINKS = [
 
 export function SettingsLayout() {
   const location = useLocation()
+  const { profile } = useAuth()
+  const visibleSettingsLinks = SETTINGS_LINKS.filter((link) => canAccessRouteByRole(profile?.rol, link.to))
+  const visibleCatalogLinks = CATALOG_LINKS.filter((link) => canAccessRouteByRole(profile?.rol, link.to))
   const isCatalogs = location.pathname.startsWith('/settings/catalogs')
+
+  if (isAnalystByRole(profile?.rol) && location.pathname !== ROUTES.SETTINGS_PROFILE) {
+    return <Navigate to={ROUTES.SETTINGS_PROFILE} replace />
+  }
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
       <nav className="shrink-0 space-y-1 lg:w-52">
         <p className="mb-2 text-xs font-medium text-muted-foreground">Configuración</p>
-        {SETTINGS_LINKS.map(({ to, label, icon: Icon }) => (
+        {visibleSettingsLinks.map(({ to, label, icon: Icon }) => (
           <Link
             key={to}
             to={to}
@@ -54,10 +63,10 @@ export function SettingsLayout() {
             {label}
           </Link>
         ))}
-        {isCatalogs && (
+        {isCatalogs && visibleCatalogLinks.length > 0 && (
           <>
             <p className="mt-4 mb-2 text-xs font-medium text-muted-foreground">Catálogos</p>
-            {CATALOG_LINKS.map(({ to, label, icon: Icon }) => (
+            {visibleCatalogLinks.map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}

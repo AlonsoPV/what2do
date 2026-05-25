@@ -16,6 +16,8 @@ export const kpiQueryKeys = {
   /** Conteo de acciones distintas por KPI (tabla puente + columna `catalog_kpi_id`). */
   catalogKpiAccionImpact: ['catalog-kpi-accion-impact'] as const,
   globalScoreSnapshots: ['global-score-snapshots'] as const,
+  strategicNorth: ['strategic-north'] as const,
+  fces: ['fce'] as const,
 } as const
 
 /** Listas / tableros: datos relativamente estáticos. */

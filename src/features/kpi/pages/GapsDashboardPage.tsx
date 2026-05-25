@@ -4,9 +4,12 @@
 
 import { useMemo, useState } from 'react'
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  CheckCircle2,
+  Clock3,
   Filter,
   ListChecks,
   RefreshCw,
@@ -58,6 +61,25 @@ function gapProblemaHumanLine(gap: Gap): string {
   return oneLine.length > 140 ? `${oneLine.slice(0, 137)}…` : oneLine
 }
 
+function formatPct(value: number): string {
+  return Number.isFinite(value) ? `${Math.round(value)}%` : '0%'
+}
+
+function gapStatusStoryLabel(status: GapStatus): string {
+  switch (status) {
+    case 'open':
+      return 'abierta'
+    case 'in_progress':
+      return 'en curso'
+    case 'resolved':
+      return 'resuelta'
+    case 'closed':
+      return 'cerrada'
+    default:
+      return status
+  }
+}
+
 export function GapsDashboardPage() {
   const { data: gaps = [], isLoading: gapsLoading } = useGaps({ filters: { activo: true } })
   const { kpiRows, metricItems, isLoading: kpisLoading } = useCatalogKpiO2cMetricItems({
@@ -65,8 +87,11 @@ export function GapsDashboardPage() {
   })
   const gapIds = useMemo(() => gaps.map((g) => g.id), [gaps])
   const { data: accionesData, isLoading: accionesLoading } = useGapAccionesForGapIds(gapIds)
-  const acciones = accionesData?.acciones ?? []
-  const junctionAccionIdsByGap = accionesData?.junctionAccionIdsByGap ?? new Map<string, Set<string>>()
+  const acciones = useMemo(() => accionesData?.acciones ?? [], [accionesData?.acciones])
+  const junctionAccionIdsByGap = useMemo(
+    () => accionesData?.junctionAccionIdsByGap ?? new Map<string, Set<string>>(),
+    [accionesData?.junctionAccionIdsByGap]
+  )
   const { links: gapKpiLinks, isLoading: gapKpiLinksLoading } = useGapKpiLinks()
   const { data: users = [] } = useUsers({ activo: true })
 
@@ -209,7 +234,6 @@ export function GapsDashboardPage() {
       }
     })
     if (import.meta.env.DEV && gaps.length > 0) {
-      // eslint-disable-next-line no-console
       console.log('Gaps progreso recalculado', { gaps: gaps.length })
     }
     return out
@@ -376,10 +400,162 @@ export function GapsDashboardPage() {
   }, [sorted])
 
   const moscowBudget = useMemo(() => moscowPointsBudget(TARGET_SPRINT_VELOCITY_POINTS), [])
+  const activeActionsVisible = useMemo(
+    () => filtered.reduce((sum, vm) => sum + vm.accionesActivasCount, 0),
+    [filtered]
+  )
+  const focusGap = useMemo(() => {
+    const priorityPool = [...gapGroups.critico, ...gapGroups.riesgo]
+    const pool = priorityPool.length > 0 ? priorityPool : [...sorted]
+    return (
+      pool.sort((a, b) => {
+        const severityRank = (vm: GapCardViewModel) =>
+          vm.severidad === 'critico' ? 0 : vm.severidad === 'riesgo' ? 1 : 2
+        const severityCmp = severityRank(a) - severityRank(b)
+        if (severityCmp !== 0) return severityCmp
+        const progressCmp = a.progressPct - b.progressPct
+        if (progressCmp !== 0) return progressCmp
+        return b.accionesActivasCount - a.accionesActivasCount
+      })[0] ?? null
+    )
+  }, [gapGroups, sorted])
+  const narrative = useMemo(() => {
+    const critical = gapGroups.critico.length
+    const risk = gapGroups.riesgo.length
+    const controlled = gapGroups.controlado.length
+    const headline =
+      critical > 0
+        ? `${critical} brecha${critical !== 1 ? 's' : ''} critica${critical !== 1 ? 's' : ''} concentra${critical !== 1 ? 'n' : ''} el riesgo operativo`
+        : risk > 0
+          ? `${risk} brecha${risk !== 1 ? 's' : ''} en riesgo requiere${risk !== 1 ? 'n' : ''} seguimiento`
+          : controlled > 0
+            ? 'El portafolio visible esta bajo control'
+            : 'No hay brechas visibles con los filtros actuales'
+    const focusName = focusGap?.gap.nombre ?? 'ninguna brecha prioritaria'
+    const focusKpi = focusGap?.primaryKpi
+      ? `${focusGap.primaryKpi.code} - ${focusGap.primaryKpi.nombre}`
+      : 'sin KPI principal vinculado'
+    const decision =
+      focusGap != null
+        ? `Foco sugerido: cerrar trabajo activo en "${focusName}" porque esta ${gapStatusStoryLabel(
+            focusGap.gap.status
+          )} y afecta ${focusKpi}.`
+        : 'Ajusta filtros o crea una brecha accionable para construir una lectura ejecutiva.'
+    return { headline, decision }
+  }, [focusGap, gapGroups])
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 overflow-x-hidden px-4 py-6 sm:px-6">
-      <header className="space-y-1">
+      <header className="space-y-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Brechas O2C</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-foreground">Lectura de brechas</h1>
+              <InfoHint text="Vista ejecutiva: prioriza el problema, su evidencia KPI, avance por story points y acciones abiertas." />
+            </div>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Disenada para decidir donde intervenir primero: impacto operativo, evidencia del indicador y trabajo
+              necesario para cerrar cada gap.
+            </p>
+          </div>
+          <details className="rounded-lg border border-border/60 bg-muted/15 px-3 py-2 text-xs leading-relaxed text-muted-foreground sm:max-w-md">
+            <summary className="cursor-pointer list-none font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+              Metodologia
+            </summary>
+            <div className="mt-2 space-y-2 border-t border-border/60 pt-2">
+              <p>
+                Fibonacci ({FIBONACCI_STORY_POINTS.join(', ')}) estima esfuerzo relativo. MoSCoW reparte una velocidad
+                objetivo de {TARGET_SPRINT_VELOCITY_POINTS} pts: Must {moscowBudget.must}, Should {moscowBudget.should},
+                Could {moscowBudget.could}.
+              </p>
+              <p>
+                El impacto al score global reparte el peso KPI del gap entre historias; complementa, no reemplaza, la
+                medicion del KPI.
+              </p>
+            </div>
+          </details>
+        </div>
+
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.6fr)]">
+          <div className="rounded-lg border border-border/60 bg-card px-4 py-4 shadow-sm sm:px-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Target className="h-4 w-4" aria-hidden />
+              </span>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Historia ejecutiva
+              </p>
+            </div>
+            <h2 className="mt-4 max-w-3xl text-xl font-semibold tracking-tight text-foreground">
+              {narrative.headline}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{narrative.decision}</p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-3">
+                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <AlertTriangle className="h-3.5 w-3.5 text-destructive" aria-hidden />
+                  Riesgo abierto
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                  {gapGroups.critico.length + gapGroups.riesgo.length}
+                </p>
+                <p className="text-[11px] text-muted-foreground">criticas o en riesgo</p>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-3">
+                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Clock3 className="h-3.5 w-3.5 text-primary" aria-hidden />
+                  Trabajo activo
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{activeActionsVisible}</p>
+                <p className="text-[11px] text-muted-foreground">acciones por cerrar</p>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-3">
+                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                  Avance
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                  {formatPct(avancePortafolioPct)}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {chainHeader.ptsDone} / {chainHeader.ptsTotal} pts
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-muted/15 px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Brecha foco</p>
+            {focusGap ? (
+              <div className="mt-3 space-y-3">
+                <h3 className="text-base font-semibold leading-snug text-foreground">{focusGap.gap.nombre}</h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">{focusGap.problemaHumanLine}</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Progreso de cierre</span>
+                    <span className="font-medium tabular-nums text-foreground">{formatPct(focusGap.progressPct)}</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary"
+                      style={{ width: `${Math.min(100, Math.max(0, focusGap.progressPct))}%` }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {focusGap.accionesActivasCount} acciones activas - {focusGap.primaryKpi?.nombre ?? 'sin KPI principal'}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-muted-foreground">Sin brechas para priorizar con los filtros actuales.</p>
+            )}
+          </div>
+        </section>
+      </header>
+
+      <header className="hidden">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Brechas O2C</p>
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Brechas O2C</h1>
@@ -433,7 +609,7 @@ export function GapsDashboardPage() {
         </details>
       </header>
 
-      <section className="scroll-mt-4">
+      <section className="hidden">
         <SectionCard>
           <SectionCardHeader
             title="Avance del portafolio"
@@ -466,11 +642,11 @@ export function GapsDashboardPage() {
           <SectionCardHeader
             icon={Filter}
             titleId="gaps-filters-title"
-            title="Filtros y orden"
-            subtitle="Lista completa de brechas; el orden aplica por nombre, avance, estado o prioridad."
+            title="Exploracion del portafolio"
+            subtitle="Ajusta el foco de lectura sin perder la historia ejecutiva: area, responsable, estado y prioridad."
             action={
               <div className="flex flex-wrap items-center gap-2">
-                <InfoHint text="Los filtros afectan la lista completa de brechas. El orden aplica por nombre, avance, estado o prioridad." />
+                  <InfoHint text="Los filtros refinan la lista inferior y recalculan la lectura ejecutiva visible." />
                 <Button
                   type="button"
                   variant="outline"
@@ -592,8 +768,8 @@ export function GapsDashboardPage() {
           <SectionCardHeader
             icon={ListChecks}
             titleId="gaps-list-title"
-            title={`Problemas operativos (${sorted.length})`}
-            subtitle="Agrupados por gravedad (indicador principal). Abre «Detalle técnico» solo si necesitas pesos, semáforos o tablas."
+            title={`Brechas priorizadas (${sorted.length})`}
+            subtitle="Lee de arriba hacia abajo: riesgo, evidencia KPI, avance de cierre y acciones abiertas."
             action={
               <InfoHint text="Crítico = KPI principal fuera de meta. En riesgo = KPI en zona intermedia o sin dato claro. Controlado = KPI en meta o brecha cerrada/resuelta." />
             }

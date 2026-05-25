@@ -33,14 +33,19 @@ import { useAreas } from '@/features/catalogs/hooks/useAreas'
 import { useKpis } from '@/features/catalogs/hooks/useKpis'
 import { useDropdownOptionsByKey } from '@/features/catalogs/hooks/useDropdownOptions'
 import { useGaps } from '@/features/kpi/hooks/useGaps'
+import { useSprints } from '../hooks/useSprint'
+import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
+import { isAnalystByRole } from '@/features/auth/lib/permissions'
 import { InfoHint } from '@/components/InfoHint'
 import { cn } from '@/lib/utils'
 import { PRIORIDAD_NC } from '@/types'
 import {
+  ESFUERZO_ACCION_CONFIG,
+  ESFUERZO_ACCION_OPTIONS,
   TIPO_ACCION_CONFIG,
   TIPO_ACCION_OPTIONS,
   STORY_POINTS_OPTIONS,
-  type TipoAccion,
+  type EsfuerzoAccion,
 } from '../utils/tipoAccionConfig'
 import { AccionImpactPreview } from './AccionImpactPreview'
 import { SectionCardBody } from '@/components/SectionCard'
@@ -121,6 +126,9 @@ export function AccionForm({
   formId,
   onSubmitInvalid,
 }: AccionFormProps) {
+  void _onCancel
+  void _isSubmitting
+
   const {
     data: users = [],
     isLoading: usersLoading,
@@ -152,7 +160,19 @@ export function AccionForm({
     error: evidenciaErrorObj,
     refetch: retryEvidenciaCatalog,
   } = useDropdownOptionsByKey('evidencia_esperada')
+  const { data: sprints = [], isLoading: sprintsLoading } = useSprints()
+  const { data: currentUser } = useCurrentUser()
+  const isAnalyst = isAnalystByRole(currentUser?.rol)
   const [evidenciaSelect, setEvidenciaSelect] = useState<string>('__none__')
+  const [esfuerzoSeleccionado, setEsfuerzoSeleccionado] = useState<EsfuerzoAccion>(() => {
+    const pts = defaultValues?.story_points ?? 0
+    if (pts >= 13) return 'automatizacion'
+    if (pts >= 8) return 'dashboard'
+    if (pts >= 5) return 'integracion'
+    if (pts >= 3) return 'reporte'
+    if (pts > 0) return 'configuracion'
+    return 'otro'
+  })
   const [descExpanded, setDescExpanded] = useState<boolean>(() => {
     const como = defaultValues?.descripcion_como ?? ''
     const quiero = defaultValues?.descripcion_quiero ?? ''
@@ -175,8 +195,9 @@ export function AccionForm({
       area: undefined,
       gap_ids: [],
       catalog_kpi_ids: [],
-      tipo_accion: undefined,
+      tipo_accion: 'operativa',
       story_points: 0,
+      sprint_id: null,
     },
   })
 
@@ -187,14 +208,38 @@ export function AccionForm({
   }, [gaps])
 
   const gapIds = form.watch('gap_ids') ?? []
-  const tipoSeleccionado = form.watch('tipo_accion')
-  const esTipoOtro = tipoSeleccionado === 'otro'
+  const tipoSeleccionado = form.watch('tipo_accion') ?? 'operativa'
+  const tipoConfig = TIPO_ACCION_CONFIG[tipoSeleccionado]
+  const sprintId = form.watch('sprint_id')
   const storyPoints = form.watch('story_points') ?? 0
+  const esEsfuerzoOtro = esfuerzoSeleccionado === 'otro'
+  const hasSprints = sprints.length > 0
+  const tipoAccionOptions = useMemo(
+    () =>
+      TIPO_ACCION_OPTIONS.filter((opt) => {
+        if (opt.value === 'estrategica') return false
+        if (opt.value === 'sprint') return hasSprints
+        return true
+      }),
+    [hasSprints]
+  )
 
   const selectedGaps = useMemo(
     () => gaps.filter((g) => gapIds.includes(g.id)),
     [gaps, gapIds]
   )
+
+  useEffect(() => {
+    if (tipoSeleccionado === 'sprint' && !sprintsLoading && !hasSprints) {
+      form.setValue('tipo_accion', 'operativa')
+      if (sprintId) form.setValue('sprint_id', null)
+      return
+    }
+    if (tipoSeleccionado === 'operativa') {
+      if (sprintId) form.setValue('sprint_id', null)
+    }
+  }, [form, hasSprints, sprintId, sprintsLoading, tipoSeleccionado])
+
   function toggleGap(id: string) {
     const cur = form.getValues('gap_ids') ?? []
     if (cur.includes(id)) {
@@ -500,14 +545,55 @@ export function AccionForm({
           <div>
             <h4 className="text-sm font-semibold">Clasificación y vinculación O2C</h4>
             <p className="text-xs text-muted-foreground">
-              {esTipoOtro
-                ? 'Indica los story points, elige la brecha a impactar y completa el resto del formulario. Prioridad y área no aplican en este tipo de acción.'
-                : 'Prioridad, área, complejidad (tipo y puntos) y vinculación gap/KPI'}
+              RUN mantiene la operacion; Sprint organiza CHANGE. La complejidad se captura por separado.
             </p>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-0">
           <div className="accion-form-grid-clasificacion grid gap-4 sm:grid-cols-2">
+            <div className="accion-form-field-group accion-form-field-group-tipo_accion space-y-2 sm:col-span-2">
+              <Label className="text-xs font-medium text-foreground">Tipo de accion</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {tipoAccionOptions.map((opt) => {
+                  const selected = tipoSeleccionado === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        const nextTipo = opt.value === 'sprint' ? 'sprint' : 'operativa'
+                        form.setValue('tipo_accion', nextTipo)
+                        if (opt.value === 'operativa') form.setValue('sprint_id', null)
+                      }}
+                      className={cn(
+                        'rounded-lg border px-3 py-2 text-left transition-colors',
+                        selected
+                          ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                          : 'border-border bg-background hover:border-primary/50 hover:bg-muted/30'
+                      )}
+                    >
+                      <span className="block text-xs font-semibold uppercase tracking-wide">
+                        {opt.shortLabel}
+                      </span>
+                      <span className="mt-0.5 block text-sm font-medium">{opt.label}</span>
+                      <span
+                        className={cn(
+                          'mt-1 block text-xs leading-snug',
+                          selected ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                        )}
+                      >
+                        {opt.description}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {!sprintsLoading && !hasSprints ? (
+                <p className="text-xs text-muted-foreground">
+                  La opcion Sprint aparece cuando exista al menos un sprint creado.
+                </p>
+              ) : null}
+            </div>
             <div className="accion-form-field-group accion-form-field-group-prioridad space-y-2">
               <Label htmlFor={fieldId('prioridad')} className="text-xs font-medium text-foreground">
                 Prioridad
@@ -515,19 +601,10 @@ export function AccionForm({
               <Select
                 value={form.watch('prioridad') ?? 'P2_Media'}
                 onValueChange={(v) => form.setValue('prioridad', v as AccionFormInput['prioridad'])}
-                disabled={esTipoOtro}
               >
                 <SelectTrigger
                   id={fieldId('prioridad')}
-                  title={
-                    esTipoOtro
-                      ? 'Con tipo «Otro» la prioridad no se usa en esta sección.'
-                      : undefined
-                  }
-                  className={cn(
-                    `accion-form-field accion-form-field-prioridad ${inputBase} h-10 border-input bg-muted/30`,
-                    esTipoOtro && 'cursor-not-allowed opacity-60'
-                  )}
+                  className={`accion-form-field accion-form-field-prioridad ${inputBase} h-10 border-input bg-muted/30`}
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -567,19 +644,11 @@ export function AccionForm({
               <Select
                 value={form.watch('area') ?? '__none__'}
                 onValueChange={(v) => form.setValue('area', v === '__none__' ? undefined : v)}
-                disabled={(areasLoading && areas.length === 0) || esTipoOtro}
+                disabled={areasLoading && areas.length === 0}
               >
                 <SelectTrigger
                   id={fieldId('area')}
-                  title={
-                    esTipoOtro
-                      ? 'Con tipo «Otro» el área no se elige aquí; puedes alinearla con la brecha seleccionada.'
-                      : undefined
-                  }
-                  className={cn(
-                    `accion-form-field accion-form-field-area ${inputBase} h-10 border-input bg-muted/30`,
-                    esTipoOtro && 'cursor-not-allowed opacity-60'
-                  )}
+                  className={`accion-form-field accion-form-field-area ${inputBase} h-10 border-input bg-muted/30`}
                 >
                   <SelectValue placeholder="Opcional" />
                 </SelectTrigger>
@@ -593,6 +662,41 @@ export function AccionForm({
                 </SelectContent>
               </Select>
             </div>
+            {tipoConfig.allowsSprint && hasSprints ? (
+              <div className="accion-form-field-group accion-form-field-group-sprint space-y-2 sm:col-span-2">
+                <Label className="text-xs font-medium text-foreground">
+                  Sprint {tipoConfig.requiresSprint ? '*' : '(opcional)'}
+                </Label>
+                <Select
+                  value={form.watch('sprint_id') ?? '__none__'}
+                  onValueChange={(v) => form.setValue('sprint_id', v === '__none__' ? null : v)}
+                >
+                  <SelectTrigger
+                    id={fieldId('sprint_id')}
+                    className={`accion-form-field accion-form-field-sprint ${inputBase} h-10 border-input bg-muted/30`}
+                  >
+                    <SelectValue placeholder="Selecciona sprint" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!tipoConfig.requiresSprint ? <SelectItem value="__none__">Sin sprint</SelectItem> : null}
+                    {sprints.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.formState.errors.sprint_id ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.sprint_id.message}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {tipoSeleccionado === 'sprint'
+                      ? 'CHANGE: trabajo enfocado en un objetivo temporal.'
+                      : 'Puede asociarse a un sprint si forma parte de una iniciativa.'}
+                  </p>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div
@@ -609,93 +713,59 @@ export function AccionForm({
                 </p>
                 <h4 className="text-sm font-semibold text-foreground">Complejidad y esfuerzo</h4>
                 <p className="text-xs text-muted-foreground">
-                  {esTipoOtro
-                    ? 'Define los story points (Fibonacci) según el esfuerzo de esta acción.'
-                    : 'Elige el tipo: se asignan story points sugeridos automáticamente (no editables aquí). Para ajustar puntos a mano, elige «Otro».'}
+                  Elige una complejidad para sugerir puntos. Usa Otro para ajustar el esfuerzo manualmente.
                 </p>
               </div>
             </div>
 
-            <div
-              className={cn('grid gap-4', esTipoOtro && 'sm:grid-cols-[1fr_auto] sm:items-start')}
-            >
-              {!esTipoOtro ? (
-                <div className="accion-form-field-group accion-form-field-group-tipo_accion space-y-2">
-                  <Label htmlFor={fieldId('tipo_accion')} className="text-xs font-medium text-foreground">
-                    Tipo de acción
-                  </Label>
-                  <Select
-                    value={tipoSeleccionado ?? '__none__'}
-                    onValueChange={(v) => {
-                      if (v === '__none__') {
-                        form.setValue('tipo_accion', null)
-                        form.setValue('story_points', 0)
-                        return
-                      }
-                      const next = v as TipoAccion
-                      form.setValue('tipo_accion', next)
-                      const cfg = TIPO_ACCION_CONFIG[next]
-                      if (next === 'otro') {
-                        form.setValue('story_points', 0)
-                      } else if (cfg.puntosSugerido > 0) {
-                        form.setValue('story_points', cfg.puntosSugerido)
-                      }
-                    }}
+            <div className="grid gap-4">
+              <div className="accion-form-field-group accion-form-field-group-esfuerzo space-y-2">
+                <Label htmlFor={fieldId('esfuerzo_accion')} className="text-xs font-medium text-foreground">
+                  Complejidad
+                </Label>
+                <Select
+                  value={esfuerzoSeleccionado}
+                  onValueChange={(v) => {
+                    const next = v as EsfuerzoAccion
+                    setEsfuerzoSeleccionado(next)
+                    const cfg = ESFUERZO_ACCION_CONFIG[next]
+                    if (cfg.puntosSugerido > 0) form.setValue('story_points', cfg.puntosSugerido)
+                  }}
+                >
+                  <SelectTrigger
+                    id={fieldId('esfuerzo_accion')}
+                    className={`accion-form-field accion-form-field-esfuerzo ${inputBase} h-10 border-input bg-muted/30`}
                   >
-                    <SelectTrigger
-                      id={fieldId('tipo_accion')}
-                      className={`accion-form-field accion-form-field-tipo_accion ${inputBase} h-10 border-input bg-muted/30`}
-                    >
-                      <SelectValue placeholder="Selecciona el tipo…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Sin tipo</SelectItem>
-                      {TIPO_ACCION_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          <span className="font-medium">{opt.label}</span>
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {opt.puntosMin === opt.puntosMax
-                              ? `${opt.puntosMin} pts`
-                              : `${opt.puntosMin}–${opt.puntosMax} pts`}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {tipoSeleccionado && TIPO_ACCION_CONFIG[tipoSeleccionado] && (
-                    <p className="truncate text-xs text-muted-foreground">
-                      {TIPO_ACCION_CONFIG[tipoSeleccionado].description}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                    <p className="text-xs text-muted-foreground">
-                      Tipo:{' '}
-                      <span className="font-semibold text-foreground">{TIPO_ACCION_CONFIG.otro.label}</span>
-                    </p>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 shrink-0 px-2 text-xs"
-                      onClick={() => {
-                        form.setValue('tipo_accion', null)
-                        form.setValue('story_points', 0)
-                      }}
-                    >
-                      Cambiar tipo
-                    </Button>
-                  </div>
+                    <SelectValue placeholder="Selecciona complejidad..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ESFUERZO_ACCION_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <span className="font-medium">{opt.label}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {opt.puntosMin === opt.puntosMax
+                            ? `${opt.puntosMin} pts`
+                            : `${opt.puntosMin}-${opt.puntosMax} pts`}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {esfuerzoSeleccionado && ESFUERZO_ACCION_CONFIG[esfuerzoSeleccionado] && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {ESFUERZO_ACCION_CONFIG[esfuerzoSeleccionado].description}
+                  </p>
+                )}
+              </div>
 
+              {esEsfuerzoOtro ? (
                   <div className="accion-form-field-group accion-form-field-group-story_points space-y-2">
                     <div className="flex items-center gap-1.5">
                       <Label className="text-xs font-medium text-foreground">Story points</Label>
-                      <InfoHint text="Complejidad relativa (Fibonacci). En «Otro» no hay rango sugerido por tipo." />
+                      <InfoHint text="Complejidad relativa (Fibonacci). En Otro no hay rango sugerido por tipo." />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Asigna el esfuerzo en puntos y elige las brechas a impactar más abajo.
+                      Asigna el esfuerzo en puntos. RUN no contamina avance de sprint; Sprint si usa estos puntos.
                     </p>
                     <Controller
                       name="story_points"
@@ -730,28 +800,19 @@ export function AccionForm({
                       </p>
                     )}
                   </div>
-                </>
-              )}
+              ) : null}
             </div>
           </div>
 
+          {!isAnalyst ? (
           <div className="accion-form-grid-o2c space-y-4">
             <div className="accion-form-field-group accion-form-field-group-gap_ids space-y-2">
               <Label htmlFor={fieldId('gap_ids')} className="text-xs font-medium text-foreground">
                 Brechas operativas a impactar
               </Label>
               <p id={fieldId('gap_ids-hint')} className="text-xs leading-relaxed text-muted-foreground">
-                {esTipoOtro ? (
-                  <>
-                    Elige del catálogo las brechas que esta acción ayuda a avanzar. Puedes marcar varias. El
-                    cierre de la brecha es el vínculo con el tablero de operaciones.
-                  </>
-                ) : (
-                  <>
-                    Vincula la acción con las brechas que contribuye a cerrar. El avance del gap alimenta el
-                    seguimiento del portafolio.
-                  </>
-                )}
+                Vincula la accion con las brechas que contribuye a cerrar. El avance del gap alimenta el
+                seguimiento del portafolio.
               </p>
               {gapsLoading && <p className="text-xs text-muted-foreground">Cargando brechas…</p>}
               {gapsError && (
@@ -820,6 +881,7 @@ export function AccionForm({
               <AccionImpactPreview gapIds={gapIds} storyPoints={storyPoints} />
             </div>
           </div>
+          ) : null}
         </CardContent>
       </Card>
 

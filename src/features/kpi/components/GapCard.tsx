@@ -192,7 +192,7 @@ export function GapCard({ vm }: { vm: GapCardViewModel }) {
   return (
     <Card
       data-gap-id={gap.id}
-      className="overflow-hidden rounded-2xl border border-border/50 bg-card/80 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]"
+      className="overflow-hidden rounded-lg border border-border/50 bg-card/80 shadow-sm ring-1 ring-black/[0.03] dark:ring-white/[0.05]"
     >
       <CardContent className="space-y-4 p-5 sm:p-6">
         {/* Problema (negocio) */}
@@ -202,7 +202,7 @@ export function GapCard({ vm }: { vm: GapCardViewModel }) {
           <div className="min-w-0 space-y-1">
             <h3 className="text-base font-semibold leading-snug tracking-tight text-foreground">{gap.nombre}</h3>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              <span className="font-medium text-foreground">Problema: </span>
+              <span className="font-medium text-foreground">Bloqueo: </span>
               {problemaHumanLine}
             </p>
           </div>
@@ -215,7 +215,7 @@ export function GapCard({ vm }: { vm: GapCardViewModel }) {
       {/* Severidad + KPI */}
       <div
         className={cn(
-          'rounded-xl border px-3.5 py-3 text-sm leading-relaxed',
+          'rounded-lg border px-3.5 py-3 text-sm leading-relaxed',
           severidadPanelClass(severidad)
         )}
       >
@@ -237,7 +237,7 @@ export function GapCard({ vm }: { vm: GapCardViewModel }) {
         <div className="flex items-center justify-between gap-2 text-xs">
           <span className="inline-flex items-center gap-1.5 font-medium text-muted-foreground">
             <Gauge className="h-3.5 w-3.5" aria-hidden />
-            Progreso
+            Cierre
           </span>
           <span className="font-semibold tabular-nums text-foreground">{ptsLabel}</span>
         </div>
@@ -251,13 +251,13 @@ export function GapCard({ vm }: { vm: GapCardViewModel }) {
           />
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Story points cerrados (Hecho / Verificado) frente al total del problema.
+          Trabajo terminado frente al esfuerzo total estimado.
         </p>
       </div>
 
       {/* Causa / KPI */}
-      <div className="rounded-xl border border-border/45 bg-muted/15 px-3.5 py-3 dark:bg-muted/10">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Causado por</p>
+      <div className="rounded-lg border border-border/45 bg-muted/15 px-3.5 py-3 dark:bg-muted/10">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Evidencia KPI</p>
         {primaryKpi ? (
           <p className="mt-1.5 text-sm font-medium text-foreground">
             {primaryKpi.code} — {primaryKpi.nombre}

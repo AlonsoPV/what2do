@@ -28,6 +28,7 @@ import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 
 const DEFAULT_FILTER: UsersFilter = {}
+const USER_FORM_ID = 'user-form-dialog'
 
 export function UsersPage() {
   const [filter, setFilter] = useState<UsersFilter>(DEFAULT_FILTER)
@@ -156,8 +157,8 @@ export function UsersPage() {
       />
 
       <Dialog open={formOpen} onOpenChange={(open) => !open && setFormOpen(false)}>
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="flex max-h-[min(90dvh,720px)] w-[calc(100vw-2rem)] max-w-lg grid-rows-none flex-col overflow-hidden p-0 gap-0">
+          <DialogHeader className="shrink-0 border-b border-border/60 px-6 pb-4 pt-6 pr-12 text-left">
             <DialogTitle>{editingUser ? 'Editar ficha' : 'Invitar a alguien nuevo'}</DialogTitle>
             <DialogDescription className="text-left text-sm text-muted-foreground">
               {editingUser
@@ -165,24 +166,49 @@ export function UsersPage() {
                 : 'Con correo, nombre y rol basta. Creamos el acceso y enviamos un correo para que elija contraseña.'}
             </DialogDescription>
           </DialogHeader>
-          <UserForm
-            key={editingUser ? editingUser.id : 'create-user'}
-            defaultValues={
-              editingUser
-                ? {
-                    nombre: editingUser.nombre,
-                    rol: editingUser.rol,
-                    area: editingUser.area ?? undefined,
-                    activo: editingUser.activo,
-                    onboarding_completed: editingUser.onboarding_completed,
-                  }
-                : undefined
-            }
-            onSubmit={handleFormSubmit}
-            onCancel={() => setFormOpen(false)}
-            isSubmitting={createUser.isPending || updateUser.isPending}
-            isCreate={!editingUser}
-          />
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+            <UserForm
+              key={editingUser ? editingUser.id : 'create-user'}
+              formId={USER_FORM_ID}
+              hideActions
+              defaultValues={
+                editingUser
+                  ? {
+                      nombre: editingUser.nombre,
+                      rol: editingUser.rol,
+                      area: editingUser.area ?? undefined,
+                      activo: editingUser.activo,
+                      onboarding_completed: editingUser.onboarding_completed,
+                    }
+                  : undefined
+              }
+              onSubmit={handleFormSubmit}
+              onCancel={() => setFormOpen(false)}
+              isSubmitting={createUser.isPending || updateUser.isPending}
+              isCreate={!editingUser}
+            />
+          </div>
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border/60 bg-muted/20 px-6 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFormOpen(false)}
+              disabled={createUser.isPending || updateUser.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form={USER_FORM_ID}
+              disabled={createUser.isPending || updateUser.isPending}
+            >
+              {createUser.isPending || updateUser.isPending
+                ? 'Guardando…'
+                : editingUser
+                  ? 'Guardar cambios'
+                  : 'Enviar invitación'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

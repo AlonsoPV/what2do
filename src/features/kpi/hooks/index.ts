@@ -46,3 +46,4 @@ export { useInsertCatalogKpiMeasurement } from './useInsertCatalogKpiMeasurement
 export type { InsertCatalogKpiMeasurementVars } from './useInsertCatalogKpiMeasurement'
 export { useImpactMatrix } from './useImpactMatrix'
 export type { GapImpactSummaryRow, ImpactRow } from './useImpactMatrix'
+export { useStrategicNorthQuery, useFcesQuery } from './useStrategicMapCatalog'

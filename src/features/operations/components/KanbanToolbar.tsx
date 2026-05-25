@@ -23,6 +23,8 @@ import {
 } from '@/lib/dateUtils'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import { useAreas } from '@/features/catalogs/hooks/useAreas'
+import { useSprints } from '@/features/operations/hooks/useSprint'
+import type { TipoAccion } from '@/features/operations/utils/tipoAccionConfig'
 import { Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +50,13 @@ const PRIORIDAD_OPTIONS = [
   { value: 'P1_Critica', label: 'Crítica' },
   { value: 'P2_Media', label: 'Media' },
   { value: 'P3_Baja', label: 'Baja' },
+]
+
+const TIPO_ACCION_OPTIONS = [
+  { value: 'all', label: 'Todas' },
+  { value: 'operativa', label: 'Operativas' },
+  { value: 'sprint', label: 'De Sprint' },
+  { value: 'estrategica', label: 'Estrategicas' },
 ]
 
 export type KanbanToolbarLayout = 'default' | 'dashboard'
@@ -84,6 +93,7 @@ export function KanbanToolbar({
 }: KanbanToolbarProps) {
   const { data: users = [] } = useUsers({ activo: true })
   const { data: areas = [] } = useAreas({ activo: true })
+  const { data: sprints = [] } = useSprints()
   const todayYmd = todayWallClockCDMX()
   const rawFecha = filter.fecha_creacion
   const fechaEffective =
@@ -102,6 +112,8 @@ export function KanbanToolbar({
     dateDeviatesFromDefault ||
     filter.estado != null ||
     filter.prioridad != null ||
+    filter.tipo_accion != null ||
+    filter.sprint_id != null ||
     (filter.area != null && filter.area !== '') ||
     filter.responsable != null
 
@@ -111,6 +123,9 @@ export function KanbanToolbar({
   const prioridadValue = Array.isArray(filter.prioridad)
     ? (filter.prioridad[0] ?? 'all')
     : (filter.prioridad ?? 'all')
+  const tipoAccionValue = Array.isArray(filter.tipo_accion)
+    ? (filter.tipo_accion[0] ?? 'all')
+    : (filter.tipo_accion ?? 'all')
 
   const showAdvancedRow = layout !== 'dashboard' || advancedExpanded !== false
 
@@ -169,6 +184,53 @@ export function KanbanToolbar({
           {PRIORIDAD_OPTIONS.map((o) => (
             <SelectItem key={o.value} value={o.value}>
               {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={tipoAccionValue}
+        onValueChange={(v) =>
+          onFilterChange({
+            tipo_accion: v === 'all' ? undefined : (v as TipoAccion),
+            sprint_id: v === 'operativa' ? undefined : filter.sprint_id,
+          })
+        }
+      >
+        <SelectTrigger
+          id="kanban-filter-tipo-accion"
+          className="kanban-toolbar-tipo-accion h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[130px] sm:flex-none"
+        >
+          <SelectValue placeholder="Tipo" />
+        </SelectTrigger>
+        <SelectContent>
+          {TIPO_ACCION_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select
+        value={filter.sprint_id ?? 'all'}
+        onValueChange={(v) =>
+          onFilterChange({
+            sprint_id: v === 'all' ? undefined : v,
+            tipo_accion: v === 'all' ? filter.tipo_accion : undefined,
+          })
+        }
+      >
+        <SelectTrigger
+          id="kanban-filter-sprint"
+          className="kanban-toolbar-sprint h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[140px] sm:flex-none"
+        >
+          <SelectValue placeholder="Sprint" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Por sprint</SelectItem>
+          {sprints.map((s) => (
+            <SelectItem key={s.id} value={s.id}>
+              {s.nombre}
             </SelectItem>
           ))}
         </SelectContent>

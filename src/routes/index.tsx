@@ -6,6 +6,13 @@ import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { ROUTES } from '@/constants'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import { getDefaultRouteByRole } from '@/features/auth/lib/permissions'
+
+function HomeRedirect() {
+  const { profile } = useAuth()
+  return <Navigate to={getDefaultRouteByRole(profile?.rol)} replace />
+}
 
 const router = createBrowserRouter([
   {
@@ -28,12 +35,19 @@ const router = createBrowserRouter([
         path: '/',
         element: <AppLayout />,
         children: [
-          { index: true, element: <Navigate to={ROUTES.DASHBOARD} replace /> },
+          { index: true, element: <HomeRedirect /> },
           {
             path: ROUTES.DASHBOARD,
             lazy: async () => {
               const { DashboardPage } = await import('@/pages/dashboard/DashboardPage')
               return { Component: DashboardPage }
+            },
+          },
+          {
+            path: ROUTES.ESTRATEGIA,
+            lazy: async () => {
+              const { StrategicMapPage } = await import('@/pages/estrategia/StrategicMapPage')
+              return { Component: StrategicMapPage }
             },
           },
           {
@@ -62,6 +76,13 @@ const router = createBrowserRouter([
             lazy: async () => {
               const { KanbanPage } = await import('@/pages/kanban/KanbanPage')
               return { Component: KanbanPage }
+            },
+          },
+          {
+            path: ROUTES.SPRINTS,
+            lazy: async () => {
+              const { SprintCenterPage } = await import('@/features/operations/pages/SprintCenterPage')
+              return { Component: SprintCenterPage }
             },
           },
           {
@@ -125,6 +146,13 @@ const router = createBrowserRouter([
             lazy: async () => {
               const { ManualPage } = await import('@/pages/manual/ManualPage')
               return { Component: ManualPage }
+            },
+          },
+          {
+            path: ROUTES.PLAN_ACCION,
+            lazy: async () => {
+              const { PlanAccionRoute } = await import('@/features/plan-accion')
+              return { Component: PlanAccionRoute }
             },
           },
           {

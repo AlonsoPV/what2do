@@ -6,10 +6,13 @@ export const ROUTES = {
   FORGOT_PASSWORD: '/forgot-password',
   RESET_PASSWORD: '/reset-password',
   DASHBOARD: '/dashboard',
+  /** Cadena causa–efecto: BHAG, FCE, procesos O2C, ejecución. */
+  ESTRATEGIA: '/estrategia',
   DASHBOARD_KPIS: '/dashboard/kpis',
   DASHBOARD_GAPS: '/dashboard/gaps',
   DASHBOARD_IMPACTO: '/dashboard/impacto',
   KANBAN: '/kanban',
+  SPRINTS: '/sprints',
   DISCIPLINA: '/disciplina',
   AREAS: '/areas',
   CALENDARIO: '/calendario',
@@ -20,6 +23,8 @@ export const ROUTES = {
   MANUAL: '/manual',
   /** Asistente IA O2C (proxy Edge Functions → Lovable). */
   AI_ASSIST: '/asistente-ia',
+  /** Plan de acción Scrum Master — acceso restringido por usuario. */
+  PLAN_ACCION: '/plan-accion',
   SETTINGS: '/settings',
   SETTINGS_PROFILE: '/settings/profile',
   SETTINGS_USERS: '/settings/users',

@@ -8,14 +8,7 @@ import { ACTION_STATUS, PRIORIDAD_NC } from '@/types'
 import { formatDescripcionTriada } from '../utils/descripcionAccionTriada'
 import { STORY_POINTS_OPTIONS } from '../utils/tipoAccionConfig'
 
-const TIPO_ACCION_ENUM = z.enum([
-  'configuracion',
-  'reporte',
-  'integracion',
-  'dashboard',
-  'automatizacion',
-  'otro',
-])
+const TIPO_ACCION_ENUM = z.enum(['operativa', 'sprint'])
 
 const tituloAccionSchema = z
   .string()
@@ -74,7 +67,7 @@ const accionInputShape = z.object({
   cliente_id: z.string().uuid().nullable().optional(),
   causa_raiz: z.string().trim().nullable().optional(),
   responsable_bloqueo: z.string().uuid().nullable().optional(),
-  tipo_accion: TIPO_ACCION_ENUM.nullable().optional(),
+  tipo_accion: TIPO_ACCION_ENUM.default('operativa'),
   story_points: z
     .number()
     .refine(
@@ -84,6 +77,15 @@ const accionInputShape = z.object({
       }
     )
     .default(0),
+  sprint_id: z.string().uuid().nullable().optional(),
+}).superRefine((value, ctx) => {
+  if (value.tipo_accion === 'sprint' && !value.sprint_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['sprint_id'],
+      message: 'Selecciona un sprint para una accion de sprint.',
+    })
+  }
 })
 
 export const accionCreateSchema = accionInputShape.transform(
@@ -141,7 +143,7 @@ export const accionUpdateSchema = z
     responsable_bloqueo: z.string().uuid().nullable().optional(),
     evidencia_cargada: z.boolean().optional(),
     evidencia_adjunta: z.string().trim().nullable().optional(),
-    tipo_accion: TIPO_ACCION_ENUM.nullable().optional(),
+    tipo_accion: TIPO_ACCION_ENUM.optional(),
     story_points: z
       .number()
       .refine(
@@ -151,7 +153,17 @@ export const accionUpdateSchema = z
         }
       )
       .optional(),
+    sprint_id: z.string().uuid().nullable().optional(),
   })
   .partial()
+  .superRefine((value, ctx) => {
+    if (value.tipo_accion === 'sprint' && !value.sprint_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['sprint_id'],
+        message: 'Selecciona un sprint para una accion de sprint.',
+      })
+    }
+  })
 
 export type AccionUpdateInput = z.infer<typeof accionUpdateSchema>

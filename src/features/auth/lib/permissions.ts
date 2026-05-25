@@ -1,20 +1,31 @@
 /**
  * Utilidades para permisos y control de acceso.
- * Base para RLS y restricciones por rol.
  *
  * Modelo de datos:
- * - auth.users = identidad de acceso (sesión).
- * - usuarios = perfil de negocio (nombre, rol de catálogo, área); sin fila aquí no hay permisos en el tablero.
- * - user_roles.app_role = rol de aplicación (admin / super_admin) para Settings y políticas; no confundir con `usuarios.rol`.
- * - Datos de negocio: created_by, assigned_to, updated_by
+ * - auth.users = identidad de acceso.
+ * - usuarios = perfil de negocio (nombre, rol de catalogo, area).
+ * - user_roles.app_role = rol de aplicacion (admin / super_admin).
  */
 
+import { ROUTES } from '@/constants'
 import type { Usuario } from '@/types'
 
-/** Roles que tienen privilegios de admin (spec §2.2). */
+/** Roles que tienen privilegios de admin (spec 2.2). */
 const ADMIN_ROLES = ['DG', 'Sistemas'] as const
+const ANALYST_ROLE = 'Analista'
 
-/** app_role se obtendría de user_roles; por ahora no se expone en perfil. */
+const ANALYST_ALLOWED_ROUTES = [
+  ROUTES.KANBAN,
+  ROUTES.ACADEMIA,
+  ROUTES.DISCIPLINA,
+  ROUTES.CALENDARIO,
+  ROUTES.NOTIFICACIONES,
+  ROUTES.MANUAL,
+  ROUTES.SETTINGS,
+  ROUTES.SETTINGS_PROFILE,
+] as const
+
+/** app_role se obtendria de user_roles; por ahora no se expone en perfil. */
 export type AppRole = 'admin' | 'viewer' | 'super_admin'
 
 /**
@@ -25,9 +36,25 @@ export function isAdminByRole(rol: string): boolean {
   return ADMIN_ROLES.some((r) => r === rol)
 }
 
+export function isAnalystByRole(rol: string | null | undefined): boolean {
+  return (rol ?? '').trim().toLocaleLowerCase('es-MX') === ANALYST_ROLE.toLocaleLowerCase('es-MX')
+}
+
+export function canAccessRouteByRole(rol: string | null | undefined, pathname: string): boolean {
+  if (!isAnalystByRole(rol)) return true
+  return ANALYST_ALLOWED_ROUTES.some((route) => {
+    if (route === ROUTES.SETTINGS) return pathname === ROUTES.SETTINGS
+    return pathname === route || pathname.startsWith(`${route}/`)
+  })
+}
+
+export function getDefaultRouteByRole(rol: string | null | undefined): string {
+  return isAnalystByRole(rol) ? ROUTES.KANBAN : ROUTES.DASHBOARD
+}
+
 /**
  * Comprueba si el usuario puede editar un recurso.
- * Por ahora: admins pueden; resto según created_by/assigned_to (lógica en cada módulo).
+ * Por ahora: admins pueden; resto segun created_by/assigned_to.
  */
 export function canEditAsCreator(profile: Usuario | null, createdBy: string | null): boolean {
   if (!profile) return false

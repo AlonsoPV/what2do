@@ -5,4 +5,5 @@
  */
 
 export { NotificationCenter } from './components/NotificationCenter'
+export { NotificationHeaderButton } from './components/NotificationHeaderButton'
 export { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from './hooks/useNotifications'

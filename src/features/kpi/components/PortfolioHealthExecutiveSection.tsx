@@ -63,6 +63,7 @@ export type PortfolioHealthExecutiveSectionProps = {
   chartSeries: GlobalScoreSnapshot[]
   chartRange: GlobalScoreChartRange
   onChartRangeChange: (range: GlobalScoreChartRange) => void
+  onShowKpiList?: () => void
   snapshotsLoading: boolean
   snapshotsError: boolean
 }
@@ -77,6 +78,7 @@ export function PortfolioHealthExecutiveSection({
   chartSeries,
   chartRange,
   onChartRangeChange,
+  onShowKpiList,
   snapshotsLoading,
   snapshotsError,
 }: PortfolioHealthExecutiveSectionProps) {
@@ -218,7 +220,7 @@ export function PortfolioHealthExecutiveSection({
       </div>
 
       <div
-        className="portfolio-health-exec__distribution grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        className="portfolio-health-exec__distribution hidden"
         aria-label="Distribución por semáforo O2C"
       >
         <SemaphoreBlock
@@ -285,12 +287,19 @@ export function PortfolioHealthExecutiveSection({
               Ejecutar acciones
             </Link>
           </Button>
-          <Button asChild variant="outline" className="gap-2">
-            <Link to={`${ROUTES.DASHBOARD_KPIS}#kpi-list-title`}>
+          {onShowKpiList ? (
+            <Button type="button" variant="outline" className="gap-2" onClick={onShowKpiList}>
               <ClipboardList className="h-4 w-4" aria-hidden />
               Ver KPIs / mediciones
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button asChild variant="outline" className="gap-2">
+              <Link to={`${ROUTES.DASHBOARD_KPIS}#kpi-list-title`}>
+                <ClipboardList className="h-4 w-4" aria-hidden />
+                Ver KPIs / mediciones
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 

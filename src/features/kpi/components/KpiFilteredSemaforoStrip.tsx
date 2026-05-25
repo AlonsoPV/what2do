@@ -34,17 +34,17 @@ export function KpiFilteredSemaforoStrip({ summary }: { summary: KpiFilteredSumm
 
   return (
     <div
-      className="kpi-filter-semaforo space-y-4 border-b border-border/60 pb-5"
+      className="kpi-filter-semaforo rounded-lg border border-border/60 bg-muted/15 px-3 py-3"
       aria-label="Semáforo de KPIs visibles según filtros"
     >
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           Semáforo (vista actual)
         </p>
         <p className="text-sm font-medium leading-snug text-foreground">{insight}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-5 lg:min-w-[520px]">
         <SemaforoTile label="Fuera de meta" value={off_track} variant="bad" emphasize={off_track > 0} />
         <SemaforoTile
           label="En riesgo"
@@ -97,14 +97,14 @@ function SemaforoTile({
   return (
     <div
       className={cn(
-        'flex flex-col rounded-xl border px-3 py-3 shadow-sm transition-shadow sm:px-3.5 sm:py-3.5',
+        'flex min-h-[58px] flex-col rounded-lg border px-2.5 py-2 transition-shadow',
         cls,
         emphasize && 'ring-2 ring-primary/25 ring-offset-2 ring-offset-background',
         className
       )}
     >
       <span className="text-[10px] font-bold uppercase tracking-wide opacity-90">{label}</span>
-      <span className="mt-1 text-3xl font-bold tabular-nums leading-none sm:text-[2rem]">{value}</span>
+      <span className="mt-1 text-xl font-bold tabular-nums leading-none">{value}</span>
     </div>
   )
 }

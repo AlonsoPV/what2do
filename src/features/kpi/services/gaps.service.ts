@@ -10,6 +10,7 @@ export type CreateGapInput = {
   status?: GapStatus
   area?: string | null
   owner_usuario?: string | null
+  fce_id?: string | null
   total_story_points?: number
   activo?: boolean
 }
@@ -50,6 +51,7 @@ export async function createGap(input: CreateGapInput): Promise<Gap> {
       status: input.status ?? 'open',
       area: input.area?.trim() ? input.area.trim() : null,
       owner_usuario: input.owner_usuario ?? null,
+      fce_id: input.fce_id ?? null,
       total_story_points: input.total_story_points ?? 0,
       activo: input.activo ?? true,
     })
@@ -71,6 +73,7 @@ export async function updateGap(id: string, input: UpdateGapInput): Promise<Gap>
   if (input.status !== undefined) patch.status = input.status
   if (input.area !== undefined) patch.area = input.area?.trim() ? input.area.trim() : null
   if (input.owner_usuario !== undefined) patch.owner_usuario = input.owner_usuario
+  if (input.fce_id !== undefined) patch.fce_id = input.fce_id
   if (input.total_story_points !== undefined) patch.total_story_points = input.total_story_points
   if (input.activo !== undefined) patch.activo = input.activo
 

@@ -9,6 +9,7 @@ import { listGapIdsForAccion } from '@/services/accionLinks.service'
 import { usuariosService } from '@/services/usuarios.service'
 import { assertAccionEstadoTransition } from '@/services/accionEstadoValidation.service'
 import type { AccionDiaria, ActionStatus, PrioridadNc } from '@/types'
+import type { TipoAccion } from '@/features/operations/utils/tipoAccionConfig'
 
 function isEnRetraso(a: AccionDiaria): boolean {
   if (a.estado === 'Hecho' || a.estado === 'Verificado') return false
@@ -90,7 +91,19 @@ export interface AccionesFilter {
   prioridad?: PrioridadNc | PrioridadNc[]
   area?: string
   responsable?: string
+  tipo_accion?: TipoAccion | TipoAccion[]
+  sprint_id?: string
   search?: string
+}
+
+function normalizeAccionPayload(payload: Partial<AccionDiaria>): Partial<AccionDiaria> {
+  const next: Partial<AccionDiaria> = { ...payload }
+  if (next.tipo_accion == null) next.tipo_accion = 'operativa'
+  if (next.tipo_accion === 'operativa') next.sprint_id = null
+  if (next.tipo_accion === 'sprint' && !next.sprint_id) {
+    throw new Error('Una accion de sprint requiere seleccionar sprint.')
+  }
+  return next
 }
 
 export const accionesService = {
@@ -141,6 +154,13 @@ export const accionesService = {
     }
     if (filter.area != null && filter.area !== '') q = q.eq('area', filter.area)
     if (filter.responsable) q = q.eq('responsable', filter.responsable)
+    if (filter.tipo_accion) {
+      const tipos = Array.isArray(filter.tipo_accion)
+        ? filter.tipo_accion
+        : [filter.tipo_accion]
+      q = q.in('tipo_accion', tipos)
+    }
+    if (filter.sprint_id) q = q.eq('sprint_id', filter.sprint_id)
     q = q.order('hora_limite', { ascending: true })
     const { data, error } = await q
     if (error) throw error
@@ -177,9 +197,10 @@ export const accionesService = {
    * Tras insertar, invalidar la caché de acciones para que el listado se actualice.
    */
   async create(payload: Partial<AccionDiaria>) {
+    const cleanPayload = normalizeAccionPayload(payload)
     const { data, error } = await supabase
       .from(TABLE)
-      .insert(payload)
+      .insert(cleanPayload)
       .select()
       .single()
     if (error) throw error
@@ -188,18 +209,35 @@ export const accionesService = {
 
   async update(id: string, payload: Partial<AccionDiaria>) {
     let prev: AccionDiaria | undefined
-    const nextEstado = payload.estado
-    if (nextEstado !== undefined) {
+    const needsPrev =
+      payload.estado !== undefined ||
+      payload.tipo_accion !== undefined ||
+      payload.sprint_id !== undefined
+    if (needsPrev) {
       prev = await this.getById(id)
+    }
+
+    const mergedPayload = normalizeAccionPayload(prev ? ({ ...prev, ...payload } as Partial<AccionDiaria>) : payload)
+    const cleanPayload: Partial<AccionDiaria> = { ...payload }
+    if (payload.tipo_accion !== undefined) cleanPayload.tipo_accion = mergedPayload.tipo_accion
+    if (
+      payload.sprint_id !== undefined ||
+      payload.tipo_accion === 'operativa' ||
+      payload.tipo_accion === 'sprint'
+    ) {
+      cleanPayload.sprint_id = mergedPayload.sprint_id ?? null
+    }
+    const nextEstado = cleanPayload.estado
+    if (nextEstado !== undefined && prev) {
       if (nextEstado !== prev.estado) {
-        const merged = { ...prev, ...payload } as AccionDiaria
+        const merged = { ...prev, ...cleanPayload } as AccionDiaria
         await assertAccionEstadoTransition(prev, nextEstado, merged)
       }
     }
 
     const { data, error } = await supabase
       .from(TABLE)
-      .update(payload)
+      .update(cleanPayload)
       .eq('id', id)
       .select()
       .single()
