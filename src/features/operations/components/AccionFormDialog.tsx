@@ -154,6 +154,9 @@ export function AccionFormDialog({
           titulo: 'Te asignaron como responsable',
           mensaje: descripcion?.slice(0, 200) ?? '',
           accion_id: accionId,
+          asignador_id: currentUser?.id ?? null,
+          asignador_nombre: currentUser?.nombre ?? null,
+          fecha_asignacion: new Date().toISOString(),
         },
       })
     } catch (err) {
@@ -249,29 +252,33 @@ export function AccionFormDialog({
       updateAccion.mutate(
         { id: accion.id, payload },
         {
-          onSuccess: async () => {
-            try {
-              await syncAccionO2cLinks(accion.id, {
-                gapIds,
-                catalogKpiIds,
-              })
-              await qc.invalidateQueries({ queryKey: ['accion-o2c-links', accion.id] })
-              await qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones })
-              await qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps })
-              await qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact })
-            } catch (e) {
-              toast.error(
-                e instanceof Error
-                  ? e.message
-                  : 'No se pudieron guardar los vínculos con brechas/KPIs'
-              )
-            }
+          onSuccess: () => {
             if (cambiaResponsable && nuevoResponsable) {
               void notifyResponsable(nuevoResponsable, accion.id, payload.descripcion_accion ?? '')
             }
-            toast.success('Acción actualizada correctamente')
+            toast.success('Accion actualizada correctamente')
             onOpenChange(false)
             onSuccess?.()
+
+            void syncAccionO2cLinks(accion.id, {
+              gapIds,
+              catalogKpiIds,
+            })
+              .then(() =>
+                Promise.allSettled([
+                  qc.invalidateQueries({ queryKey: ['accion-o2c-links', accion.id] }),
+                  qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones, refetchType: 'active' }),
+                  qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps, refetchType: 'active' }),
+                  qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact, refetchType: 'active' }),
+                ])
+              )
+              .catch((e) => {
+                toast.error(
+                  e instanceof Error
+                    ? e.message
+                    : 'No se pudieron guardar los vinculos con brechas/KPIs'
+                )
+              })
           },
           onError: (e) =>
             toast.error(e instanceof Error ? e.message : 'Error al actualizar'),
@@ -298,7 +305,7 @@ export function AccionFormDialog({
           }
 
           const createdId = created.id
-          refreshActionViews()
+          qc.invalidateQueries({ queryKey: ACCION_CHECKPOINTS_KEY, refetchType: 'active' })
 
           const deferredOps: Promise<unknown>[] = []
 
@@ -306,9 +313,11 @@ export function AccionFormDialog({
             (async () => {
               try {
                 await syncAccionO2cLinks(createdId, { gapIds, catalogKpiIds })
-                await qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones })
-                await qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps })
-                await qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact })
+                await Promise.allSettled([
+                  qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones, refetchType: 'active' }),
+                  qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps, refetchType: 'active' }),
+                  qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact, refetchType: 'active' }),
+                ])
               } catch (e) {
                 toast.error(
                   e instanceof Error

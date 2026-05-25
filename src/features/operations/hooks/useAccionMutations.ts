@@ -29,6 +29,21 @@ function patchAccionInCache(
   }
 }
 
+function upsertAccionInCache(qc: QueryClient, accion: AccionDiaria) {
+  qc.setQueryData<AccionDiaria>([...KEY, accion.id], accion)
+  const matches = qc.getQueriesData<AccionDiaria[]>({ queryKey: KEY })
+  for (const [queryKey] of matches) {
+    qc.setQueryData<AccionDiaria[] | undefined>(queryKey, (prev) => {
+      if (!prev || !Array.isArray(prev)) return prev
+      const exists = prev.some((item) => item.id === accion.id)
+      if (exists) {
+        return prev.map((item) => (item.id === accion.id ? accion : item))
+      }
+      return [accion, ...prev]
+    })
+  }
+}
+
 type CacheSnapshot = Array<[readonly unknown[], unknown]>
 
 function snapshotAccionesCache(qc: QueryClient): CacheSnapshot {
@@ -47,11 +62,11 @@ export function useCreateAccion() {
   return useMutation({
     mutationFn: (payload: Partial<AccionDiaria>) => accionesService.create(payload),
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
       if (data?.id) {
-        qc.invalidateQueries({ queryKey: [...KEY, data.id] })
+        upsertAccionInCache(qc, data)
       }
-      qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact })
+      qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
+      qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact, refetchType: 'active' })
     },
   })
 }
@@ -73,9 +88,9 @@ export function useUpdateAccion() {
     onSuccess: (data) => {
       patchAccionInCache(qc, data.id, data)
       qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
-      qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps })
-      qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones })
-      qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact })
+      qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps, refetchType: 'active' })
+      qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones, refetchType: 'active' })
+      qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact, refetchType: 'active' })
       if (data.gap_id) {
         qc.invalidateQueries({ queryKey: kpiQueryKeys.gap(data.gap_id) })
         qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpisByGap(data.gap_id) })
@@ -111,9 +126,9 @@ export function useUpdateAccionEstado() {
     onSuccess: (data) => {
       patchAccionInCache(qc, data.id, data)
       qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
-      qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps })
-      qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones })
-      qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact })
+      qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps, refetchType: 'active' })
+      qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones, refetchType: 'active' })
+      qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact, refetchType: 'active' })
       if (data.gap_id) {
         qc.invalidateQueries({ queryKey: kpiQueryKeys.gap(data.gap_id) })
         qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpisByGap(data.gap_id) })

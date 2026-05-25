@@ -88,7 +88,13 @@ export function DashboardPage() {
     }
     return f
   }, [filter])
-  const { data: acciones = [], isLoading } = useAcciones(filterForQuery)
+  const {
+    data: acciones = [],
+    isLoading,
+    isError: accionesError,
+    error: accionesErrorObj,
+    refetch: retryAcciones,
+  } = useAcciones(filterForQuery)
   const accionIds = useMemo(() => acciones.map((a) => a.id), [acciones])
   const { data: commentCounts = {} } = useCommentCounts(accionIds)
   const { data: checklistProgressByAccionId = {} } = useChecklistProgressByAccionIds(accionIds)
@@ -378,16 +384,39 @@ export function DashboardPage() {
         </section>
 
         <div id="dashboard-section-actions" className="dashboard-section-actions scroll-mt-4">
-          <DashboardActionsSection
-            acciones={acciones}
-            isLoading={isLoading}
-            commentCounts={commentCounts}
-            responsableNames={responsableNames}
-            checklistProgressByAccionId={checklistProgressByAccionId}
-            onSelectAccion={handleSelectAccion}
-            onNewAction={handleCreate}
-            fechaResumen={filter.fecha_creacion ?? today}
-          />
+          {accionesError ? (
+            <SectionCard>
+              <SectionCardHeader
+                eyebrow="Acciones"
+                title="No se pudieron cargar las acciones"
+                subtitle={
+                  accionesErrorObj instanceof Error
+                    ? accionesErrorObj.message
+                    : 'Revisa tu conexion o permisos e intenta nuevamente.'
+                }
+                action={
+                  <button
+                    type="button"
+                    onClick={() => void retryAcciones()}
+                    className="rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted"
+                  >
+                    Reintentar
+                  </button>
+                }
+              />
+            </SectionCard>
+          ) : (
+            <DashboardActionsSection
+              acciones={acciones}
+              isLoading={isLoading}
+              commentCounts={commentCounts}
+              responsableNames={responsableNames}
+              checklistProgressByAccionId={checklistProgressByAccionId}
+              onSelectAccion={handleSelectAccion}
+              onNewAction={handleCreate}
+              fechaResumen={filter.fecha_creacion ?? today}
+            />
+          )}
         </div>
 
         <section

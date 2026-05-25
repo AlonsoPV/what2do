@@ -18,7 +18,6 @@ import {
   CountdownTimer,
   AccionFormDialog,
 } from '@/features/operations'
-import { KanbanSprintSummary } from '@/features/operations/components/KanbanSprintSummary'
 import type { KanbanViewMode } from '@/features/operations'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import {
@@ -58,7 +57,13 @@ export function KanbanPage() {
     () => ({ ...filter, fecha_creacion: filter.fecha_creacion ?? today }),
     [filter, today]
   )
-  const { data: acciones = [], isLoading } = useAcciones(filterForQuery)
+  const {
+    data: acciones = [],
+    isLoading,
+    isError: accionesError,
+    error: accionesErrorObj,
+    refetch: retryAcciones,
+  } = useAcciones(filterForQuery)
   const [searchParams, setSearchParams] = useSearchParams()
   const gapIdFromUrl = searchParams.get('gap')
   const { data: gapAccionesBundle, isLoading: gapAccionesLoading } = useGapAccionesForGapIds(
@@ -222,8 +227,6 @@ export function KanbanPage() {
         }
       />
 
-      <KanbanSprintSummary />
-
       {gapIdFromUrl ? (
         <div
           role="status"
@@ -263,7 +266,23 @@ export function KanbanPage() {
         id="kanban-content"
         className="kanban-content min-h-[360px] sm:min-h-[420px]"
       >
-        {viewMode === 'kanban' ? (
+        {accionesError ? (
+          <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+            <p className="text-sm font-semibold text-foreground">No se pudieron cargar las acciones.</p>
+            <p className="max-w-md text-sm text-muted-foreground">
+              {accionesErrorObj instanceof Error
+                ? accionesErrorObj.message
+                : 'Revisa tu conexion o permisos e intenta nuevamente.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void retryAcciones()}
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted"
+            >
+              Reintentar
+            </button>
+          </div>
+        ) : viewMode === 'kanban' ? (
           <div className="-mx-3 min-w-0 sm:mx-0">
             <KanbanBoard
               acciones={accionesDisplay}

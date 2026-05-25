@@ -54,6 +54,8 @@ export function useAcciones(
     queryFn: () => accionesService.list(filter),
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
+    staleTime: 30_000,
+    retry: 1,
   })
 }
 
@@ -62,5 +64,7 @@ export function useAccionesByDate(fecha: string) {
     queryKey: [...KEY, 'byDate', fecha],
     queryFn: () => accionesService.listByDate(fecha),
     enabled: !!fecha,
+    staleTime: 30_000,
+    retry: 1,
   })
 }

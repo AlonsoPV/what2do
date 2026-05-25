@@ -552,7 +552,10 @@ export function AccionForm({
         <CardContent className="space-y-4 pt-0">
           <div className="accion-form-grid-clasificacion grid gap-4 sm:grid-cols-2">
             <div className="accion-form-field-group accion-form-field-group-tipo_accion space-y-2 sm:col-span-2">
-              <Label className="text-xs font-medium text-foreground">Tipo de accion</Label>
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs font-medium text-foreground">Tipo de accion</Label>
+                <InfoHint text="RUN: operacion continua del negocio. Sprint: esfuerzo temporal de transformacion y mejora con objetivo, fechas y avance propio." />
+              </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {tipoAccionOptions.map((opt) => {
                   const selected = tipoSeleccionado === opt.value
@@ -566,24 +569,16 @@ export function AccionForm({
                         if (opt.value === 'operativa') form.setValue('sprint_id', null)
                       }}
                       className={cn(
-                        'rounded-lg border px-3 py-2 text-left transition-colors',
+                        'flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors',
                         selected
                           ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                           : 'border-border bg-background hover:border-primary/50 hover:bg-muted/30'
                       )}
                     >
-                      <span className="block text-xs font-semibold uppercase tracking-wide">
+                      <span className="rounded-md border border-current/20 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide">
                         {opt.shortLabel}
                       </span>
-                      <span className="mt-0.5 block text-sm font-medium">{opt.label}</span>
-                      <span
-                        className={cn(
-                          'mt-1 block text-xs leading-snug',
-                          selected ? 'text-primary-foreground/80' : 'text-muted-foreground'
-                        )}
-                      >
-                        {opt.description}
-                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{opt.label}</span>
                     </button>
                   )
                 })}

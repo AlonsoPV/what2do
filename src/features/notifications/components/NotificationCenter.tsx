@@ -3,7 +3,7 @@
  * Comentarios, asignaciones, cambios de estado. Filtro por tipo/prioridad, marcar leído.
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -12,9 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useQueryClient } from '@tanstack/react-query'
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '../hooks/useNotifications'
-import { notificacionesService } from '@/services/notificaciones.service'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import type { Notificacion } from '@/types'
 import { Link } from 'react-router-dom'
@@ -104,28 +102,19 @@ function NotificacionItem({
   )
 }
 
-const NOTIF_KEY = ['notificaciones'] as const
-
 export function NotificationCenter() {
-  const qc = useQueryClient()
   const { data: currentUser, isLoading: isLoadingUser, isError: isErrorUser } = useCurrentUser()
   const [filterLeido, setFilterLeido] = useState<'all' | 'unread' | 'read'>('all')
   const { data: notifications = [], isLoading: isLoadingNotif, isError } = useNotifications(
     currentUser?.id,
-    filterLeido === 'unread' ? { leido: false } : filterLeido === 'read' ? { leido: true } : undefined
+    filterLeido === 'unread'
+      ? { leido: false, subscribe: false }
+      : filterLeido === 'read'
+        ? { leido: true, subscribe: false }
+        : { subscribe: false }
   )
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllNotificationsRead(currentUser?.id ?? '')
-
-  useEffect(() => {
-    if (!currentUser?.id) return
-    const sub = notificacionesService.subscribe(currentUser.id, () => {
-      qc.invalidateQueries({ queryKey: NOTIF_KEY })
-    })
-    return () => {
-      sub.unsubscribe()
-    }
-  }, [currentUser?.id, qc])
 
   if (isLoadingUser) {
     return (
