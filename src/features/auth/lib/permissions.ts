@@ -11,8 +11,9 @@ import { ROUTES } from '@/constants'
 import type { Usuario } from '@/types'
 
 /** Roles que tienen privilegios de admin (spec 2.2). */
-const ADMIN_ROLES = ['DG', 'Sistemas'] as const
+const ADMIN_ROLES = ['DG', 'Sistemas', 'super_admin'] as const
 const ANALYST_ROLE = 'Analista'
+const SUPER_ADMIN_ROLE = 'super_admin'
 
 const ANALYST_ALLOWED_ROUTES = [
   ROUTES.KANBAN,
@@ -32,12 +33,17 @@ export type AppRole = 'admin' | 'viewer' | 'super_admin'
  * Indica si el rol de negocio tiene privilegios de administrador.
  * Spec: DG y Sistemas son tratados como admin.
  */
-export function isAdminByRole(rol: string): boolean {
-  return ADMIN_ROLES.some((r) => r === rol)
+export function isAdminByRole(rol: string | null | undefined): boolean {
+  const normalized = (rol ?? '').trim().toLocaleLowerCase('es-MX')
+  return ADMIN_ROLES.some((r) => r.toLocaleLowerCase('es-MX') === normalized)
 }
 
 export function isAnalystByRole(rol: string | null | undefined): boolean {
   return (rol ?? '').trim().toLocaleLowerCase('es-MX') === ANALYST_ROLE.toLocaleLowerCase('es-MX')
+}
+
+export function isSuperAdminByRole(rol: string | null | undefined): boolean {
+  return (rol ?? '').trim().toLocaleLowerCase('es-MX') === SUPER_ADMIN_ROLE
 }
 
 export function canAccessRouteByRole(rol: string | null | undefined, pathname: string): boolean {

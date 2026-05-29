@@ -245,6 +245,13 @@ const router = createBrowserRouter([
                   return { Component: GapsPage }
                 },
               },
+              {
+                path: 'academy/modules',
+                lazy: async () => {
+                  const { AcademyModulesAdminPage } = await import('@/features/academy')
+                  return { Component: AcademyModulesAdminPage }
+                },
+              },
             ],
           },
         ],

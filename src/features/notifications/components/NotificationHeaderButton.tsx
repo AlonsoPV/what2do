@@ -3,7 +3,7 @@ import { Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ROUTES } from '@/constants'
 import { cn } from '@/lib/utils'
-import { useNotifications } from '../hooks/useNotifications'
+import { useDueCalendarReminderNotifications, useNotifications } from '../hooks/useNotifications'
 
 type Props = {
   userId: string | undefined
@@ -11,6 +11,7 @@ type Props = {
 
 export function NotificationHeaderButton({ userId }: Props) {
   const location = useLocation()
+  useDueCalendarReminderNotifications(userId)
   const { data: notifications = [] } = useNotifications(userId, { leido: false })
   const unreadCount = notifications.length
   const isActive = location.pathname === ROUTES.NOTIFICACIONES

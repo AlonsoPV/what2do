@@ -35,6 +35,17 @@ export const accionComentariosService = {
     return (data ?? []) as AccionComentario[]
   },
 
+  async listByAccionIds(accionIds: string[]): Promise<AccionComentario[]> {
+    if (accionIds.length === 0) return []
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .in('accion_id', accionIds)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []) as AccionComentario[]
+  },
+
   async create(input: {
     accion_id: string
     contenido: string

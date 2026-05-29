@@ -15,6 +15,20 @@ export type AccionCheckpointInsert = {
   obligatorio?: boolean
 }
 
+function normalizeCheckpointError(error: unknown): Error {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: string }).code === '42501'
+  ) {
+    return new Error(
+      'No tienes permiso para modificar el checklist de esta accion. Puede hacerlo el creador, el responsable o un administrador.'
+    )
+  }
+  return error instanceof Error ? error : new Error('No se pudo guardar el checklist.')
+}
+
 export const accionCheckpointsService = {
   async listByAccionId(accionId: string): Promise<AccionCheckpoint[]> {
     const { data, error } = await supabase
@@ -115,7 +129,7 @@ export const accionCheckpointsService = {
       })
       .select()
       .single()
-    if (error) throw error
+    if (error) throw normalizeCheckpointError(error)
     return data as AccionCheckpoint
   },
 
@@ -130,7 +144,7 @@ export const accionCheckpointsService = {
       completado: false,
     }))
     const { error } = await supabase.from(TABLE).insert(payload)
-    if (error) throw error
+    if (error) throw normalizeCheckpointError(error)
   },
 
   async getById(id: string): Promise<AccionCheckpoint> {
@@ -149,13 +163,13 @@ export const accionCheckpointsService = {
     if (patch.obligatorio !== undefined) body.obligatorio = patch.obligatorio
     if (Object.keys(body).length === 0) return this.getById(id)
     const { data, error } = await supabase.from(TABLE).update(body).eq('id', id).select().single()
-    if (error) throw error
+    if (error) throw normalizeCheckpointError(error)
     return data as AccionCheckpoint
   },
 
   async delete(id: string): Promise<void> {
     const { error } = await supabase.from(TABLE).delete().eq('id', id)
-    if (error) throw error
+    if (error) throw normalizeCheckpointError(error)
   },
 
   async setCompletado(
@@ -173,7 +187,7 @@ export const accionCheckpointsService = {
       .eq('id', id)
       .select()
       .single()
-    if (error) throw error
+    if (error) throw normalizeCheckpointError(error)
     return data as AccionCheckpoint
   },
 }

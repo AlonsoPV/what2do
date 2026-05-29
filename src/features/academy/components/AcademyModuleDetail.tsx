@@ -1,8 +1,12 @@
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChevronDown, Download } from 'lucide-react'
+import { ChevronDown, Download, ExternalLink, FileText, Upload } from 'lucide-react'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import { isAdminByRole, isSuperAdminByRole } from '@/features/auth/lib/permissions'
+import { getAcademyPdfDownloadUrl, uploadAcademyPdf } from '@/services/academyStorage.service'
+import { useAcademyPdfUrl } from '../hooks/useAcademyPdfUrl'
 import type { LearningModule } from '../types/academy.types'
 import { moduleExerciseStepKey, moduleStepKey } from '../utils/academyProgress'
 
@@ -70,25 +74,62 @@ export function AcademyModuleDetail({
   isStepCompleted,
   onToggleStep,
 }: AcademyModuleDetailProps) {
+  const { profile } = useAuth()
+  const canUploadPdf = profile ? isAdminByRole(profile.rol) || isSuperAdminByRole(profile.rol) : false
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const { url: pdfUrl, loading: pdfLoading, available: pdfAvailable, refresh: refreshPdfUrl } =
+    useAcademyPdfUrl({
+      moduleId: module.id,
+      pdfName: module.pdfName,
+      enabled: !isLocked,
+    })
+
   const handleDownloadPdf = useCallback(async () => {
-    const href = `/docs/${module.pdfName}`
+    setIsDownloading(true)
     try {
-      const res = await fetch(href, { method: 'HEAD' })
-      if (!res.ok) {
-        toast.error(`El PDF ${module.pdfName} aun no esta disponible.`)
+      const downloadUrl =
+        pdfUrl ?? (await getAcademyPdfDownloadUrl(module.pdfName, module.id))
+
+      if (!downloadUrl) {
+        toast.error(`El PDF ${module.pdfName} aún no está disponible.`)
         return
       }
+
       const a = document.createElement('a')
-      a.href = href
+      a.href = downloadUrl
       a.download = module.pdfName
       a.rel = 'noopener'
+      if (downloadUrl.startsWith('http')) {
+        a.target = '_blank'
+      }
       document.body.appendChild(a)
       a.click()
       a.remove()
     } catch {
       toast.error(`No se pudo descargar ${module.pdfName}.`)
+    } finally {
+      setIsDownloading(false)
     }
-  }, [module.pdfName])
+  }, [module.id, module.pdfName, pdfUrl])
+
+  const handleUploadPdf = useCallback(
+    async (file: File) => {
+      setIsUploading(true)
+      try {
+        await uploadAcademyPdf(module.pdfName, module.id, file)
+        await refreshPdfUrl()
+        toast.success(`PDF actualizado. Todos los usuarios podrán descargar ${module.pdfName}.`)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'No se pudo subir el PDF.')
+      } finally {
+        setIsUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+    },
+    [module.id, module.pdfName, refreshPdfUrl]
+  )
 
   return (
     <Card>
@@ -102,11 +143,84 @@ export function AcademyModuleDetail({
           <span className="hidden sm:inline">•</span>
           <span>PDF: {module.pdfName}</span>
         </div>
-        <div>
-          <Button type="button" variant="outline" size="sm" onClick={handleDownloadPdf}>
+
+        <div className="rounded-lg border border-border/70 bg-muted/25 px-3 py-3 sm:px-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FileText className="h-4 w-4" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-sm font-medium text-foreground">Material del módulo (PDF)</p>
+              {isLocked ? (
+                <p className="text-xs text-muted-foreground">
+                  Desbloquea el módulo para acceder al PDF.
+                </p>
+              ) : pdfLoading ? (
+                <p className="text-xs text-muted-foreground">Vinculando PDF del módulo…</p>
+              ) : pdfAvailable && pdfUrl ? (
+                <a
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                >
+                  Abrir {module.pdfName}
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                </a>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  PDF no encontrado en Storage. Verifica que el archivo esté en el bucket{' '}
+                  <span className="font-medium">academia</span> con nombre{' '}
+                  <span className="font-medium">{module.pdfName}</span>.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void handleDownloadPdf()}
+            disabled={isLocked || isDownloading || isUploading || (!pdfAvailable && !pdfLoading)}
+          >
             <Download className="h-4 w-4" />
-            Descargar PDF
+            {isDownloading ? 'Descargando…' : 'Descargar PDF'}
           </Button>
+          {pdfAvailable && pdfUrl ? (
+            <Button type="button" variant="secondary" size="sm" asChild>
+              <a href={pdfUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                Ver PDF
+              </a>
+            </Button>
+          ) : null}
+          {canUploadPdf ? (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void handleUploadPdf(file)
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={isDownloading || isUploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4" />
+                {isUploading ? 'Subiendo…' : 'Subir PDF'}
+              </Button>
+            </>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-6">

@@ -17,7 +17,7 @@ import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import type { Notificacion } from '@/types'
 import { Link } from 'react-router-dom'
 import { formatDateTimeCDMX } from '@/lib/dateUtils'
-import { Bell, Check, CheckCheck, MessageSquare, UserPlus, AlertCircle, ExternalLink } from 'lucide-react'
+import { Bell, Check, CheckCheck, MessageSquare, UserPlus, AlertCircle, ExternalLink, AlarmClock } from 'lucide-react'
 
 const TIPO_LABELS: Record<string, string> = {
   comentario: 'Comentario',
@@ -26,6 +26,7 @@ const TIPO_LABELS: Record<string, string> = {
   estado: 'Cambio de estado',
   evidencia: 'Evidencia cargada',
   bloqueo: 'Bloqueo',
+  recordatorio_calendario: 'Recordatorio',
 }
 
 const TIPO_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -35,6 +36,7 @@ const TIPO_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   estado: Bell,
   evidencia: Bell,
   bloqueo: AlertCircle,
+  recordatorio_calendario: AlarmClock,
 }
 
 function getTipoLabel(tipo: string): string {

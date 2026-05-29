@@ -2,7 +2,7 @@ import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/constants'
 import { useAuth } from '@/features/auth/hooks/useAuth'
-import { canAccessRouteByRole, isAnalystByRole } from '@/features/auth/lib/permissions'
+import { canAccessRouteByRole, isAnalystByRole, isSuperAdminByRole } from '@/features/auth/lib/permissions'
 import {
   Users,
   FolderOpen,
@@ -14,11 +14,13 @@ import {
   Target,
   UserCircle,
   AlertTriangle,
+  GraduationCap,
 } from 'lucide-react'
 
 const SETTINGS_LINKS = [
   { to: ROUTES.SETTINGS_PROFILE, label: 'Mi perfil', icon: UserCircle },
   { to: ROUTES.SETTINGS_USERS, label: 'Usuarios', icon: Users },
+  { to: ROUTES.SETTINGS_ACADEMY_MODULES, label: 'Academia', icon: GraduationCap, superAdminOnly: true },
   { to: ROUTES.SETTINGS_CATALOGS, label: 'Catálogos', icon: FolderOpen },
 ] as const
 
@@ -36,7 +38,9 @@ const CATALOG_LINKS = [
 export function SettingsLayout() {
   const location = useLocation()
   const { profile } = useAuth()
-  const visibleSettingsLinks = SETTINGS_LINKS.filter((link) => canAccessRouteByRole(profile?.rol, link.to))
+  const visibleSettingsLinks = SETTINGS_LINKS.filter(
+    (link) => canAccessRouteByRole(profile?.rol, link.to) && (!('superAdminOnly' in link) || isSuperAdminByRole(profile?.rol))
+  )
   const visibleCatalogLinks = CATALOG_LINKS.filter((link) => canAccessRouteByRole(profile?.rol, link.to))
   const isCatalogs = location.pathname.startsWith('/settings/catalogs')
 

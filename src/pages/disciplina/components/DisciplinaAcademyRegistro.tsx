@@ -8,7 +8,6 @@ import {
   academyGlobalProgressPercent,
   countAcademyModuleBuckets,
 } from '@/features/academy/utils/academyProgress'
-import { cn } from '@/lib/utils'
 
 /**
  * Bloque compacto de Academia en Disciplina: progreso visual + conteos; el detalle vive en /academia.
@@ -23,28 +22,23 @@ export function DisciplinaAcademyRegistro() {
   )
 
   return (
-    <div
-      className={cn(
-        'flex h-full flex-col rounded-2xl border border-border/50 bg-muted/25 p-5 shadow-sm',
-        'ring-1 ring-inset ring-border/30'
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-            <GraduationCap className="h-5 w-5 text-primary" aria-hidden />
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+      <div className="border-b border-border/50 bg-muted/20 px-4 py-4 sm:px-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <GraduationCap className="h-5 w-5 text-primary" aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Formación</p>
+              <h3 className="text-base font-semibold tracking-tight text-foreground">Academia O2C</h3>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Formación</p>
-            <h3 className="text-base font-semibold tracking-tight text-foreground">Academia O2C</h3>
-          </div>
+          {isSaving ? <span className="shrink-0 text-[11px] text-muted-foreground">Guardando…</span> : null}
         </div>
-        {isSaving ? (
-          <span className="shrink-0 text-[11px] text-muted-foreground">Guardando…</span>
-        ) : null}
       </div>
 
-      <div className="mt-5 flex-1 space-y-5">
+      <div className="flex flex-1 flex-col gap-5 p-4 sm:p-5">
         {error ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : isLoading ? (

@@ -20,5 +20,8 @@ verify_jwt = false
 verify_jwt = false
 
 # Proxy genérico chat/completions (clave solo en servidor).
+[functions.academy-generate-quiz]
+verify_jwt = false
+
 [functions.lovable-chat-completions]
 verify_jwt = false

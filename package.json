@@ -10,7 +10,7 @@
     "test": "vitest run",
     "preview": "vite preview",
     "supabase:deploy": "npx supabase@latest functions deploy calculate-distance",
-    "supabase:deploy:all": "npx supabase@latest functions deploy calculate-distance && npx supabase@latest functions deploy invite-user",
+    "supabase:deploy:all": "npx supabase@latest functions deploy calculate-distance && npx supabase@latest functions deploy invite-user && npx supabase@latest functions deploy academy-generate-quiz",
     "ics:sin-clases-abril-2026": "node scripts/generate-sin-clases-abril-2026.mjs",
     "test:kpi-smoke": "node --experimental-strip-types scripts/kpi-calculation-smoke.mts",
     "auth:password": "node scripts/set-user-password.mjs",

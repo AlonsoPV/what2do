@@ -3,4 +3,4 @@
  * Vista calendario: acciones por fecha, navegación temporal.
  */
 
-export { CalendarView } from './components/CalendarView'
+export { CalendarView, type CalendarFilters } from './components/CalendarView'

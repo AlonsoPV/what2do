@@ -7,14 +7,26 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { AccionForm } from './AccionForm'
 import { AccionIdDisplay } from './AccionIdDisplay'
 import { AccionEvidenciasSection } from './AccionEvidenciasSection'
 import { AccionComentarios } from './AccionComentarios'
-import { useCreateAccion, useUpdateAccion } from '../hooks'
+import { useCreateAccion, useDeleteAccion, useUpdateAccion } from '../hooks'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
+import { isSuperAdminByRole } from '@/features/auth/lib/permissions'
 import { usersAdminService } from '@/features/users/services/users.service'
 import { usersQueryKey } from '@/features/users/hooks/useUsers'
 import { notificacionesService } from '@/services/notificaciones.service'
@@ -81,7 +93,10 @@ export function AccionFormDialog({
   const { data: currentUser } = useCurrentUser()
   const createAccion = useCreateAccion()
   const updateAccion = useUpdateAccion()
+  const deleteAccion = useDeleteAccion()
   const isEdit = !!accion?.id
+  const canDeleteAccion = isEdit && isSuperAdminByRole(currentUser?.rol)
+  const isMutating = createAccion.isPending || updateAccion.isPending || deleteAccion.isPending
 
   const o2cLinksQuery = useQuery({
     queryKey: ['accion-o2c-links', accion?.id] as const,
@@ -172,6 +187,22 @@ export function AccionFormDialog({
   function refreshActionViews() {
     qc.invalidateQueries({ queryKey: ['acciones'], refetchType: 'active' })
     qc.invalidateQueries({ queryKey: ACCION_CHECKPOINTS_KEY, refetchType: 'active' })
+  }
+
+  function handleDeleteAccion() {
+    if (!accion?.id || !canDeleteAccion) return
+
+    deleteAccion.mutate(accion.id, {
+      onSuccess: () => {
+        toast.success('Accion eliminada correctamente')
+        refreshActionViews()
+        onOpenChange(false)
+        onSuccess?.()
+      },
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : 'No se pudo eliminar la accion')
+      },
+    })
   }
 
   const defaultValues = useMemo((): Partial<AccionFormInput> | null => {
@@ -461,7 +492,7 @@ export function AccionFormDialog({
             onSubmit={handleSubmit}
             onSubmitInvalid={(messages) => setSubmitFooterErrors(messages)}
             onCancel={() => onOpenChange(false)}
-            isSubmitting={createAccion.isPending || updateAccion.isPending}
+            isSubmitting={isMutating}
             isEdit={isEdit}
           />
           {!isEdit && (
@@ -595,14 +626,54 @@ export function AccionFormDialog({
           id={`${formBaseId}-dialog-footer`}
           className="accion-form-dialog-footer flex shrink-0 flex-col gap-3 border-t border-border/70 bg-muted/20 px-5 py-4 sm:px-6"
         >
-          <div className="flex w-full justify-end gap-3">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex justify-start">
+              {canDeleteAccion ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      id={`${formBaseId}-delete`}
+                      className="accion-form-dialog-delete gap-2"
+                      disabled={isMutating}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Eliminar accion
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Eliminar accion</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta accion y sus datos relacionados se eliminaran. Esta operacion no se
+                        puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleteAccion.isPending}>
+                        Cancelar
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
+                        disabled={deleteAccion.isPending}
+                        onClick={handleDeleteAccion}
+                      >
+                        {deleteAccion.isPending ? 'Eliminando...' : 'Eliminar'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-3">
             <Button
               type="button"
               variant="ghost"
               id={`${formBaseId}-cancel`}
               className="accion-form-dialog-cancel"
               onClick={() => onOpenChange(false)}
-              disabled={createAccion.isPending || updateAccion.isPending}
+              disabled={isMutating}
             >
               Cancelar
             </Button>
@@ -612,7 +683,7 @@ export function AccionFormDialog({
               id={`${formBaseId}-submit`}
               variant="default"
               className="accion-form-dialog-submit"
-              disabled={createAccion.isPending || updateAccion.isPending}
+              disabled={isMutating}
             >
               {createAccion.isPending || updateAccion.isPending
                 ? 'Guardando…'
@@ -620,6 +691,7 @@ export function AccionFormDialog({
                   ? 'Guardar cambios'
                   : 'Crear acción'}
             </Button>
+            </div>
           </div>
           {submitFooterErrors && submitFooterErrors.length > 0 ? (
             <div

@@ -114,11 +114,7 @@ export function SprintCenterPage() {
         <div className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
           Cargando sprints...
         </div>
-      ) : sprints.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">
-          Aun no hay sprints. Genera el primero desde el panel de planning de esta pantalla.
-        </div>
-      ) : (
+      ) : sprints.length > 0 ? (
         <div className="grid gap-4 xl:grid-cols-2">
           {sprintSummaries.map(({ sprint, actions: sprintActions, progress, responsables }) => {
             return (
@@ -191,7 +187,7 @@ export function SprintCenterPage() {
             )
           })}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -41,23 +41,36 @@ const ESTADO_LABELS: Record<string, string> = {
 }
 
 const ESTADO_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'Estado' },
+  { value: 'all', label: 'Todos los estados' },
   ...ACTION_STATUS.map((s) => ({ value: s, label: ESTADO_LABELS[s] ?? s })),
 ]
 
 const PRIORIDAD_OPTIONS = [
-  { value: 'all', label: 'Prioridad' },
+  { value: 'all', label: 'Todas las prioridades' },
   { value: 'P1_Critica', label: 'Crítica' },
   { value: 'P2_Media', label: 'Media' },
   { value: 'P3_Baja', label: 'Baja' },
 ]
 
 const TIPO_ACCION_OPTIONS = [
-  { value: 'all', label: 'Todas' },
+  { value: 'all', label: 'Todos los tipos' },
   { value: 'operativa', label: 'Operativas' },
   { value: 'sprint', label: 'De Sprint' },
   { value: 'estrategica', label: 'Estrategicas' },
 ]
+
+const ALL_FILTER_VALUE = 'all'
+
+/** En el trigger: nombre del filtro si está en “todos”; si no, la opción elegida. */
+function kanbanFilterTriggerLabel(
+  value: string,
+  filterLabel: string,
+  selectedLabel?: string,
+  allValue = ALL_FILTER_VALUE
+): string {
+  if (value === allValue) return filterLabel
+  return selectedLabel ?? filterLabel
+}
 
 export type KanbanToolbarLayout = 'default' | 'dashboard'
 
@@ -127,6 +140,10 @@ export function KanbanToolbar({
     ? (filter.tipo_accion[0] ?? 'all')
     : (filter.tipo_accion ?? 'all')
 
+  const sprintValue = filter.sprint_id ?? ALL_FILTER_VALUE
+  const areaValue = filter.area ?? ALL_FILTER_VALUE
+  const responsableValue = filter.responsable ?? ALL_FILTER_VALUE
+
   const showAdvancedRow = layout !== 'dashboard' || advancedExpanded !== false
 
   const applyPreset = (preset: 'hoy' | 'semana' | 'mes' | 'todo') => {
@@ -158,7 +175,13 @@ export function KanbanToolbar({
           id="kanban-filter-estado"
           className="kanban-toolbar-estado h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[130px] sm:flex-none"
         >
-          <SelectValue placeholder="Estado" />
+          <SelectValue placeholder="Estado">
+            {kanbanFilterTriggerLabel(
+              estadoValue,
+              'Estado',
+              ESTADO_OPTIONS.find((o) => o.value === estadoValue)?.label
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {ESTADO_OPTIONS.map((o) => (
@@ -178,7 +201,13 @@ export function KanbanToolbar({
           id="kanban-filter-prioridad"
           className="kanban-toolbar-prioridad h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[110px] sm:flex-none"
         >
-          <SelectValue placeholder="Prioridad" />
+          <SelectValue placeholder="Prioridad">
+            {kanbanFilterTriggerLabel(
+              prioridadValue,
+              'Prioridad',
+              PRIORIDAD_OPTIONS.find((o) => o.value === prioridadValue)?.label
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {PRIORIDAD_OPTIONS.map((o) => (
@@ -201,7 +230,13 @@ export function KanbanToolbar({
           id="kanban-filter-tipo-accion"
           className="kanban-toolbar-tipo-accion h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[130px] sm:flex-none"
         >
-          <SelectValue placeholder="Tipo" />
+          <SelectValue placeholder="Tipo">
+            {kanbanFilterTriggerLabel(
+              tipoAccionValue,
+              'Tipo',
+              TIPO_ACCION_OPTIONS.find((o) => o.value === tipoAccionValue)?.label
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {TIPO_ACCION_OPTIONS.map((o) => (
@@ -212,11 +247,11 @@ export function KanbanToolbar({
         </SelectContent>
       </Select>
       <Select
-        value={filter.sprint_id ?? 'all'}
+        value={sprintValue}
         onValueChange={(v) =>
           onFilterChange({
-            sprint_id: v === 'all' ? undefined : v,
-            tipo_accion: v === 'all' ? filter.tipo_accion : undefined,
+            sprint_id: v === ALL_FILTER_VALUE ? undefined : v,
+            tipo_accion: v === ALL_FILTER_VALUE ? filter.tipo_accion : undefined,
           })
         }
       >
@@ -224,10 +259,16 @@ export function KanbanToolbar({
           id="kanban-filter-sprint"
           className="kanban-toolbar-sprint h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[140px] sm:flex-none"
         >
-          <SelectValue placeholder="Sprint" />
+          <SelectValue placeholder="Sprint">
+            {kanbanFilterTriggerLabel(
+              sprintValue,
+              'Sprint',
+              sprints.find((s) => s.id === sprintValue)?.nombre
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Por sprint</SelectItem>
+          <SelectItem value={ALL_FILTER_VALUE}>Todos los sprints</SelectItem>
           {sprints.map((s) => (
             <SelectItem key={s.id} value={s.id}>
               {s.nombre}
@@ -236,18 +277,20 @@ export function KanbanToolbar({
         </SelectContent>
       </Select>
       <Select
-        value={filter.area ?? 'all'}
+        value={areaValue}
         onValueChange={(v) =>
-          onFilterChange({ area: v === 'all' ? undefined : v })}
+          onFilterChange({ area: v === ALL_FILTER_VALUE ? undefined : v })}
       >
         <SelectTrigger
           id="kanban-filter-area"
           className="kanban-toolbar-area h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[120px] sm:flex-none"
         >
-          <SelectValue placeholder="Su área" />
+          <SelectValue placeholder="Área">
+            {kanbanFilterTriggerLabel(areaValue, 'Área', areaValue !== ALL_FILTER_VALUE ? areaValue : undefined)}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Su área</SelectItem>
+          <SelectItem value={ALL_FILTER_VALUE}>Todas las áreas</SelectItem>
           {areas.map((a) => (
             <SelectItem key={a.id} value={a.nombre}>
               {a.nombre}
@@ -256,19 +299,25 @@ export function KanbanToolbar({
         </SelectContent>
       </Select>
       <Select
-        value={filter.responsable ?? 'all'}
+        value={responsableValue}
         onValueChange={(v) =>
-          onFilterChange({ responsable: v === 'all' ? undefined : v })
+          onFilterChange({ responsable: v === ALL_FILTER_VALUE ? undefined : v })
         }
       >
         <SelectTrigger
           id="kanban-filter-responsable"
           className="kanban-toolbar-responsable h-9 min-w-0 flex-1 rounded-lg border-border/60 bg-background/80 text-sm sm:w-[140px] sm:flex-none"
         >
-          <SelectValue placeholder="Su responsable" />
+          <SelectValue placeholder="Responsable">
+            {kanbanFilterTriggerLabel(
+              responsableValue,
+              'Responsable',
+              users.find((u) => u.id === responsableValue)?.nombre
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Su responsable</SelectItem>
+          <SelectItem value={ALL_FILTER_VALUE}>Todos los responsables</SelectItem>
           {users.map((u) => (
             <SelectItem key={u.id} value={u.id}>
               {u.nombre}

@@ -15,6 +15,7 @@ import {
   FolderKanban,
   BarChart3,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ROUTES, APP_NAME } from '@/constants'
@@ -23,22 +24,43 @@ import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import { canAccessRouteByRole } from '@/features/auth/lib/permissions'
 import { Button } from '@/components/ui/button'
 
+type NavItem = {
+  to: string
+  label: string
+  icon: LucideIcon
+}
+
+type NavGroup = {
+  label?: string
+  items: NavItem[]
+}
+
 /** Navegación por módulos (spec §5). */
-const navItems = [
-  { to: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-  { to: ROUTES.ESTRATEGIA, label: 'Alineación estratégica', icon: Map },
-  { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
-  { to: ROUTES.SPRINTS, label: 'Sprint Center', icon: TimerReset },
-  { to: ROUTES.DASHBOARD_KPIS, label: 'KPIs O2C', icon: LineChart },
-  { to: ROUTES.DASHBOARD_GAPS, label: 'Gaps O2C', icon: FolderKanban },
-  { to: ROUTES.DASHBOARD_IMPACTO, label: 'Matriz de Impacto', icon: BarChart3 },
-  { to: ROUTES.ACADEMIA, label: 'Academia O2C', icon: GraduationCap },
-  { to: ROUTES.AI_ASSIST, label: 'IA O2C', icon: Sparkles },
-  { to: ROUTES.DISCIPLINA, label: 'Disciplina', icon: Target },
-  { to: ROUTES.CALENDARIO, label: 'Calendario', icon: Calendar },
-  { to: ROUTES.REPORTES, label: 'Reportes', icon: FileBarChart },
-  { to: ROUTES.MANUAL, label: 'Manual', icon: BookOpen },
-] as const
+const navGroups: NavGroup[] = [
+  {
+    label: 'Libres',
+    items: [
+      { to: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
+      { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
+      { to: ROUTES.SPRINTS, label: 'Sprint Center', icon: TimerReset },
+      { to: ROUTES.ACADEMIA, label: 'Academia O2C', icon: GraduationCap },
+      { to: ROUTES.DISCIPLINA, label: 'Disciplina', icon: Target },
+      { to: ROUTES.CALENDARIO, label: 'Calendario', icon: Calendar },
+      { to: ROUTES.REPORTES, label: 'Reportes', icon: FileBarChart },
+      { to: ROUTES.MANUAL, label: 'Manual', icon: BookOpen },
+    ],
+  },
+  {
+    label: 'Por Liberar',
+    items: [
+      { to: ROUTES.ESTRATEGIA, label: 'Alineación estratégica', icon: Map },
+      { to: ROUTES.AI_ASSIST, label: 'IA O2C', icon: Sparkles },
+      { to: ROUTES.DASHBOARD_KPIS, label: 'KPIs O2C', icon: LineChart },
+      { to: ROUTES.DASHBOARD_GAPS, label: 'Gaps O2C', icon: FolderKanban },
+      { to: ROUTES.DASHBOARD_IMPACTO, label: 'Matriz de Impacto', icon: BarChart3 },
+    ],
+  },
+]
 
 const MOBILE_MQ = '(max-width: 1023px)'
 
@@ -52,7 +74,12 @@ export function Sidebar() {
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const { data: currentUser } = useCurrentUser()
-  const visibleNavItems = navItems.filter((item) => canAccessRouteByRole(currentUser?.rol, item.to))
+  const visibleNavGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canAccessRouteByRole(currentUser?.rol, item.to)),
+    }))
+    .filter((group) => group.items.length > 0)
 
   /** Antes del primer pintado en móvil: menú cerrado para evitar flash del overlay a pantalla completa. */
   useLayoutEffect(() => {
@@ -86,28 +113,61 @@ export function Sidebar() {
     }
   }, [setSidebarOpen])
 
-  const renderNavItems = (opts: { showLabels: boolean; mobile?: boolean; onActivate?: () => void }) => {
+  const renderNavLink = (
+    item: NavItem,
+    opts: { showLabels: boolean; mobile?: boolean; onActivate?: () => void }
+  ) => {
     const { showLabels, mobile, onActivate } = opts
-    return visibleNavItems.map(({ to, label, icon: Icon }) => {
-      const isActive = location.pathname === to
-      return (
-        <Link
-          key={to}
-          to={to}
-          onClick={() => onActivate?.()}
-          className={cn(
-            'flex items-center gap-3 rounded-xl px-3 font-medium transition-colors',
-            mobile ? 'py-3.5 text-base' : 'py-2 text-sm',
-            isActive
-              ? 'bg-sidebar-primary text-primary-foreground shadow-sm'
-              : 'text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground'
-          )}
-        >
-          <Icon className={mobile ? 'h-6 w-6' : 'h-5 w-5 shrink-0'} aria-hidden />
-          {showLabels ? <span className="flex-1 truncate">{label}</span> : null}
-        </Link>
-      )
-    })
+    const { to, label, icon: Icon } = item
+    const isActive = location.pathname === to
+    return (
+      <Link
+        key={to}
+        to={to}
+        onClick={() => onActivate?.()}
+        className={cn(
+          'flex items-center gap-3 rounded-xl px-3 font-medium transition-colors',
+          mobile ? 'py-3.5 text-base' : 'py-2 text-sm',
+          isActive
+            ? 'bg-sidebar-primary text-primary-foreground shadow-sm'
+            : 'text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+        )}
+      >
+        <Icon className={mobile ? 'h-6 w-6' : 'h-5 w-5 shrink-0'} aria-hidden />
+        {showLabels ? <span className="flex-1 truncate">{label}</span> : null}
+      </Link>
+    )
+  }
+
+  const renderNavGroups = (opts: { showLabels: boolean; mobile?: boolean; onActivate?: () => void }) => {
+    const { showLabels, mobile, onActivate } = opts
+    return visibleNavGroups.map((group, groupIndex) => (
+      <div
+        key={group.label ?? `nav-group-${groupIndex}`}
+        className={cn(groupIndex > 0 && 'mt-2', group.label && groupIndex > 0 && showLabels && 'pt-1')}
+      >
+        {group.label ? (
+          showLabels ? (
+            <p
+              className={cn(
+                'px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45',
+                groupIndex > 0 ? 'pt-2' : 'pt-0.5'
+              )}
+            >
+              {group.label}
+            </p>
+          ) : groupIndex > 0 ? (
+            <div
+              className="mx-2 mb-1.5 border-t border-sidebar-accent/60"
+              aria-hidden
+            />
+          ) : null
+        ) : null}
+        <div className="flex flex-col gap-1">
+          {group.items.map((item) => renderNavLink(item, { showLabels, mobile, onActivate }))}
+        </div>
+      </div>
+    ))
   }
 
   return (
@@ -119,8 +179,8 @@ export function Sidebar() {
           sidebarOpen ? 'w-56' : 'w-16'
         )}
       >
-        <nav className="flex flex-1 flex-col gap-1 p-2" aria-label="Navegación principal">
-          {renderNavItems({ showLabels: sidebarOpen })}
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto overscroll-contain p-2" aria-label="Navegación principal">
+          {renderNavGroups({ showLabels: sidebarOpen })}
         </nav>
       </aside>
 
@@ -160,7 +220,7 @@ export function Sidebar() {
             className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain p-3 pb-8"
             aria-label="Enlaces de la aplicación"
           >
-            {renderNavItems({ showLabels: true, mobile: true, onActivate: closeMobileMenu })}
+            {renderNavGroups({ showLabels: true, mobile: true, onActivate: closeMobileMenu })}
           </nav>
         </div>
       ) : null}

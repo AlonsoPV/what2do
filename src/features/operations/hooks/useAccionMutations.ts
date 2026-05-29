@@ -44,6 +44,18 @@ function upsertAccionInCache(qc: QueryClient, accion: AccionDiaria) {
   }
 }
 
+function removeAccionFromCache(qc: QueryClient, id: string) {
+  qc.removeQueries({ queryKey: [...KEY, id] })
+  const matches = qc.getQueriesData<AccionDiaria[]>({ queryKey: KEY })
+  for (const [queryKey] of matches) {
+    qc.setQueryData<AccionDiaria[] | undefined>(queryKey, (prev) => {
+      if (!prev || !Array.isArray(prev)) return prev
+      const next = prev.filter((item) => item.id !== id)
+      return next.length === prev.length ? prev : next
+    })
+  }
+}
+
 type CacheSnapshot = Array<[readonly unknown[], unknown]>
 
 function snapshotAccionesCache(qc: QueryClient): CacheSnapshot {
@@ -141,7 +153,8 @@ export function useDeleteAccion() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => accionesService.delete(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
+      removeAccionFromCache(qc, id)
       qc.invalidateQueries({ queryKey: KEY, refetchType: 'active' })
       qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact })
     },
