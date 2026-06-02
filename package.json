@@ -15,7 +15,8 @@
     "test:kpi-smoke": "node --experimental-strip-types scripts/kpi-calculation-smoke.mts",
     "auth:password": "node scripts/set-user-password.mjs",
     "auth:password-batch": "node scripts/set-users-password-batch.mjs",
-    "auth:create-analistas-emx": "node scripts/create-analistas-emx-batch.mjs"
+    "auth:create-analistas-emx": "node scripts/create-analistas-emx-batch.mjs",
+    "auth:fix-users": "node --use-system-ca scripts/fix-auth-users-via-admin.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

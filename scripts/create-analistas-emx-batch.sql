@@ -104,6 +104,10 @@ BEGIN
         email,
         encrypted_password,
         email_confirmed_at,
+        confirmation_token,
+        recovery_token,
+        email_change,
+        email_change_token_new,
         raw_app_meta_data,
         raw_user_meta_data,
         created_at,
@@ -117,6 +121,10 @@ BEGIN
         lower(trim(rec.email)),
         v_encrypted_pw,
         NOW(),
+        '',
+        '',
+        '',
+        '',
         '{"provider":"email","providers":["email"]}'::jsonb,
         v_meta,
         NOW(),
@@ -150,6 +158,10 @@ BEGIN
       SET
         encrypted_password = v_encrypted_pw,
         email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change = COALESCE(email_change, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
         raw_user_meta_data = v_meta,
         updated_at = NOW()
       WHERE id = v_user_id;
