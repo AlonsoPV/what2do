@@ -46,7 +46,7 @@ export function LoginPage() {
     if (profileStatus === 'loaded' && profile?.activo) {
       pendingLoginResolutionRef.current = false
       setLoginLoading(false)
-      toast.success('Sesión iniciada', { closeButton: true, dismissible: true })
+      toast.success('Sesión iniciada', { closeButton: true })
       navigate(ROUTES.DASHBOARD, { replace: true })
       return
     }

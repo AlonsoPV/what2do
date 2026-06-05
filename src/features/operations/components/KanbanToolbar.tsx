@@ -108,7 +108,7 @@ export function KanbanToolbar({
         .sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre))
         .map((p) => ({
           value: p.nombre,
-          label: priorityDisplayLabel(p.nombre, p.descripcion),
+          label: priorityDisplayLabel(p.nombre),
         })),
     ],
     [priorities]

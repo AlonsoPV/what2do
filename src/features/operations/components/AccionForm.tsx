@@ -535,7 +535,7 @@ export function AccionForm({
             <SelectContent>
               {priorityOptions.map((p) => (
                 <SelectItem key={p.id} value={p.nombre}>
-                  {priorityDisplayLabel(p.nombre, p.descripcion)}
+                  {priorityDisplayLabel(p.nombre)}
                 </SelectItem>
               ))}
             </SelectContent>

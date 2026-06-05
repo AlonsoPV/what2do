@@ -20,7 +20,6 @@ export function App() {
         closeButton
         toastOptions={{
           closeButton: true,
-          dismissible: true,
         }}
       />
     </AppProviders>
