@@ -20,6 +20,7 @@ const SUPER_ADMIN_ROLE = 'super_admin'
 const ANALYST_ALLOWED_ROUTES = [
   ROUTES.DASHBOARD,
   ROUTES.KANBAN,
+  ROUTES.TICKETS,
   ROUTES.ACADEMIA,
   ROUTES.DISCIPLINA,
   ROUTES.CALENDARIO,
@@ -112,6 +113,10 @@ export const isAnalystByRole = isOperativeByRole
 
 export function isDirectionByRole(rol: string | null | undefined): boolean {
   return normalizeRole(rol) === normalizeRole(DIRECTION_ROLE)
+}
+
+export function usesOperationalDashboardByRole(rol: string | null | undefined): boolean {
+  return isOperativeByRole(rol) || isDirectionByRole(rol)
 }
 
 export function isSuperAdminByRole(rol: string | null | undefined): boolean {

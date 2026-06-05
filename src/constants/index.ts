@@ -12,6 +12,7 @@ export const ROUTES = {
   DASHBOARD_GAPS: '/dashboard/gaps',
   DASHBOARD_IMPACTO: '/dashboard/impacto',
   KANBAN: '/kanban',
+  TICKETS: '/tickets',
   SPRINTS: '/sprints',
   DISCIPLINA: '/disciplina',
   AREAS: '/areas',

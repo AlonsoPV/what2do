@@ -1,0 +1,859 @@
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import {
+  AlertCircle,
+  CheckCircle2,
+  CircleDot,
+  LifeBuoy,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+  Wrench,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { useSearchParams } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
+import { cn } from '@/lib/utils'
+import { formatDateTimeCDMX } from '@/lib/dateUtils'
+import { notificacionesService } from '@/services/notificaciones.service'
+import { useDropdownOptionsByKey } from '@/features/catalogs/hooks/useDropdownOptions'
+import { isSuperAdminByRole } from '@/features/auth/lib/permissions'
+import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
+import { useUsers } from '@/features/users/hooks/useUsers'
+import {
+  useCreateTicket,
+  useCreateTicketComment,
+  useDeleteTicket,
+  useTicketCommentCounts,
+  useTicketComments,
+  useTicket,
+  useTickets,
+  useUpdateTicket,
+  useUpdateTicketStatus,
+} from '../hooks/useTickets'
+import type { SupportTicket, TicketStatus } from '@/types'
+
+const STATUS_ORDER: TicketStatus[] = ['Nuevo', 'En proceso', 'Respuesta', 'Cerrado']
+
+const STATUS_META: Record<TicketStatus, { icon: typeof CircleDot; accent: string; bg: string; description: string }> = {
+  Nuevo: {
+    icon: CircleDot,
+    accent: 'border-l-sky-400 text-sky-600',
+    bg: 'bg-sky-500/5',
+    description: 'Ticket recibido y pendiente de revision.',
+  },
+  'En proceso': {
+    icon: Wrench,
+    accent: 'border-l-amber-400 text-amber-600',
+    bg: 'bg-amber-500/5',
+    description: 'Ya se esta trabajando o evaluando.',
+  },
+  Respuesta: {
+    icon: MessageSquare,
+    accent: 'border-l-violet-400 text-violet-600',
+    bg: 'bg-violet-500/5',
+    description: 'Hay respuesta o se requiere validacion del solicitante.',
+  },
+  Cerrado: {
+    icon: CheckCircle2,
+    accent: 'border-l-emerald-400 text-emerald-600',
+    bg: 'bg-emerald-500/5',
+    description: 'Ticket resuelto o descartado.',
+  },
+}
+
+const PRIORITY_BADGE: Record<string, string> = {
+  baja: 'bg-slate-500/10 text-slate-700 dark:text-slate-300',
+  media: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+  alta: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  urgente: 'bg-red-500/10 text-red-700 dark:text-red-300',
+}
+
+function optionLabel(options: { label: string; value: string }[], value: string | null | undefined) {
+  return options.find((option) => option.value === value)?.label ?? value ?? '-'
+}
+
+function shortId(id: string) {
+  return id.slice(0, 8).toUpperCase()
+}
+
+function userInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+  return name.slice(0, 2).toUpperCase() || '?'
+}
+
+type NotifyInput = {
+  ticket: SupportTicket
+  tipo: string
+  titulo: string
+  mensaje: string
+  actorId?: string | null
+  actorNombre?: string | null
+  users: { id: string; nombre: string; rol: string }[]
+}
+
+async function notifyTicketStakeholders({ ticket, tipo, titulo, mensaje, actorId, actorNombre, users }: NotifyInput) {
+  const recipients = new Set<string>()
+  for (const user of users) {
+    if (isSuperAdminByRole(user.rol) && user.id !== actorId) recipients.add(user.id)
+  }
+  if (ticket.created_by && ticket.created_by !== actorId) recipients.add(ticket.created_by)
+
+  await Promise.allSettled(
+    [...recipients].map((usuario_id) =>
+      notificacionesService.create({
+        usuario_id,
+        tipo,
+        prioridad: ticket.prioridad === 'urgente' ? 'Urgente' : ticket.prioridad === 'alta' ? 'Alta' : 'Normal',
+        payload: {
+          titulo,
+          mensaje,
+          ticket_id: ticket.id,
+          ticket_titulo: ticket.titulo,
+          ticket_status: ticket.status,
+          autor_id: actorId,
+          autor_nombre: actorNombre,
+        },
+      })
+    )
+  )
+}
+
+function TicketCard({
+  ticket,
+  commentCount,
+  onOpen,
+  canDrag,
+  moduleLabel,
+  typeLabel,
+}: {
+  ticket: SupportTicket
+  commentCount: number
+  onOpen: (ticket: SupportTicket) => void
+  canDrag: boolean
+  moduleLabel: string
+  typeLabel: string
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: ticket.id,
+    data: { ticket },
+    disabled: !canDrag,
+  })
+  return (
+    <div ref={setNodeRef} data-ticket-id={ticket.id}>
+      <TicketCardInner
+        ticket={ticket}
+        commentCount={commentCount}
+        moduleLabel={moduleLabel}
+        typeLabel={typeLabel}
+        isDragging={isDragging}
+        dragHandleProps={{ attributes, listeners }}
+        onOpen={() => onOpen(ticket)}
+      />
+    </div>
+  )
+}
+
+function TicketCardInner({
+  ticket,
+  commentCount,
+  moduleLabel,
+  typeLabel,
+  isDragging,
+  isOverlay,
+  dragHandleProps,
+  onOpen,
+}: {
+  ticket: SupportTicket
+  commentCount: number
+  moduleLabel: string
+  typeLabel: string
+  isDragging?: boolean
+  isOverlay?: boolean
+  dragHandleProps?: { attributes: object; listeners?: object }
+  onOpen?: () => void
+}) {
+  return (
+    <article
+      {...(dragHandleProps?.attributes ?? {})}
+      {...(dragHandleProps?.listeners ?? {})}
+      onClick={onOpen}
+      role={onOpen ? 'button' : undefined}
+      className={cn(
+        'group rounded-xl border border-border/60 bg-card p-3.5 text-left shadow-sm transition-all',
+        !isOverlay && 'cursor-grab hover:border-border hover:shadow-md active:cursor-grabbing',
+        isDragging && 'scale-[0.98] opacity-40',
+        isOverlay && 'w-[280px] cursor-grabbing shadow-xl ring-2 ring-primary/10'
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">{ticket.titulo}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">ID {shortId(ticket.id)}</p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 opacity-70"
+          onClick={(event) => {
+            event.stopPropagation()
+            onOpen?.()
+          }}
+          aria-label="Editar ticket"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{ticket.descripcion}</p>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <Badge variant="outline" className="max-w-full truncate text-[11px] font-normal">
+          {moduleLabel}
+        </Badge>
+        <Badge variant="secondary" className="text-[11px] font-normal">
+          {typeLabel}
+        </Badge>
+        <span
+          className={cn(
+            'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium',
+            PRIORITY_BADGE[ticket.prioridad] ?? PRIORITY_BADGE.media
+          )}
+        >
+          {ticket.prioridad}
+        </span>
+        {commentCount > 0 ? (
+          <span className="inline-flex items-center gap-1 rounded bg-muted/80 px-1.5 py-0.5 text-xs text-muted-foreground">
+            <MessageSquare className="h-3 w-3" />
+            {commentCount}
+          </span>
+        ) : null}
+      </div>
+    </article>
+  )
+}
+
+function TicketsColumn({
+  status,
+  tickets,
+  counts,
+  onOpen,
+  onNew,
+  canManage,
+  moduleOptions,
+  typeOptions,
+}: {
+  status: TicketStatus
+  tickets: SupportTicket[]
+  counts: Record<string, number>
+  onOpen: (ticket: SupportTicket) => void
+  onNew: () => void
+  canManage: boolean
+  moduleOptions: { label: string; value: string }[]
+  typeOptions: { label: string; value: string }[]
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status })
+  const meta = STATUS_META[status]
+  const Icon = meta.icon
+  return (
+    <section
+      ref={setNodeRef}
+      className={cn(
+        'flex w-[min(300px,calc(100vw-1.25rem))] shrink-0 snap-start flex-col rounded-2xl border border-border/50 border-l-4 sm:w-[300px]',
+        meta.accent,
+        meta.bg,
+        isOver && 'ring-2 ring-primary/20 ring-offset-2 ring-offset-background'
+      )}
+    >
+      <header className="flex items-center justify-between gap-2 px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Icon className="h-4 w-4 shrink-0" />
+            <h2 className="truncate text-sm font-semibold text-foreground">{status}</h2>
+          </div>
+          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{meta.description}</p>
+        </div>
+        <span className="rounded-full bg-background/80 px-2.5 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+          {tickets.length}
+        </span>
+      </header>
+      <div className="flex min-h-[220px] flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4">
+        {tickets.length === 0 ? (
+          <div className="flex min-h-[170px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 p-4 text-center">
+            <LifeBuoy className="mb-2 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-muted-foreground">Sin tickets</p>
+            <Button type="button" variant="ghost" size="sm" className="mt-2 gap-1.5" onClick={onNew}>
+              <Plus className="h-4 w-4" />
+              Nuevo
+            </Button>
+          </div>
+        ) : (
+          tickets.map((ticket) => (
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              commentCount={counts[ticket.id] ?? 0}
+              onOpen={onOpen}
+              canDrag={canManage}
+              moduleLabel={optionLabel(moduleOptions, ticket.modulo)}
+              typeLabel={optionLabel(typeOptions, ticket.tipo)}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
+function TicketsBoard({
+  tickets,
+  counts,
+  onOpen,
+  onNew,
+  canManage,
+  moduleOptions,
+  typeOptions,
+}: {
+  tickets: SupportTicket[]
+  counts: Record<string, number>
+  onOpen: (ticket: SupportTicket) => void
+  onNew: () => void
+  canManage: boolean
+  moduleOptions: { label: string; value: string }[]
+  typeOptions: { label: string; value: string }[]
+}) {
+  const { data: currentUser } = useCurrentUser()
+  const { data: users = [] } = useUsers({ activo: true })
+  const updateStatus = useUpdateTicketStatus()
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const activeTicket = useMemo(() => tickets.find((ticket) => ticket.id === activeId) ?? null, [activeId, tickets])
+  const byStatus = useMemo(() => {
+    const map: Record<TicketStatus, SupportTicket[]> = {
+      Nuevo: [],
+      'En proceso': [],
+      Respuesta: [],
+      Cerrado: [],
+    }
+    for (const ticket of tickets) map[ticket.status]?.push(ticket)
+    return map
+  }, [tickets])
+
+  const handleDragStart = (event: DragStartEvent) => setActiveId(String(event.active.id))
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null)
+    if (!canManage) {
+      toast.error('Solo super admin puede cambiar el estatus de tickets.')
+      return
+    }
+    const nextStatus = STATUS_ORDER.find((status) => status === event.over?.id)
+    const ticket = tickets.find((item) => item.id === event.active.id)
+    if (!nextStatus || !ticket || ticket.status === nextStatus) return
+    updateStatus.mutate(
+      { id: ticket.id, status: nextStatus, updatedBy: currentUser?.id },
+      {
+        onSuccess: async (saved) => {
+          await notifyTicketStakeholders({
+            ticket: saved,
+            users,
+            actorId: currentUser?.id,
+            actorNombre: currentUser?.nombre,
+            tipo: 'ticket_actualizado',
+            titulo: 'Ticket actualizado',
+            mensaje: `El ticket ${saved.titulo} cambio a ${saved.status}.`,
+          })
+          toast.success('Estatus actualizado')
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Error al actualizar estatus'),
+      }
+    )
+  }
+
+  return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="flex snap-x gap-4 overflow-x-auto overscroll-x-contain pb-4 pt-1 sm:gap-5">
+        {STATUS_ORDER.map((status) => (
+          <TicketsColumn
+            key={status}
+            status={status}
+            tickets={byStatus[status]}
+            counts={counts}
+            onOpen={onOpen}
+            onNew={onNew}
+            canManage={canManage}
+            moduleOptions={moduleOptions}
+            typeOptions={typeOptions}
+          />
+        ))}
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {activeTicket ? (
+          <TicketCardInner
+            ticket={activeTicket}
+            commentCount={counts[activeTicket.id] ?? 0}
+            moduleLabel={optionLabel(moduleOptions, activeTicket.modulo)}
+            typeLabel={optionLabel(typeOptions, activeTicket.tipo)}
+            isOverlay
+          />
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  )
+}
+
+function TicketDialog({
+  open,
+  ticket,
+  onOpenChange,
+  onSaved,
+  moduleOptions,
+  typeOptions,
+  priorityOptions,
+  impactOptions,
+}: {
+  open: boolean
+  ticket: SupportTicket | null
+  onOpenChange: (open: boolean) => void
+  onSaved: () => void
+  moduleOptions: { label: string; value: string }[]
+  typeOptions: { label: string; value: string }[]
+  priorityOptions: { label: string; value: string }[]
+  impactOptions: { label: string; value: string }[]
+}) {
+  const { data: currentUser } = useCurrentUser()
+  const { data: users = [] } = useUsers({ activo: true })
+  const createTicket = useCreateTicket()
+  const updateTicket = useUpdateTicket()
+  const deleteTicket = useDeleteTicket()
+  const isEdit = Boolean(ticket)
+  const canDelete = isSuperAdminByRole(currentUser?.rol)
+  const canEdit = !isEdit || isSuperAdminByRole(currentUser?.rol)
+  const [form, setForm] = useState({
+    titulo: '',
+    descripcion: '',
+    modulo: 'kanban',
+    tipo: 'mejora',
+    prioridad: 'media',
+    impacto: 'individual',
+    status: 'Nuevo' as TicketStatus,
+    pasos_reproduccion: '',
+    resultado_esperado: '',
+    resultado_actual: '',
+  })
+
+  useEffect(() => {
+    if (!open) return
+    setForm({
+      titulo: ticket?.titulo ?? '',
+      descripcion: ticket?.descripcion ?? '',
+      modulo: ticket?.modulo ?? moduleOptions[0]?.value ?? 'kanban',
+      tipo: ticket?.tipo ?? typeOptions[0]?.value ?? 'mejora',
+      prioridad: ticket?.prioridad ?? priorityOptions[1]?.value ?? 'media',
+      impacto: ticket?.impacto ?? impactOptions[0]?.value ?? 'individual',
+      status: ticket?.status ?? 'Nuevo',
+      pasos_reproduccion: ticket?.pasos_reproduccion ?? '',
+      resultado_esperado: ticket?.resultado_esperado ?? '',
+      resultado_actual: ticket?.resultado_actual ?? '',
+    })
+  }, [impactOptions, moduleOptions, open, priorityOptions, ticket, typeOptions])
+
+  const setField = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }))
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!currentUser?.id) {
+      toast.error('No se pudo resolver tu usuario.')
+      return
+    }
+    if (ticket && !canEdit) {
+      toast.error('Solo super admin puede editar tickets.')
+      return
+    }
+    const payload = {
+      ...form,
+      impacto: form.impacto || null,
+      pasos_reproduccion: form.pasos_reproduccion || null,
+      resultado_esperado: form.resultado_esperado || null,
+      resultado_actual: form.resultado_actual || null,
+      updated_by: currentUser.id,
+    }
+    try {
+      const saved = ticket
+        ? await updateTicket.mutateAsync({ id: ticket.id, input: payload })
+        : await createTicket.mutateAsync({ ...payload, created_by: currentUser.id })
+      await notifyTicketStakeholders({
+        ticket: saved,
+        users,
+        actorId: currentUser.id,
+        actorNombre: currentUser.nombre,
+        tipo: ticket ? 'ticket_actualizado' : 'ticket_creado',
+        titulo: ticket ? 'Ticket actualizado' : 'Nuevo ticket creado',
+        mensaje: `${currentUser.nombre} ${ticket ? 'actualizo' : 'creo'} el ticket ${saved.titulo}.`,
+      })
+      toast.success(ticket ? 'Ticket actualizado' : 'Ticket creado')
+      onSaved()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar el ticket')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!ticket || !window.confirm('Eliminar este ticket de forma permanente?')) return
+    try {
+      await deleteTicket.mutateAsync(ticket.id)
+      toast.success('Ticket eliminado')
+      onSaved()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el ticket')
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? 'Editar ticket' : 'Nuevo ticket'}</DialogTitle>
+        </DialogHeader>
+        <form className="grid gap-5" onSubmit={(event) => void handleSubmit(event)}>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Titulo" htmlFor="ticket-titulo" className="md:col-span-2">
+              <Input id="ticket-titulo" value={form.titulo} onChange={(e) => setField('titulo', e.target.value)} disabled={!canEdit} required maxLength={120} />
+            </Field>
+            <Field label="Modulo" htmlFor="ticket-modulo">
+              <Select value={form.modulo} onValueChange={(value) => setField('modulo', value)} disabled={!canEdit}>
+                <SelectTrigger id="ticket-modulo"><SelectValue /></SelectTrigger>
+                <SelectContent>{moduleOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Tipo" htmlFor="ticket-tipo">
+              <Select value={form.tipo} onValueChange={(value) => setField('tipo', value)} disabled={!canEdit}>
+                <SelectTrigger id="ticket-tipo"><SelectValue /></SelectTrigger>
+                <SelectContent>{typeOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Prioridad" htmlFor="ticket-prioridad">
+              <Select value={form.prioridad} onValueChange={(value) => setField('prioridad', value)} disabled={!canEdit}>
+                <SelectTrigger id="ticket-prioridad"><SelectValue /></SelectTrigger>
+                <SelectContent>{priorityOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Impacto" htmlFor="ticket-impacto">
+              <Select value={form.impacto} onValueChange={(value) => setField('impacto', value)} disabled={!canEdit}>
+                <SelectTrigger id="ticket-impacto"><SelectValue /></SelectTrigger>
+                <SelectContent>{impactOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Estatus" htmlFor="ticket-status">
+              <Select value={form.status} onValueChange={(value) => setField('status', value)} disabled={!canEdit}>
+                <SelectTrigger id="ticket-status"><SelectValue /></SelectTrigger>
+                <SelectContent>{STATUS_ORDER.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
+            <Field label="Descripcion" htmlFor="ticket-descripcion" className="md:col-span-2">
+              <textarea
+                id="ticket-descripcion"
+                value={form.descripcion}
+                onChange={(e) => setField('descripcion', e.target.value)}
+                disabled={!canEdit}
+                required
+                rows={4}
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60"
+              />
+            </Field>
+            <Field label="Pasos para reproducir" htmlFor="ticket-pasos">
+              <textarea id="ticket-pasos" value={form.pasos_reproduccion} onChange={(e) => setField('pasos_reproduccion', e.target.value)} disabled={!canEdit} rows={3} className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60" />
+            </Field>
+            <Field label="Resultado esperado" htmlFor="ticket-esperado">
+              <textarea id="ticket-esperado" value={form.resultado_esperado} onChange={(e) => setField('resultado_esperado', e.target.value)} disabled={!canEdit} rows={3} className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60" />
+            </Field>
+            <Field label="Resultado actual" htmlFor="ticket-actual" className="md:col-span-2">
+              <textarea id="ticket-actual" value={form.resultado_actual} onChange={(e) => setField('resultado_actual', e.target.value)} disabled={!canEdit} rows={3} className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-60" />
+            </Field>
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {ticket && canDelete ? (
+                <Button type="button" variant="destructive" className="gap-1.5" onClick={() => void handleDelete()}>
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+              {canEdit ? (
+                <Button type="submit" disabled={createTicket.isPending || updateTicket.isPending}>
+                  {isEdit ? 'Guardar cambios' : 'Crear ticket'}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </form>
+        {ticket ? (
+          <TicketComments
+            ticket={ticket}
+            users={users}
+            currentUserId={currentUser?.id ?? null}
+            currentUserName={currentUser?.nombre ?? null}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function Field({
+  label,
+  htmlFor,
+  className,
+  children,
+}: {
+  label: string
+  htmlFor: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
+  )
+}
+
+function TicketComments({
+  ticket,
+  users,
+  currentUserId,
+  currentUserName,
+}: {
+  ticket: SupportTicket
+  users: { id: string; nombre: string; rol: string }[]
+  currentUserId: string | null
+  currentUserName: string | null
+}) {
+  const { data: comments = [], isLoading } = useTicketComments(ticket.id)
+  const createComment = useCreateTicketComment(ticket.id)
+  const [contenido, setContenido] = useState('')
+  const userNames = useMemo(() => Object.fromEntries(users.map((user) => [user.id, user.nombre])), [users])
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    const text = contenido.trim()
+    if (!text) return
+    try {
+      await createComment.mutateAsync({ ticket_id: ticket.id, contenido: text, created_by: currentUserId })
+      setContenido('')
+      await notifyTicketStakeholders({
+        ticket,
+        users,
+        actorId: currentUserId,
+        actorNombre: currentUserName,
+        tipo: 'ticket_comentario',
+        titulo: 'Nuevo comentario en ticket',
+        mensaje: text.slice(0, 200),
+      })
+      toast.success('Comentario publicado')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo publicar el comentario')
+    }
+  }
+
+  return (
+    <SectionCard className="mt-2">
+      <SectionCardHeader
+        title="Comentarios"
+        subtitle="Seguimiento, respuesta del equipo y acuerdos del ticket."
+        icon={MessageSquare}
+        action={<Badge variant="secondary">{comments.length}</Badge>}
+      />
+      <SectionCardBody className="space-y-4">
+        <div className="max-h-72 space-y-2 overflow-y-auto">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Cargando comentarios...</p>
+          ) : comments.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 px-4 py-8 text-center">
+              <MessageSquare className="mx-auto mb-2 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium text-foreground">Sin comentarios aun</p>
+            </div>
+          ) : (
+            comments.map((comment) => {
+              const author = comment.created_by ? userNames[comment.created_by] ?? 'Usuario' : 'Usuario'
+              return (
+                <article key={comment.id} className="flex gap-3 rounded-xl border border-border/50 bg-background/80 p-3 text-sm">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+                    {userInitials(author)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-medium">{author}</span>
+                      <time className="text-[11px] text-muted-foreground">{formatDateTimeCDMX(comment.created_at)}</time>
+                    </div>
+                    <p className="mt-1.5 whitespace-pre-wrap leading-relaxed">{comment.contenido}</p>
+                  </div>
+                </article>
+              )
+            })
+          )}
+        </div>
+        <form onSubmit={(event) => void handleSubmit(event)} className="rounded-xl border border-border/60 bg-muted/10 p-3">
+          <textarea
+            value={contenido}
+            onChange={(event) => setContenido(event.target.value)}
+            rows={3}
+            placeholder="Escribe una respuesta o seguimiento..."
+            className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+          <div className="mt-2 flex justify-end">
+            <Button type="submit" size="sm" className="gap-1.5" disabled={!contenido.trim() || createComment.isPending}>
+              <Send className="h-4 w-4" />
+              Publicar
+            </Button>
+          </div>
+        </form>
+      </SectionCardBody>
+    </SectionCard>
+  )
+}
+
+export function TicketsPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingTicket, setEditingTicket] = useState<SupportTicket | null>(null)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<TicketStatus | 'todos'>('todos')
+  const { data: moduleOptionsRaw = [] } = useDropdownOptionsByKey('ticket_modulos')
+  const { data: currentUser } = useCurrentUser()
+  const { data: typeOptionsRaw = [] } = useDropdownOptionsByKey('ticket_tipos')
+  const { data: priorityOptionsRaw = [] } = useDropdownOptionsByKey('ticket_prioridades')
+  const { data: impactOptionsRaw = [] } = useDropdownOptionsByKey('ticket_impactos')
+  const moduleOptions = moduleOptionsRaw.filter((option) => option.activo)
+  const typeOptions = typeOptionsRaw.filter((option) => option.activo)
+  const priorityOptions = priorityOptionsRaw.filter((option) => option.activo)
+  const impactOptions = impactOptionsRaw.filter((option) => option.activo)
+  const { data: tickets = [], isLoading, isError, error, refetch } = useTickets({ search, status })
+  const ticketIdFromUrl = searchParams.get('ticket')
+  const { data: ticketFromUrl } = useTicket(ticketIdFromUrl)
+  const ticketIds = useMemo(() => tickets.map((ticket) => ticket.id), [tickets])
+  const { data: counts = {} } = useTicketCommentCounts(ticketIds)
+  const canManage = isSuperAdminByRole(currentUser?.rol)
+
+  const openNew = useCallback(() => {
+    setEditingTicket(null)
+    setDialogOpen(true)
+  }, [])
+  const openEdit = useCallback((ticket: SupportTicket) => {
+    setEditingTicket(ticket)
+    setDialogOpen(true)
+  }, [])
+  const closeDialog = useCallback(() => {
+    setDialogOpen(false)
+    setEditingTicket(null)
+  }, [])
+
+  useEffect(() => {
+    if (!ticketFromUrl || !ticketIdFromUrl) return
+    setEditingTicket(ticketFromUrl)
+    setDialogOpen(true)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('ticket')
+      return next
+    }, { replace: true })
+  }, [setSearchParams, ticketFromUrl, ticketIdFromUrl])
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col space-y-6 overflow-x-hidden px-3 py-5 sm:px-6 sm:py-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-primary">
+            <LifeBuoy className="h-4 w-4" />
+            Mesa de ayuda
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Tickets</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Registra errores, mejoras o cambios. Veras tus tickets; super admin ve y administra todos.
+          </p>
+        </div>
+        <Button type="button" className="gap-1.5" onClick={openNew}>
+          <Plus className="h-4 w-4" />
+          Nuevo ticket
+        </Button>
+      </header>
+
+      <SectionCard>
+        <SectionCardBody className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <Field label="Buscar" htmlFor="ticket-search" className="flex-1">
+            <Input id="ticket-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Titulo, descripcion o modulo" />
+          </Field>
+          <Field label="Estatus" htmlFor="ticket-filter-status" className="sm:w-56">
+            <Select value={status} onValueChange={(value) => setStatus(value as TicketStatus | 'todos')}>
+              <SelectTrigger id="ticket-filter-status"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {STATUS_ORDER.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+        </SectionCardBody>
+      </SectionCard>
+
+      {isError ? (
+        <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <p className="text-sm font-semibold text-foreground">No se pudieron cargar los tickets.</p>
+          <p className="max-w-md text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Revisa permisos o conexion.'}</p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>Reintentar</Button>
+        </div>
+      ) : isLoading ? (
+        <div className="flex gap-4 overflow-hidden">
+          {STATUS_ORDER.map((item) => (
+            <div key={item} className="h-80 w-[300px] shrink-0 animate-pulse rounded-2xl bg-muted/50" />
+          ))}
+        </div>
+      ) : (
+        <TicketsBoard
+          tickets={tickets}
+          counts={counts}
+          onOpen={openEdit}
+          onNew={openNew}
+          canManage={canManage}
+          moduleOptions={moduleOptions}
+          typeOptions={typeOptions}
+        />
+      )}
+
+      <TicketDialog
+        open={dialogOpen}
+        ticket={editingTicket}
+        onOpenChange={(open) => {
+          if (!open) closeDialog()
+          else setDialogOpen(true)
+        }}
+        onSaved={closeDialog}
+        moduleOptions={moduleOptions.length ? moduleOptions : [{ label: 'Kanban', value: 'kanban' }]}
+        typeOptions={typeOptions.length ? typeOptions : [{ label: 'Mejora', value: 'mejora' }, { label: 'Error', value: 'error' }, { label: 'Cambio', value: 'cambio' }]}
+        priorityOptions={priorityOptions.length ? priorityOptions : [{ label: 'Baja', value: 'baja' }, { label: 'Media', value: 'media' }, { label: 'Alta', value: 'alta' }, { label: 'Urgente', value: 'urgente' }]}
+        impactOptions={impactOptions.length ? impactOptions : [{ label: 'Individual', value: 'individual' }, { label: 'Equipo', value: 'equipo' }, { label: 'Operacion', value: 'operacion' }]}
+      />
+    </div>
+  )
+}

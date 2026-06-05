@@ -79,6 +79,13 @@ const router = createBrowserRouter([
             },
           },
           {
+            path: ROUTES.TICKETS,
+            lazy: async () => {
+              const { TicketsPage } = await import('@/features/tickets')
+              return { Component: TicketsPage }
+            },
+          },
+          {
             path: ROUTES.SPRINTS,
             lazy: async () => {
               const { SprintCenterPage } = await import('@/features/operations/pages/SprintCenterPage')

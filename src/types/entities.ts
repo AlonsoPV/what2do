@@ -6,6 +6,7 @@
 import type { TipoAccion } from '@/features/operations/utils/tipoAccionConfig'
 import type { UserRole } from './enums'
 import type { ActionStatus } from './enums'
+import type { TicketStatus } from './enums'
 import type { NombreKpi, KpiUnidad } from './enums'
 
 export interface Usuario {
@@ -117,6 +118,36 @@ export interface Cliente {
 /** Vista/join: acción con nombre del responsable (si RLS lo permite) */
 export interface AccionDiariaConResponsable extends AccionDiaria {
   responsable_nombre?: string
+}
+
+export type TicketTipo = 'mejora' | 'error' | 'cambio' | string
+export type TicketPrioridad = 'baja' | 'media' | 'alta' | 'urgente' | string
+
+export interface SupportTicket {
+  id: string
+  titulo: string
+  descripcion: string
+  modulo: string
+  tipo: TicketTipo
+  prioridad: TicketPrioridad
+  impacto: string | null
+  pasos_reproduccion: string | null
+  resultado_esperado: string | null
+  resultado_actual: string | null
+  status: TicketStatus
+  created_by: string
+  updated_by: string | null
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface SupportTicketComment {
+  id: string
+  ticket_id: string
+  contenido: string
+  created_by: string | null
+  created_at: string
 }
 
 export type SprintEstado = 'activo' | 'completado' | 'cancelado'

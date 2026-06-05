@@ -24,7 +24,7 @@ import { useImpactMatrix } from '@/features/kpi/hooks/useImpactMatrix'
 import { compareImpactRows } from '@/features/kpi/utils/impactMatrixRows'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
-import { isAnalystByRole } from '@/features/auth/lib/permissions'
+import { usesOperationalDashboardByRole } from '@/features/auth/lib/permissions'
 import type { AccionDiaria } from '@/types'
 import type { AccionesFilter } from '@/services/acciones.service'
 import {
@@ -66,7 +66,7 @@ export function DashboardPage() {
   const qc = useQueryClient()
   const today = todayWallClockCDMX()
   const { data: currentUser } = useCurrentUser()
-  const isAnalyst = isAnalystByRole(currentUser?.rol)
+  const usesOperationalDashboard = usesOperationalDashboardByRole(currentUser?.rol)
   const prefetchEvidenceCatalog = useCallback(async () => {
     await qc.prefetchQuery({
       queryKey: dropdownOptionsByCatalogKeyQueryKey('evidencia_esperada'),
@@ -135,7 +135,9 @@ export function DashboardPage() {
   ])
 
   const { links, isLoading: gapLinksLoading } = useGapKpiLinks()
-  const { rows: impactRows, isLoading: impactMatrixLoading } = useImpactMatrix({ enabled: !isAnalyst })
+  const { rows: impactRows, isLoading: impactMatrixLoading } = useImpactMatrix({
+    enabled: !usesOperationalDashboard,
+  })
 
   const responsableNames = useMemo(() => {
     const map: Record<string, string> = {}
@@ -212,9 +214,9 @@ export function DashboardPage() {
           <DashboardHeader
             filtersExpanded={filtersExpanded}
             advancedFiltersActive={advancedFiltersActive}
-            title={isAnalyst ? 'Vision general' : undefined}
-            eyebrow={isAnalyst ? 'Tablero operativo' : undefined}
-            showExport={!isAnalyst}
+            title={usesOperationalDashboard ? 'Vision general' : undefined}
+            eyebrow={usesOperationalDashboard ? 'Tablero operativo' : undefined}
+            showExport={!usesOperationalDashboard}
             onToggleFilters={() => setFiltersExpanded((v) => !v)}
             onNewAction={handleCreate}
           />
@@ -233,7 +235,7 @@ export function DashboardPage() {
           </div>
         </section>
 
-        {!isAnalyst ? (
+        {!usesOperationalDashboard ? (
           <>
         <DashboardScoreAndRoadmapSection
           scoreLoading={o2cScoreLoading}
@@ -306,7 +308,7 @@ export function DashboardPage() {
           </>
         ) : null}
 
-        {isAnalyst ? (
+        {usesOperationalDashboard ? (
           <section
             id="dashboard-section-metrics"
             className="dashboard-section-metrics scroll-mt-4"
@@ -325,7 +327,7 @@ export function DashboardPage() {
           </section>
         ) : null}
 
-        {!isAnalyst ? (
+        {!usesOperationalDashboard ? (
           <section id="dashboard-section-top-impact" className="scroll-mt-4">
             <SectionCard>
               <SectionCardHeader
@@ -440,7 +442,7 @@ export function DashboardPage() {
           )}
         </div>
 
-        {!isAnalyst ? (
+        {!usesOperationalDashboard ? (
         <section
           id="dashboard-section-metrics"
           className="dashboard-section-metrics scroll-mt-4 border-t border-border/40 pt-4 sm:pt-6"

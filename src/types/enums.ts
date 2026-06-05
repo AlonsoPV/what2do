@@ -35,6 +35,9 @@ export const ACTION_STATUS = [
 
 export type ActionStatus = (typeof ACTION_STATUS)[number]
 
+export const TICKET_STATUS = ['Nuevo', 'En proceso', 'Respuesta', 'Cerrado'] as const
+export type TicketStatus = (typeof TICKET_STATUS)[number]
+
 export const PRIORIDAD_NC = ['P1_Critica', 'P2_Media', 'P3_Baja'] as const
 export type PrioridadNc = (typeof PRIORIDAD_NC)[number]
 

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Map,
   Columns3,
+  LifeBuoy,
   TimerReset,
   Target,
   Calendar,
@@ -42,6 +43,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
       { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
+      { to: ROUTES.TICKETS, label: 'Tickets', icon: LifeBuoy },
       { to: ROUTES.SPRINTS, label: 'Sprint Center', icon: TimerReset },
       { to: ROUTES.ACADEMIA, label: 'Academia O2C', icon: GraduationCap },
       { to: ROUTES.DISCIPLINA, label: 'Disciplina', icon: Target },

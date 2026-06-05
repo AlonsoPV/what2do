@@ -4,6 +4,7 @@ import {
   canAccessRouteByRole,
   canManageAcademyModulesByRole,
   isDirectionByRole,
+  usesOperationalDashboardByRole,
 } from './permissions'
 
 describe('role route permissions', () => {
@@ -24,6 +25,7 @@ describe('role route permissions', () => {
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_KPIS)).toBe(true)
     expect(canManageAcademyModulesByRole(role)).toBe(true)
+    expect(usesOperationalDashboardByRole(role)).toBe(true)
   })
 
   it('keeps Direccion out of non-analyst operational modules', () => {
@@ -49,5 +51,12 @@ describe('role route permissions', () => {
 
     expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_USERS)).toBe(false)
+    expect(usesOperationalDashboardByRole(role)).toBe(true)
+  })
+
+  it('keeps executive roles on the executive dashboard experience', () => {
+    expect(usesOperationalDashboardByRole('DG')).toBe(false)
+    expect(usesOperationalDashboardByRole('Sistemas')).toBe(false)
+    expect(usesOperationalDashboardByRole('super_admin')).toBe(false)
   })
 })

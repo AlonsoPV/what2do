@@ -27,6 +27,7 @@ import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import type { Notificacion } from '@/types'
 import { Link } from 'react-router-dom'
+import { ROUTES } from '@/constants'
 import { formatDateTimeCDMX } from '@/lib/dateUtils'
 import { cn } from '@/lib/utils'
 import {
@@ -49,6 +50,9 @@ const TIPO_LABELS: Record<string, string> = {
   evidencia: 'Evidencia cargada',
   bloqueo: 'Bloqueo',
   recordatorio_calendario: 'Recordatorio',
+  ticket_creado: 'Ticket creado',
+  ticket_actualizado: 'Ticket actualizado',
+  ticket_comentario: 'Comentario en ticket',
 }
 
 const TIPO_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -59,6 +63,9 @@ const TIPO_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   evidencia: Bell,
   bloqueo: AlertCircle,
   recordatorio_calendario: AlarmClock,
+  ticket_creado: Bell,
+  ticket_actualizado: Bell,
+  ticket_comentario: MessageSquare,
 }
 
 function getTipoLabel(tipo: string): string {
@@ -77,15 +84,19 @@ function NotificacionItem({
   const Icon = TIPO_ICONS[n.tipo] ?? Bell
   const payload = parseNotificacionPayload(n.payload as Record<string, unknown> | null)
   const accionId = payload.accion_id
+  const ticketId = payload.ticket_id
   const tipoLabel = payload.titulo ?? getTipoLabel(n.tipo)
   const tituloAccion = resolveAccionTitulo(payload, accionMeta)
+  const tituloTicket = payload.ticket_titulo?.trim()
   const descripcionAccion = resolveAccionDescripcion(payload, accionMeta)
   const creadorNombre = resolveCreadorNombre(payload, accionMeta)
   const eventoLabel = notificacionEventoLabel(n.tipo, payload)
   const comentarioPreview = resolveComentarioPreview(n.tipo, payload.mensaje)
-  const headline = tituloAccion || tipoLabel
+  const headline = tituloAccion || tituloTicket || tipoLabel
   const hasAccionContext = Boolean(tituloAccion || accionId)
+  const hasTicketContext = Boolean(tituloTicket || ticketId)
   const kanbanLink = accionId ? `/kanban?accion=${accionId}` : null
+  const ticketLink = ticketId ? `${ROUTES.TICKETS}?ticket=${ticketId}` : null
 
   return (
     <details
@@ -120,6 +131,16 @@ function NotificacionItem({
             className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 hover:underline"
           >
             Ir a acción
+            <ExternalLink className="h-3 w-3" />
+          </Link>
+        ) : null}
+        {!kanbanLink && ticketLink ? (
+          <Link
+            to={ticketLink}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 hover:underline"
+          >
+            Ir a ticket
             <ExternalLink className="h-3 w-3" />
           </Link>
         ) : null}
@@ -161,9 +182,9 @@ function NotificacionItem({
           </div>
 
           <div className="min-w-0 flex-1 space-y-2.5">
-            {hasAccionContext && tituloAccion ? (
+            {(hasAccionContext && tituloAccion) || hasTicketContext ? (
               <span className="inline-flex max-w-full items-center rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                {tipoLabel}
+                {hasTicketContext && payload.ticket_status ? `${tipoLabel} · ${payload.ticket_status}` : tipoLabel}
               </span>
             ) : null}
 
@@ -209,6 +230,15 @@ function NotificacionItem({
                   className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                 >
                   Ir a acción
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              ) : null}
+              {!kanbanLink && ticketLink ? (
+                <Link
+                  to={ticketLink}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  Ir a ticket
                   <ExternalLink className="h-3 w-3" />
                 </Link>
               ) : null}

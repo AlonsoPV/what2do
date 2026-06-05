@@ -4,6 +4,9 @@ export type NotificacionPayloadView = {
   titulo?: string
   mensaje?: string
   accion_id?: string
+  ticket_id?: string
+  ticket_titulo?: string
+  ticket_status?: string
   titulo_accion?: string
   descripcion_accion?: string
   creador_id?: string | null
@@ -27,6 +30,9 @@ export function parseNotificacionPayload(payload: Record<string, unknown> | null
     titulo: typeof p.titulo === 'string' ? p.titulo : undefined,
     mensaje: typeof p.mensaje === 'string' ? p.mensaje : undefined,
     accion_id: typeof p.accion_id === 'string' ? p.accion_id : undefined,
+    ticket_id: typeof p.ticket_id === 'string' ? p.ticket_id : undefined,
+    ticket_titulo: typeof p.ticket_titulo === 'string' ? p.ticket_titulo : undefined,
+    ticket_status: typeof p.ticket_status === 'string' ? p.ticket_status : undefined,
     titulo_accion: typeof p.titulo_accion === 'string' ? p.titulo_accion : undefined,
     descripcion_accion: typeof p.descripcion_accion === 'string' ? p.descripcion_accion : undefined,
     creador_id: p.creador_id ?? null,
