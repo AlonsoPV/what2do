@@ -81,7 +81,6 @@ export function UsersPage() {
           rol: values.rol,
           area: values.area ?? null,
           activo: values.activo ?? true,
-          onboarding_completed: values.onboarding_completed ?? false,
         },
         {
           onSuccess: () => {
@@ -179,7 +178,6 @@ export function UsersPage() {
                       rol: editingUser.rol,
                       area: editingUser.area ?? undefined,
                       activo: editingUser.activo,
-                      onboarding_completed: editingUser.onboarding_completed,
                     }
                   : undefined
               }

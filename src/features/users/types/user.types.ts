@@ -14,7 +14,6 @@ export interface UserProfile {
   rol: string
   area: string | null
   activo: boolean
-  onboarding_completed: boolean
   created_at: string
   updated_at: string
 }
@@ -26,7 +25,6 @@ export interface CreateUserInput {
   rol: string
   area?: string | null
   activo?: boolean
-  onboarding_completed?: boolean
 }
 
 /** Payload para actualizar usuario (parcial). */
@@ -35,7 +33,6 @@ export interface UpdateUserInput {
   rol?: string
   area?: string | null
   activo?: boolean
-  onboarding_completed?: boolean
 }
 
 /** Filtros del listado de usuarios. */
@@ -44,7 +41,6 @@ export interface UsersFilter {
   rol?: string | null
   area?: string | null
   activo?: boolean | null
-  onboarding_completed?: boolean | null
 }
 
 /** Opciones de paginación (preparado para fase futura). */

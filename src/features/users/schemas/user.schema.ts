@@ -25,7 +25,6 @@ const commonUserFormSchema = z.object({
     .optional()
     .nullable(),
   activo: z.boolean().default(true),
-  onboarding_completed: z.boolean().default(false),
 })
 
 /** Rol y área vienen de catálogos (catalog_roles, areas); se validan como texto no vacío. */

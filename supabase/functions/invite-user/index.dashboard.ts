@@ -121,7 +121,6 @@ type InviteUserPayload = {
   rol?: string
   area?: string | null
   activo?: boolean
-  onboarding_completed?: boolean
 }
 
 const DEFAULT_INITIAL_PASSWORD = 'emx@2026'
@@ -215,7 +214,6 @@ Deno.serve(async (req) => {
     rol,
     area: area || undefined,
     activo: body?.activo ?? true,
-    onboarding_completed: body?.onboarding_completed ?? false,
   }
 
   const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
@@ -246,7 +244,6 @@ Deno.serve(async (req) => {
       rol,
       area: area || null,
       activo: body?.activo ?? true,
-      onboarding_completed: body?.onboarding_completed ?? false,
     },
     { onConflict: 'user_id' }
   )

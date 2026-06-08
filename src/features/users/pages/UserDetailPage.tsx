@@ -130,7 +130,6 @@ export function UserDetailPage() {
                 rol: user.rol,
                 area: user.area ?? undefined,
                 activo: user.activo,
-                onboarding_completed: user.onboarding_completed,
               }}
               onSubmit={handleFormSubmit}
               onCancel={() => setFormOpen(false)}

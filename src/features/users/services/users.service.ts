@@ -67,7 +67,7 @@ export const usersAdminService = {
   async list(filter: UsersFilter = {}): Promise<UserProfile[]> {
     let q = supabase
       .from(TABLE)
-      .select('id, user_id, nombre, rol, area, activo, onboarding_completed, created_at, updated_at')
+      .select('id, user_id, nombre, rol, area, activo, created_at, updated_at')
       .order('nombre', { ascending: true })
 
     if (filter.rol != null && filter.rol !== '') {
@@ -79,10 +79,6 @@ export const usersAdminService = {
     if (filter.activo !== undefined && filter.activo !== null) {
       q = q.eq('activo', filter.activo)
     }
-    if (filter.onboarding_completed !== undefined && filter.onboarding_completed !== null) {
-      q = q.eq('onboarding_completed', filter.onboarding_completed)
-    }
-
     const { data, error } = await q
     if (error) throw error
 
@@ -140,10 +136,6 @@ export const usersAdminService = {
     if (input.activo !== undefined) {
       payload.activo = input.activo
     }
-    if (input.onboarding_completed !== undefined) {
-      payload.onboarding_completed = input.onboarding_completed
-    }
-
     const { data, error } = await supabase
       .from(TABLE)
       .update(payload)
@@ -172,7 +164,6 @@ export const usersAdminService = {
       rol: input.rol,
       area: input.area?.trim() ?? null,
       activo: input.activo ?? true,
-      onboarding_completed: input.onboarding_completed ?? false,
     }
 
     const { data, error } = await supabase.functions.invoke<InviteUserResponseBody>('invite-user', {

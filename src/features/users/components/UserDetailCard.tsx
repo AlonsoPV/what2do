@@ -96,14 +96,6 @@ export function UserDetailCard({
             </dd>
           </div>
           <div>
-            <dt className="text-sm font-medium text-muted-foreground">Onboarding</dt>
-            <dd className="mt-0.5">
-              <Badge variant={user.onboarding_completed ? 'success' : 'outline'}>
-                {user.onboarding_completed ? 'Completado' : 'Pendiente'}
-              </Badge>
-            </dd>
-          </div>
-          <div>
             <dt className="text-sm font-medium text-muted-foreground">Creado</dt>
             <dd className="mt-0.5 text-sm">{formatDate(user.created_at)}</dd>
           </div>

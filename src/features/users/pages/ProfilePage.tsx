@@ -12,7 +12,6 @@ import {
   Mail,
   MapPin,
   Pencil,
-  PartyPopper,
   Shield,
   ShieldCheck,
 } from 'lucide-react'
@@ -200,15 +199,6 @@ export function ProfilePage() {
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-foreground">Información del sistema</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <InfoTile
-            icon={PartyPopper}
-            label="Bienvenida"
-            value={
-              <Badge variant={user.onboarding_completed ? 'success' : 'outline'} className="font-medium">
-                {user.onboarding_completed ? 'Completado' : 'Pendiente'}
-              </Badge>
-            }
-          />
           <InfoTile icon={ShieldCheck} label="Rol" value={user.rol} />
           <InfoTile icon={CalendarDays} label="Cuenta creada" value={formatDateLong(user.created_at)} />
           <InfoTile icon={MapPin} label="Última actualización" value={formatDateLong(user.updated_at)} />

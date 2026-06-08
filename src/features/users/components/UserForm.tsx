@@ -37,7 +37,6 @@ const EMPTY_USER_FORM: UserFormValues = {
   rol: '',
   area: undefined,
   activo: true,
-  onboarding_completed: false,
 }
 
 export function UserForm({
@@ -162,24 +161,14 @@ export function UserForm({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-6">
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            {...form.register('activo')}
-            className="h-4 w-4 rounded border-input"
-          />
-          <span className="text-sm font-medium">Usuario activo</span>
-        </label>
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            {...form.register('onboarding_completed')}
-            className="h-4 w-4 rounded border-input"
-          />
-          <span className="text-sm font-medium">Registro de bienvenida completado</span>
-        </label>
-      </div>
+      <label className="flex cursor-pointer items-center gap-2">
+        <input
+          type="checkbox"
+          {...form.register('activo')}
+          className="h-4 w-4 rounded border-input"
+        />
+        <span className="text-sm font-medium">Usuario activo</span>
+      </label>
 
       {!hideActions ? (
         <div className="flex justify-end gap-2 pt-2">

@@ -24,11 +24,6 @@ const ACTIVO_OPTIONS = [
   { value: 'true', label: 'Activos' },
   { value: 'false', label: 'Inactivos' },
 ] as const
-const ONBOARDING_OPTIONS = [
-  { value: 'all', label: 'Todos' },
-  { value: 'true', label: 'Completado' },
-  { value: 'false', label: 'Pendiente' },
-] as const
 
 export function UserFilters({ filter, onFilterChange, onClear }: UserFiltersProps) {
   const { data: roles = [] } = useRoles({ activo: true })
@@ -38,8 +33,7 @@ export function UserFilters({ filter, onFilterChange, onClear }: UserFiltersProp
     !!filter.search?.trim() ||
     filter.rol != null ||
     filter.area != null ||
-    filter.activo !== undefined ||
-    filter.onboarding_completed !== undefined
+    filter.activo !== undefined
 
   return (
     <div className="flex flex-wrap items-end gap-4 rounded-lg border bg-card p-4">
@@ -120,35 +114,6 @@ export function UserFilters({ filter, onFilterChange, onClear }: UserFiltersProp
           </SelectTrigger>
           <SelectContent>
             {ACTIVO_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="w-[160px] space-y-2">
-        <Label>Onboarding</Label>
-        <Select
-          value={
-            filter.onboarding_completed === undefined
-              ? 'all'
-              : filter.onboarding_completed
-                ? 'true'
-                : 'false'
-          }
-          onValueChange={(v) =>
-            onFilterChange({
-              ...filter,
-              onboarding_completed: v === 'all' ? undefined : v === 'true',
-            })
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ONBOARDING_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>
