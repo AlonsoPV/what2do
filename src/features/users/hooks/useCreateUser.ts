@@ -12,8 +12,9 @@ export function useCreateUser() {
 
   return useMutation({
     mutationFn: (input: CreateUserInput) => usersAdminService.create(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: usersQueryKey })
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: usersQueryKey })
+      await queryClient.refetchQueries({ queryKey: usersQueryKey, type: 'active' })
     },
   })
 }

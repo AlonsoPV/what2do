@@ -88,6 +88,7 @@ export function UsersPage() {
             toast.success(
               `Usuario creado y confirmado: ${email}. Puede iniciar sesion con la contrasena inicial configurada.`
             )
+            setFilter(DEFAULT_FILTER)
             setFormOpen(false)
             setEditingUser(null)
           },
@@ -163,7 +164,7 @@ export function UsersPage() {
             <DialogDescription className="text-left text-sm text-muted-foreground">
               {editingUser
                 ? 'Los cambios aplican a su ficha en el tablero (rol, área y estado).'
-                : 'Con correo, nombre y rol basta. Creamos el acceso y enviamos un correo para que elija contraseña.'}
+                : 'Con correo, nombre y rol basta. Creamos el acceso confirmado y su ficha en el tablero.'}
             </DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
@@ -206,7 +207,7 @@ export function UsersPage() {
                 ? 'Guardando…'
                 : editingUser
                   ? 'Guardar cambios'
-                  : 'Enviar invitación'}
+                  : 'Crear usuario'}
             </Button>
           </div>
         </DialogContent>
