@@ -57,7 +57,7 @@ export function KpisPage() {
   const [measurementKpi, setMeasurementKpi] = useState<CatalogKpi | null>(null)
 
   const { data: items = [], isLoading, isError, error } = useKpis(filter)
-  const { data: gaps = [] } = useGaps({ filters: { activo: true } })
+  const { data: gaps = [] } = useGaps()
   const { data: users = [] } = useUsers({ activo: true })
 
   const gapById = useMemo(() => {
@@ -227,7 +227,7 @@ export function KpisPage() {
               <SelectItem value="all">Todos</SelectItem>
               {gaps.map((g) => (
                 <SelectItem key={g.id} value={g.id}>
-                  {g.nombre}
+                  {g.nombre}{g.activo ? '' : ' (inactivo)'}
                 </SelectItem>
               ))}
             </SelectContent>

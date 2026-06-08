@@ -175,13 +175,13 @@ export function AccionForm({
     isLoading: gapsLoading,
     isError: gapsError,
     refetch: retryGaps,
-  } = useGaps({ filters: { activo: true }, enabled: canViewO2cImpactFields })
+  } = useGaps({ filters: isEdit ? undefined : { activo: true }, enabled: canViewO2cImpactFields })
   const {
     data: catalogKpis = [],
     isLoading: kpisLoading,
     isError: kpisError,
     refetch: retryKpis,
-  } = useKpis({ activo: true }, { enabled: canViewO2cImpactFields })
+  } = useKpis(isEdit ? {} : { activo: true }, { enabled: canViewO2cImpactFields })
   const {
     data: evidenciaOpciones = [],
     isLoading: evidenciaLoading,
@@ -270,7 +270,7 @@ export function AccionForm({
     () =>
       gaps.map((g) => ({
         id: g.id,
-        label: g.nombre,
+        label: g.activo ? g.nombre : `${g.nombre} (inactivo)`,
         description: g.descripcion,
         code: g.id.slice(0, 8),
       })),
@@ -283,7 +283,7 @@ export function AccionForm({
       .filter((k) => !k.gap_id || gapSet.has(k.gap_id))
       .map((k) => ({
         id: k.id,
-        label: k.nombre,
+        label: k.activo ? k.nombre : `${k.nombre} (inactivo)`,
         description: k.descripcion,
         code: k.tipo ?? k.unidad,
       }))
@@ -329,6 +329,7 @@ export function AccionForm({
   )
 
   useEffect(() => {
+    if (isEditProtectedReadonly) return
     const set = new Set(gapIds)
     const current = form.getValues('catalog_kpi_ids') ?? []
     const next = current.filter((id) => {
@@ -338,7 +339,7 @@ export function AccionForm({
       return set.has(kpi.gap_id)
     })
     if (next.length !== current.length) form.setValue('catalog_kpi_ids', next)
-  }, [gapIds, catalogKpis, form])
+  }, [gapIds, catalogKpis, form, isEditProtectedReadonly])
 
   const evidenciaSignature = evidenciaOpciones.map((o) => `${o.id}:${o.value}:${o.label}`).join('|')
   const hasCatalogOtro = catalogHasOtroOption(evidenciaOpciones)

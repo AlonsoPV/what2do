@@ -147,13 +147,17 @@ export function buildImpactRowsFromAcciones(params: {
       }
     }
 
-    out.push(best ?? fallback!)
+    const row = best ?? fallback
+    if (row) out.push(row)
   }
 
   return out.sort(compareImpactRows)
 }
 
-export function compareImpactRows(a: ImpactRow, b: ImpactRow): number {
+export function compareImpactRows(a: ImpactRow | null | undefined, b: ImpactRow | null | undefined): number {
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
   const ai = a.impactoPct ?? -1
   const bi = b.impactoPct ?? -1
   if (bi !== ai) return bi - ai

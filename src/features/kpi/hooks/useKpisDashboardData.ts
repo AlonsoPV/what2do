@@ -36,7 +36,7 @@ export function useKpisDashboardData(
   targetHorizon: TargetHorizon
 ): UseKpisDashboardDataResult {
   const pipeline = useCatalogKpiO2cPortfolioPipeline({ activo: true, targetHorizon })
-  const { data: gaps = [], isLoading: gapsLoading } = useGaps({ filters: { activo: true } })
+  const { data: gaps = [], isLoading: gapsLoading } = useGaps()
   const { data: users = [] } = useUsers({ activo: true })
 
   const { metricItems, recentById, targetHorizon: pipelineHorizon } = pipeline

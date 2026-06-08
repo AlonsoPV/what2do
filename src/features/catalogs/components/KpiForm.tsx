@@ -38,7 +38,7 @@ export function KpiForm({
   onCancel,
   isSubmitting = false,
 }: KpiFormProps) {
-  const { data: gaps = [] } = useGaps({ filters: { activo: true } })
+  const { data: gaps = [] } = useGaps()
   const { data: users = [] } = useUsers({ activo: true })
 
   const form = useForm<KpiFormValues>({
@@ -66,6 +66,7 @@ export function KpiForm({
       owner_usuario: null,
     },
   })
+  const selectedGapId = form.watch('gap_id')
 
   return (
     <form
@@ -196,8 +197,8 @@ export function KpiForm({
             <SelectContent>
               <SelectItem value="__none__">Sin gap</SelectItem>
               {gaps.map((g) => (
-                <SelectItem key={g.id} value={g.id}>
-                  {g.nombre}
+                <SelectItem key={g.id} value={g.id} disabled={!g.activo && selectedGapId !== g.id}>
+                  {g.nombre}{g.activo ? '' : ' (inactivo)'}
                   {g.area ? ` · ${g.area}` : ''}
                 </SelectItem>
               ))}

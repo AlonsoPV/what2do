@@ -159,17 +159,17 @@ export function AccionFormDialog({
     if (canViewO2cImpactFields) {
       prefetches.push(
         qc.prefetchQuery({
-          queryKey: [...kpiQueryKeys.gaps, JSON.stringify({ activo: true })],
-          queryFn: () => listGaps({ activo: true }),
+          queryKey: [...kpiQueryKeys.gaps, JSON.stringify(isEdit ? {} : { activo: true })],
+          queryFn: () => listGaps(isEdit ? {} : { activo: true }),
         }),
         qc.prefetchQuery({
-          queryKey: ['catalogs', 'kpis', { activo: true }],
-          queryFn: () => catalogKpisService.list({ activo: true }),
+          queryKey: ['catalogs', 'kpis', isEdit ? {} : { activo: true }],
+          queryFn: () => catalogKpisService.list(isEdit ? {} : { activo: true }),
         })
       )
     }
     void Promise.allSettled(prefetches)
-  }, [canViewO2cImpactFields, open, qc])
+  }, [canViewO2cImpactFields, isEdit, open, qc])
 
   function userNameById(userId: string | null | undefined): string | null {
     if (!userId) return null

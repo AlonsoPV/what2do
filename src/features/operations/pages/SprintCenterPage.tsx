@@ -48,8 +48,8 @@ export function SprintCenterPage() {
     tipo_accion: ['sprint', 'estrategica'],
   })
   const { data: users = [] } = useUsers({ activo: true })
-  const { data: kpis = [] } = useKpis({ activo: true })
-  const { data: gaps = [] } = useGaps({ filters: { activo: true } })
+  const { data: kpis = [] } = useKpis()
+  const { data: gaps = [] } = useGaps()
 
   const userById = useMemo(() => new Map(users.map((user) => [user.id, user.nombre])), [users])
   const kpiById = useMemo(() => new Map(kpis.map((kpi) => [kpi.id, kpi.nombre])), [kpis])

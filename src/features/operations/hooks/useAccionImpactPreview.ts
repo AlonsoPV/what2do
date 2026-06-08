@@ -23,14 +23,17 @@ export function useAccionImpactPreview({
 }: UseAccionImpactPreviewOptions) {
   const isEnabled = enabled && gapIds.length > 0
   const { data: gaps = [], isLoading: gapsLoading } = useGaps({
-    filters: { activo: true },
+    enabled: isEnabled,
   })
   const { data: accionesData, isLoading: accionesLoading } = useGapAccionesForGapIds(
     isEnabled ? gapIds : []
   )
 
-  const acciones = accionesData?.acciones ?? []
-  const junctionAccionIdsByGap = accionesData?.junctionAccionIdsByGap ?? new Map<string, Set<string>>()
+  const acciones = useMemo(() => accionesData?.acciones ?? [], [accionesData?.acciones])
+  const junctionAccionIdsByGap = useMemo(
+    () => accionesData?.junctionAccionIdsByGap ?? new Map<string, Set<string>>(),
+    [accionesData?.junctionAccionIdsByGap]
+  )
 
   const preview = useMemo(() => {
     if (!gapIds.length) return []

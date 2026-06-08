@@ -29,10 +29,7 @@ export type UseImpactMatrixOptions = {
 export function useImpactMatrix(options: UseImpactMatrixOptions = {}) {
   const enabled = options.enabled ?? true
 
-  const { data: gaps = [], isLoading: gapsLoading } = useGaps({
-    filters: { activo: true },
-    enabled,
-  })
+  const { data: gaps = [], isLoading: gapsLoading } = useGaps({ enabled })
   const gapIds = useMemo(() => (enabled ? gaps.map((g) => g.id) : []), [enabled, gaps])
   const { data: gapAccionesData, isLoading: gapAccionesLoading } = useGapAccionesForGapIds(gapIds)
   const { data: acciones = [], isLoading: accionesLoading } = useAcciones({}, { enabled })
@@ -42,7 +39,10 @@ export function useImpactMatrix(options: UseImpactMatrixOptions = {}) {
     enabled,
   })
 
-  const junctionAccionIdsByGap = gapAccionesData?.junctionAccionIdsByGap ?? new Map<string, Set<string>>()
+  const junctionAccionIdsByGap = useMemo(
+    () => gapAccionesData?.junctionAccionIdsByGap ?? new Map<string, Set<string>>(),
+    [gapAccionesData?.junctionAccionIdsByGap]
+  )
 
   const gapById = useMemo(() => {
     return new Map(gaps.map((g) => [g.id, g] as const))

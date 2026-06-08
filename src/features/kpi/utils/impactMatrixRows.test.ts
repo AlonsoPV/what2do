@@ -74,4 +74,21 @@ describe('buildImpactRowsFromAcciones', () => {
     expect(rows[0].gapNombre).toBe('Gap 1')
     expect(rows[0].impactoPct).toBeCloseTo(0.2, 5)
   })
+
+  it('omite acciones cuyos gaps ya no están en el catálogo activo', () => {
+    const acciones = [accion({ id: 'a1', gap_id: null, story_points: 5 })]
+    const junction = new Map<string, Set<string>>([['g-inactivo', new Set(['a1'])]])
+    const accionGapIds = buildAccionGapIdsMap(acciones, junction)
+
+    const rows = buildImpactRowsFromAcciones({
+      acciones,
+      accionGapIds,
+      gapById: new Map(),
+      kpiByGapId: new Map(),
+      totalPtsByGap: buildTotalPtsByGap(acciones, accionGapIds),
+    })
+
+    expect(rows).toHaveLength(0)
+    expect(rows.every((row) => row != null)).toBe(true)
+  })
 })
