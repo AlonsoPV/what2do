@@ -3,6 +3,7 @@
  * Spec §5.9, §11: tiempo real, filtro por tipo/prioridad, leído/no leído.
  */
 
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import type { Notificacion } from '@/types'
 
@@ -60,7 +61,7 @@ export const notificacionesService = {
     if (error) throw error
   },
 
-  subscribe(usuarioId: string, callback: (payload: unknown) => void) {
+  subscribe(usuarioId: string, callback: (payload: unknown) => void): RealtimeChannel {
     const channel = supabase
       .channel(`notificaciones:${usuarioId}`)
       .on(
@@ -87,8 +88,7 @@ export const notificacionesService = {
     return channel
   },
 
-  unsubscribe() {
-    // Supabase Realtime puede recursar al cerrar canales en algunos ciclos de limpieza.
-    // Mantener no-op mientras notificaciones usa polling evita el crash de acceso.
+  async unsubscribe(channel: RealtimeChannel) {
+    await supabase.removeChannel(channel)
   },
 }
