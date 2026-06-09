@@ -13,6 +13,10 @@ describe('isChunkLoadError', () => {
     expect(isChunkLoadError(new Error('Importing a module script failed'))).toBe(true)
   })
 
+  it('detecta error de preload CSS de Vite', () => {
+    expect(isChunkLoadError(new Error('Unable to preload CSS for /assets/foo.css'))).toBe(true)
+  })
+
   it('ignora otros errores', () => {
     expect(isChunkLoadError(new Error('Network request failed'))).toBe(false)
     expect(isChunkLoadError(null)).toBe(false)

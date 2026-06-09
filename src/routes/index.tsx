@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { RouteErrorFallback } from '@/components/RouteErrorFallback'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { SettingsLayout } from '@/components/layout/SettingsLayout'
@@ -16,6 +17,10 @@ function HomeRedirect() {
 }
 
 const router = createBrowserRouter([
+  {
+    path: '/',
+    errorElement: <RouteErrorFallback />,
+    children: [
   {
     path: ROUTES.LOGIN,
     element: <LoginPage />,
@@ -267,6 +272,8 @@ const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to={ROUTES.DASHBOARD} replace /> },
+    ],
+  },
 ])
 
 export function Routes() {

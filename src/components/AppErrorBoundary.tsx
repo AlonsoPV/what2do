@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { APP_NAME } from '@/constants'
 import { Button } from '@/components/ui/button'
+import { isChunkLoadError, reloadOnceOnChunkError } from '@/lib/importWithReload'
 
 type Props = { children: ReactNode }
 
@@ -13,6 +14,10 @@ export class AppErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, message: '' }
 
   static getDerivedStateFromError(error: unknown): State {
+    if (isChunkLoadError(error)) {
+      reloadOnceOnChunkError()
+      return { hasError: false, message: '' }
+    }
     const message =
       error instanceof Error ? error.message : typeof error === 'string' ? error : 'Error desconocido'
     return { hasError: true, message }
