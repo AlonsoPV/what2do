@@ -8,6 +8,7 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage'
 import { ROUTES } from '@/constants'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { getDefaultRouteByRole } from '@/features/auth/lib/permissions'
+import { importWithReload } from '@/lib/importWithReload'
 
 function HomeRedirect() {
   const { profile } = useAuth()
@@ -39,126 +40,126 @@ const router = createBrowserRouter([
           {
             path: ROUTES.DASHBOARD,
             lazy: async () => {
-              const { DashboardPage } = await import('@/pages/dashboard/DashboardPage')
+              const { DashboardPage } = await importWithReload(() => import('@/pages/dashboard/DashboardPage'))
               return { Component: DashboardPage }
             },
           },
           {
             path: ROUTES.ESTRATEGIA,
             lazy: async () => {
-              const { StrategicMapPage } = await import('@/pages/estrategia/StrategicMapPage')
+              const { StrategicMapPage } = await importWithReload(() => import('@/pages/estrategia/StrategicMapPage'))
               return { Component: StrategicMapPage }
             },
           },
           {
             path: ROUTES.DASHBOARD_KPIS,
             lazy: async () => {
-              const { KpisDashboardPage } = await import('@/features/kpi/pages/KpisDashboardPage')
+              const { KpisDashboardPage } = await importWithReload(() => import('@/features/kpi/pages/KpisDashboardPage'))
               return { Component: KpisDashboardPage }
             },
           },
           {
             path: ROUTES.DASHBOARD_GAPS,
             lazy: async () => {
-              const { GapsDashboardPage } = await import('@/features/kpi/pages/GapsDashboardPage')
+              const { GapsDashboardPage } = await importWithReload(() => import('@/features/kpi/pages/GapsDashboardPage'))
               return { Component: GapsDashboardPage }
             },
           },
           {
             path: ROUTES.DASHBOARD_IMPACTO,
             lazy: async () => {
-              const { ImpactMatrixPage } = await import('@/features/kpi/pages/ImpactMatrixPage')
+              const { ImpactMatrixPage } = await importWithReload(() => import('@/features/kpi/pages/ImpactMatrixPage'))
               return { Component: ImpactMatrixPage }
             },
           },
           {
             path: ROUTES.KANBAN,
             lazy: async () => {
-              const { KanbanPage } = await import('@/pages/kanban/KanbanPage')
+              const { KanbanPage } = await importWithReload(() => import('@/pages/kanban/KanbanPage'))
               return { Component: KanbanPage }
             },
           },
           {
             path: ROUTES.TICKETS,
             lazy: async () => {
-              const { TicketsPage } = await import('@/features/tickets')
+              const { TicketsPage } = await importWithReload(() => import('@/features/tickets'))
               return { Component: TicketsPage }
             },
           },
           {
             path: ROUTES.SPRINTS,
             lazy: async () => {
-              const { SprintCenterPage } = await import('@/features/operations/pages/SprintCenterPage')
+              const { SprintCenterPage } = await importWithReload(() => import('@/features/operations/pages/SprintCenterPage'))
               return { Component: SprintCenterPage }
             },
           },
           {
             path: ROUTES.DISCIPLINA,
             lazy: async () => {
-              const { DisciplinaPage } = await import('@/pages/disciplina/DisciplinaPage')
+              const { DisciplinaPage } = await importWithReload(() => import('@/pages/disciplina/DisciplinaPage'))
               return { Component: DisciplinaPage }
             },
           },
           {
             path: ROUTES.AREAS,
             lazy: async () => {
-              const { AreasPage } = await import('@/pages/areas/AreasPage')
+              const { AreasPage } = await importWithReload(() => import('@/pages/areas/AreasPage'))
               return { Component: AreasPage }
             },
           },
           {
             path: ROUTES.CALENDARIO,
             lazy: async () => {
-              const { CalendarPage } = await import('@/pages/calendar/CalendarPage')
+              const { CalendarPage } = await importWithReload(() => import('@/pages/calendar/CalendarPage'))
               return { Component: CalendarPage }
             },
           },
           {
             path: ROUTES.REPORTES,
             lazy: async () => {
-              const { ReportesPage } = await import('@/pages/reportes/ReportesPage')
+              const { ReportesPage } = await importWithReload(() => import('@/pages/reportes/ReportesPage'))
               return { Component: ReportesPage }
             },
           },
           {
             path: ROUTES.NOTIFICACIONES,
             lazy: async () => {
-              const { NotificacionesPage } = await import('@/pages/notificaciones/NotificacionesPage')
+              const { NotificacionesPage } = await importWithReload(() => import('@/pages/notificaciones/NotificacionesPage'))
               return { Component: NotificacionesPage }
             },
           },
           {
             path: ROUTES.DISTANCIAS,
             lazy: async () => {
-              const { DistanceDashboardPage } = await import('@/features/distance')
+              const { DistanceDashboardPage } = await importWithReload(() => import('@/features/distance'))
               return { Component: DistanceDashboardPage }
             },
           },
           {
             path: ROUTES.ACADEMIA,
             lazy: async () => {
-              const { AcademyPage } = await import('@/features/academy')
+              const { AcademyPage } = await importWithReload(() => import('@/features/academy'))
               return { Component: AcademyPage }
             },
           },
           {
             path: ROUTES.AI_ASSIST,
             lazy: async () => {
-              const { AiAssistPage } = await import('@/features/ai-support')
+              const { AiAssistPage } = await importWithReload(() => import('@/features/ai-support'))
               return { Component: AiAssistPage }
             },
           },
           {
             path: ROUTES.MANUAL,
             lazy: async () => {
-              const { ManualPage } = await import('@/pages/manual/ManualPage')
+              const { ManualPage } = await importWithReload(() => import('@/pages/manual/ManualPage'))
               return { Component: ManualPage }
             },
           },
           {
             path: ROUTES.PLAN_ACCION,
             lazy: async () => {
-              const { PlanAccionRoute } = await import('@/features/plan-accion')
+              const { PlanAccionRoute } = await importWithReload(() => import('@/features/plan-accion'))
               return { Component: PlanAccionRoute }
             },
           },
@@ -170,63 +171,63 @@ const router = createBrowserRouter([
               {
                 path: 'profile',
                 lazy: async () => {
-                  const { ProfilePage } = await import('@/features/users/pages/ProfilePage')
+                  const { ProfilePage } = await importWithReload(() => import('@/features/users/pages/ProfilePage'))
                   return { Component: ProfilePage }
                 },
               },
               {
                 path: 'users',
                 lazy: async () => {
-                  const { UsersPage } = await import('@/features/users/pages/UsersPage')
+                  const { UsersPage } = await importWithReload(() => import('@/features/users/pages/UsersPage'))
                   return { Component: UsersPage }
                 },
               },
               {
                 path: 'users/:id',
                 lazy: async () => {
-                  const { UserDetailPage } = await import('@/features/users/pages/UserDetailPage')
+                  const { UserDetailPage } = await importWithReload(() => import('@/features/users/pages/UserDetailPage'))
                   return { Component: UserDetailPage }
                 },
               },
               {
                 path: 'catalogs',
                 lazy: async () => {
-                  const { CatalogsHomePage } = await import('@/features/catalogs/pages/CatalogsHomePage')
+                  const { CatalogsHomePage } = await importWithReload(() => import('@/features/catalogs/pages/CatalogsHomePage'))
                   return { Component: CatalogsHomePage }
                 },
               },
               {
                 path: 'catalogs/roles',
                 lazy: async () => {
-                  const { RolesPage } = await import('@/features/catalogs/pages/RolesPage')
+                  const { RolesPage } = await importWithReload(() => import('@/features/catalogs/pages/RolesPage'))
                   return { Component: RolesPage }
                 },
               },
               {
                 path: 'catalogs/areas',
                 lazy: async () => {
-                  const { CatalogAreasPage } = await import('@/features/catalogs/pages/AreasPage')
+                  const { CatalogAreasPage } = await importWithReload(() => import('@/features/catalogs/pages/AreasPage'))
                   return { Component: CatalogAreasPage }
                 },
               },
               {
                 path: 'catalogs/statuses',
                 lazy: async () => {
-                  const { StatusesPage } = await import('@/features/catalogs/pages/StatusesPage')
+                  const { StatusesPage } = await importWithReload(() => import('@/features/catalogs/pages/StatusesPage'))
                   return { Component: StatusesPage }
                 },
               },
               {
                 path: 'catalogs/priorities',
                 lazy: async () => {
-                  const { PrioritiesPage } = await import('@/features/catalogs/pages/PrioritiesPage')
+                  const { PrioritiesPage } = await importWithReload(() => import('@/features/catalogs/pages/PrioritiesPage'))
                   return { Component: PrioritiesPage }
                 },
               },
               {
                 path: 'catalogs/dropdowns',
                 lazy: async () => {
-                  const { DropdownCatalogsPage } = await import('@/features/catalogs/pages/DropdownCatalogsPage')
+                  const { DropdownCatalogsPage } = await importWithReload(() => import('@/features/catalogs/pages/DropdownCatalogsPage'))
                   return { Component: DropdownCatalogsPage }
                 },
               },
@@ -234,28 +235,28 @@ const router = createBrowserRouter([
                 path: 'catalogs/dropdowns/:catalogId',
                 lazy: async () => {
                   const { DropdownCatalogOptionsPage } =
-                    await import('@/features/catalogs/pages/DropdownCatalogOptionsPage')
+                    await importWithReload(() => import('@/features/catalogs/pages/DropdownCatalogOptionsPage'))
                   return { Component: DropdownCatalogOptionsPage }
                 },
               },
               {
                 path: 'catalogs/kpis',
                 lazy: async () => {
-                  const { KpisPage } = await import('@/features/catalogs/pages/KpisPage')
+                  const { KpisPage } = await importWithReload(() => import('@/features/catalogs/pages/KpisPage'))
                   return { Component: KpisPage }
                 },
               },
               {
                 path: 'catalogs/gaps',
                 lazy: async () => {
-                  const { GapsPage } = await import('@/features/catalogs/pages/GapsPage')
+                  const { GapsPage } = await importWithReload(() => import('@/features/catalogs/pages/GapsPage'))
                   return { Component: GapsPage }
                 },
               },
               {
                 path: 'academy/modules',
                 lazy: async () => {
-                  const { AcademyModulesAdminPage } = await import('@/features/academy')
+                  const { AcademyModulesAdminPage } = await importWithReload(() => import('@/features/academy'))
                   return { Component: AcademyModulesAdminPage }
                 },
               },
