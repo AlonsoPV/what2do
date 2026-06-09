@@ -13,6 +13,58 @@ const TABLE = 'usuarios'
 
 type InviteUserResponseBody = { ok?: boolean; message?: string; profile?: UserProfile | null }
 
+function isUnauthorizedListError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const e = error as { code?: string; message?: string }
+  const message = e.message?.toLowerCase() ?? ''
+  return e.code === '42501' || message.includes('no autorizado') || message.includes('permission denied')
+}
+
+function applyUserFilters(list: UserProfile[], filter: UsersFilter): UserProfile[] {
+  let next = list
+
+  if (filter.rol != null && filter.rol !== '') {
+    next = next.filter((u) => u.rol === filter.rol)
+  }
+  if (filter.area != null && filter.area !== '') {
+    next = next.filter((u) => u.area === filter.area)
+  }
+  if (filter.activo !== undefined && filter.activo !== null) {
+    next = next.filter((u) => u.activo === filter.activo)
+  }
+
+  if (filter.search?.trim()) {
+    const term = filter.search.trim().toLowerCase()
+    next = next.filter(
+      (u) =>
+        u.nombre.toLowerCase().includes(term) ||
+        (u.email?.toLowerCase().includes(term) ?? false) ||
+        (u.area?.toLowerCase().includes(term) ?? false)
+    )
+  }
+
+  return next
+}
+
+async function listVisibleUsersCatalog(filter: UsersFilter): Promise<UserProfile[]> {
+  let query = supabase
+    .from(TABLE)
+    .select('id,user_id,nombre,rol,area,activo,created_at,updated_at')
+    .order('nombre', { ascending: true })
+
+  if (filter.activo !== undefined && filter.activo !== null) {
+    query = query.eq('activo', filter.activo)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+
+  return applyUserFilters(
+    ((data ?? []) as Omit<UserProfile, 'email'>[]).map((u) => ({ ...u, email: null })),
+    { ...filter, activo: null }
+  )
+}
+
 /** Mensajes del API (a veces en inglés) → texto claro para quien administra usuarios. */
 function mapInviteUserFacingMessage(raw: string): string {
   const m = raw.trim()
@@ -66,31 +118,14 @@ export const usersAdminService = {
    */
   async list(filter: UsersFilter = {}): Promise<UserProfile[]> {
     const { data, error } = await supabase.rpc('settings_users_list')
-    if (error) throw error
-
-    let list = (data ?? []) as UserProfile[]
-
-    if (filter.rol != null && filter.rol !== '') {
-      list = list.filter((u) => u.rol === filter.rol)
-    }
-    if (filter.area != null && filter.area !== '') {
-      list = list.filter((u) => u.area === filter.area)
-    }
-    if (filter.activo !== undefined && filter.activo !== null) {
-      list = list.filter((u) => u.activo === filter.activo)
+    if (error) {
+      if (isUnauthorizedListError(error)) {
+        return listVisibleUsersCatalog(filter)
+      }
+      throw error
     }
 
-    if (filter.search?.trim()) {
-      const term = filter.search.trim().toLowerCase()
-      list = list.filter(
-        (u) =>
-          u.nombre.toLowerCase().includes(term) ||
-          (u.email?.toLowerCase().includes(term) ?? false) ||
-          (u.area?.toLowerCase().includes(term) ?? false)
-      )
-    }
-
-    return list
+    return applyUserFilters((data ?? []) as UserProfile[], filter)
   },
 
   async getById(id: string): Promise<UserProfile | null> {

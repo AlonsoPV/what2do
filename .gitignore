@@ -1,4 +1,7 @@
 .env
+.env.*
+!.env.example
+supabase/.temp/
 node_modules/
 dist/
 *.tsbuildinfo
