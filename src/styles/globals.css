@@ -114,7 +114,7 @@
 
 @layer components {
   [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] input,
-  [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] textarea,
+  [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] textarea:not([data-accion-field-editable='true']),
   [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] select,
   [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] [role='combobox'],
   [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] [role='radio'],
@@ -125,7 +125,7 @@
   }
 
   [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] input,
-  [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] textarea,
+  [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] textarea:not([data-accion-field-editable='true']),
   [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] [role='combobox'],
   [data-accion-dialog-mode='edit'] [data-accion-edit-protected='true'] button:not([aria-expanded]) {
     opacity: 0.7;

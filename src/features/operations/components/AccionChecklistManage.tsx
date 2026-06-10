@@ -216,8 +216,7 @@ export function AccionChecklistManage({
             {pendientes > 0 && total > 0 && (
               <p className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-xs leading-snug text-amber-950 dark:text-amber-100">
                 Faltan <span className="font-semibold tabular-nums">{pendientes}</span> punto
-                {pendientes !== 1 ? 's' : ''} para poder marcar la acción como <strong>Hecha</strong> (además de la
-                evidencia cargada).
+                {pendientes !== 1 ? 's' : ''} para poder marcar la acción como <strong>Hecha</strong>.
               </p>
             )}
 

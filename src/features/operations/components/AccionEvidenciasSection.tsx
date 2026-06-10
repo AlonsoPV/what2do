@@ -117,7 +117,7 @@ export function AccionEvidenciasSection({
           <Paperclip className="h-4 w-4" />
         </div>
         <div>
-          <h4 className="text-sm font-semibold">Evidencia adjunta</h4>
+          <h4 className="text-sm font-semibold">Apoyo documental (opcional)</h4>
           <p className="text-xs text-muted-foreground">{EVIDENCIA_ACCEPTED_FORMATS_LABEL}</p>
         </div>
       </CardHeader>

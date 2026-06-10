@@ -38,6 +38,7 @@ import { CatalogSearchMultiSelect } from './form/CatalogSearchMultiSelect'
 import { EvidenceOptionPicker } from './form/EvidenceOptionPicker'
 import { CatalogLoadError } from './form/CatalogLoadError'
 import { StoryPointsHelper } from './form/StoryPointsHelper'
+import { AccionDescripcionTextarea } from './form/AccionDescripcionTextarea'
 import {
   CalendarClock,
   FileCheck,
@@ -61,8 +62,6 @@ function collectAccionFormErrorMessages(errors: FieldErrors<AccionFormInput>): s
 
 const inputBase =
   'flex h-9 w-full rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50'
-const textareaBase =
-  'flex min-h-[64px] w-full resize-y rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:bg-background focus:outline-none focus:ring-2 focus:ring-ring/50 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50'
 
 const EVIDENCIA_OTRO_SPECIFY_INTERNAL = '__evidencia_otro__'
 
@@ -86,7 +85,7 @@ function ReadonlyValue({
   return (
     <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <div className="mt-1 min-h-5 text-sm font-medium text-foreground">
+      <div className="mt-1 min-h-5 text-sm font-medium text-foreground whitespace-pre-wrap break-words">
         {value || <span className="text-muted-foreground">Sin dato</span>}
       </div>
     </div>
@@ -700,12 +699,11 @@ export function AccionForm({
             />
             {isEdit ? (
               <AccionFormField label="Descripción" htmlFor={fieldId('descripcion_simple')} required>
-                <textarea
+                <AccionDescripcionTextarea
                   id={fieldId('descripcion_simple')}
-                  {...form.register('descripcion_simple')}
+                  register={form.register('descripcion_simple')}
+                  value={form.watch('descripcion_simple') ?? ''}
                   placeholder="Describe la acción: qué implica, qué buscas lograr y para qué (mín. 15 caracteres)."
-                  rows={4}
-                  className={textareaBase}
                 />
                 {form.formState.errors.descripcion_simple && (
                   <p className="text-xs text-destructive">{form.formState.errors.descripcion_simple.message}</p>
@@ -763,12 +761,11 @@ export function AccionForm({
         </AccionFormField>
 
         <AccionFormField label="Descripción" htmlFor={fieldId('descripcion_simple')} required>
-          <textarea
+          <AccionDescripcionTextarea
             id={fieldId('descripcion_simple')}
-            {...form.register('descripcion_simple')}
+            register={form.register('descripcion_simple')}
+            value={form.watch('descripcion_simple') ?? ''}
             placeholder="Describe la acción: qué implica, qué buscas lograr y para qué (mín. 15 caracteres)."
-            rows={4}
-            className={textareaBase}
           />
           {form.formState.errors.descripcion_simple && (
             <p className="text-xs text-destructive">{form.formState.errors.descripcion_simple.message}</p>
