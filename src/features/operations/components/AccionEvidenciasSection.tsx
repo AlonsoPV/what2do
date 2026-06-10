@@ -1,5 +1,5 @@
 /**
- * Sección de carga de evidencias (PDF, PNG, JPG) para una acción.
+ * Sección de carga de evidencias para una acción.
  * Solo en edición; lista existentes y permite subir o eliminar.
  */
 
@@ -7,6 +7,7 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { EVIDENCIA_ACCEPTED_FORMATS_LABEL, EVIDENCIA_REJECTED_MESSAGE } from '@/lib/evidenciaFileTypes'
 import {
   accionEvidenciasService,
   getAcceptedAccept,
@@ -80,7 +81,7 @@ export function AccionEvidenciasSection({
       return
     }
     if (!isAcceptedFile(file)) {
-      toast.error('Solo PDF, PNG o JPG (máx. 10 MB)')
+      toast.error(EVIDENCIA_REJECTED_MESSAGE)
       return
     }
     uploadMutation.mutate(file)
@@ -117,7 +118,7 @@ export function AccionEvidenciasSection({
         </div>
         <div>
           <h4 className="text-sm font-semibold">Evidencia adjunta</h4>
-          <p className="text-xs text-muted-foreground">PDF, PNG o JPG (máx. 10 MB)</p>
+          <p className="text-xs text-muted-foreground">{EVIDENCIA_ACCEPTED_FORMATS_LABEL}</p>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">

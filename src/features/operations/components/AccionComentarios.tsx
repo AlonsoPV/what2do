@@ -17,6 +17,11 @@ import { notificacionesService } from '@/services/notificaciones.service'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import {
+  EVIDENCIA_REJECTED_MESSAGE,
+  EVIDENCIA_ACCEPTED_FORMATS_SHORT,
+  getEvidenciaAcceptedAccept,
+} from '@/lib/evidenciaFileTypes'
+import {
   uploadEvidenciaFile,
   getSignedUrlEvidencia,
   isAcceptedEvidenciaFile,
@@ -335,13 +340,13 @@ export function AccionComentarios({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                accept={getEvidenciaAcceptedAccept()}
                 className="hidden"
                 multiple
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? [])
                   const valid = files.filter(isAcceptedEvidenciaFile)
-                  if (valid.length < files.length) toast.error('Solo PDF, PNG o JPG (máx. 10 MB)')
+                  if (valid.length < files.length) toast.error(EVIDENCIA_REJECTED_MESSAGE)
                   setPendingFiles((prev) => [...prev, ...valid].slice(0, 5))
                   e.target.value = ''
                 }}
@@ -353,7 +358,7 @@ export function AccionComentarios({
                 className="h-8 gap-1.5 px-2 text-muted-foreground hover:text-foreground"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={createComment.isPending || pendingFiles.length >= 5}
-                title="Adjuntar PDF, PNG o JPG"
+                title={`Adjuntar ${EVIDENCIA_ACCEPTED_FORMATS_SHORT}`}
               >
                 <Paperclip className="h-4 w-4" />
                 <span className="hidden sm:inline">Adjuntar</span>

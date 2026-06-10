@@ -1,8 +1,13 @@
 /**
  * Evidencias adjuntas de una acción (tabla accion_evidencias + storage).
- * PDF, PNG, JPG.
  */
 
+import {
+  EVIDENCIA_REJECTED_MESSAGE,
+  getEvidenciaAcceptedAccept,
+  isAcceptedEvidenciaFile,
+  resolveEvidenciaContentType,
+} from '@/lib/evidenciaFileTypes'
 import { supabase } from '@/lib/supabase/client'
 
 const BUCKET = 'evidencias'
@@ -18,9 +23,6 @@ export interface AccionEvidencia {
   uploaded_by: string | null
 }
 
-const ACCEPTED_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg']
-const MAX_SIZE_MB = 10
-
 function normalizeEvidenciaError(error: unknown): Error {
   if (
     error &&
@@ -35,14 +37,8 @@ function normalizeEvidenciaError(error: unknown): Error {
   return error instanceof Error ? error : new Error('No se pudo guardar la evidencia.')
 }
 
-export function isAcceptedFile(file: File): boolean {
-  const ok = ACCEPTED_TYPES.includes(file.type) && file.size <= MAX_SIZE_MB * 1024 * 1024
-  return ok
-}
-
-export function getAcceptedAccept(): string {
-  return '.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg'
-}
+export const isAcceptedFile = isAcceptedEvidenciaFile
+export const getAcceptedAccept = getEvidenciaAcceptedAccept
 
 export const accionEvidenciasService = {
   async listByAccion(accionId: string): Promise<AccionEvidencia[]> {
@@ -60,14 +56,15 @@ export const accionEvidenciasService = {
     file: File,
     uploadedBy: string | null
   ): Promise<AccionEvidencia> {
-    if (!isAcceptedFile(file)) {
-      throw new Error('Solo se permiten PDF, PNG o JPG (máx. 10 MB)')
+    if (!isAcceptedEvidenciaFile(file)) {
+      throw new Error(EVIDENCIA_REJECTED_MESSAGE)
     }
     const ext = file.name.split('.').pop() ?? 'bin'
     const path = `acciones/${accionId}/${crypto.randomUUID()}.${ext}`
+    const contentType = resolveEvidenciaContentType(file)
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
-      .upload(path, file, { contentType: file.type, upsert: false })
+      .upload(path, file, { contentType, upsert: false })
     if (uploadError) throw normalizeEvidenciaError(uploadError)
     const { data: row, error } = await supabase
       .from(TABLE)
@@ -75,7 +72,7 @@ export const accionEvidenciasService = {
         accion_id: accionId,
         storage_path: path,
         file_name: file.name,
-        content_type: file.type,
+        content_type: contentType,
         uploaded_by: uploadedBy,
       })
       .select()

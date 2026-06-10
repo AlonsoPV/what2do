@@ -1,7 +1,7 @@
 /**
  * Diálogo para crear o editar una acción diaria.
  * Usa AccionForm + useCreateAccion / useUpdateAccion.
- * Al crear, permite adjuntar evidencias (PDF, PNG, JPG) que se suben tras crear la acción.
+ * Al crear, permite adjuntar evidencias (PDF, PNG, JPG, CSV, Excel) que se suben tras crear la acción.
  */
 
 import { useState, useRef, useEffect, useMemo } from 'react'
@@ -30,6 +30,7 @@ import { isAnalystByRole, isDirectionByRole, isSuperAdminByRole } from '@/featur
 import { usersAdminService } from '@/features/users/services/users.service'
 import { usersQueryKey } from '@/features/users/hooks/useUsers'
 import { notificacionesService } from '@/services/notificaciones.service'
+import { EVIDENCIA_ACCEPTED_FORMATS_LABEL, EVIDENCIA_REJECTED_MESSAGE } from '@/lib/evidenciaFileTypes'
 import {
   accionEvidenciasService,
   getAcceptedAccept,
@@ -493,7 +494,7 @@ export function AccionFormDialog({
 
   const handleNewEvidenciaFile = (file: File) => {
     if (!isAcceptedFile(file)) {
-      toast.error('Solo PDF, PNG o JPG (máx. 10 MB)')
+      toast.error(EVIDENCIA_REJECTED_MESSAGE)
       return
     }
     setPendingNewEvidencias((prev) => [...prev, file].slice(0, 10))
@@ -576,7 +577,7 @@ export function AccionFormDialog({
                     icon={Paperclip}
                     eyebrow="Adjuntos"
                     title="Apoyo documental (opcional)"
-                    subtitle="PDF, PNG o JPG (máx. 10 MB). Se sube al crear la acción."
+                    subtitle={`${EVIDENCIA_ACCEPTED_FORMATS_LABEL}. Se sube al crear la acción.`}
                   >
                     <div className="space-y-3">
                       <input
