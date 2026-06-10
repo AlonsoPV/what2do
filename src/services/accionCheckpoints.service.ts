@@ -24,7 +24,7 @@ function normalizeCheckpointError(error: unknown): Error {
     (error as { code?: string }).code === '42501'
   ) {
     return new Error(
-      'No tienes permiso para modificar el checklist de esta accion. Solo puede hacerlo la persona creadora.'
+      'No tienes permiso para modificar este checklist. La persona asignada puede marcar checks y agregar puntos; la estructura existente solo la edita quien creo la accion.'
     )
   }
   return error instanceof Error ? error : new Error('No se pudo guardar el checklist.')
@@ -118,17 +118,13 @@ export const accionCheckpointsService = {
   },
 
   async insert(row: AccionCheckpointInsert): Promise<void> {
-    const { error } = await supabase
-      .from(TABLE)
-      .insert({
-        accion_id: row.accion_id,
-        texto: row.texto.trim(),
-        orden: row.orden,
-        obligatorio: row.obligatorio ?? true,
-        created_by: row.created_by ?? null,
-        activo: true,
-        completado: false,
-      })
+    void row.created_by
+    const { error } = await supabase.rpc('add_accion_checkpoint', {
+      p_accion_id: row.accion_id,
+      p_texto: row.texto.trim(),
+      p_orden: row.orden,
+      p_obligatorio: row.obligatorio ?? true,
+    })
     if (error) throw normalizeCheckpointError(error)
   },
 
@@ -180,15 +176,11 @@ export const accionCheckpointsService = {
     completado: boolean,
     checkedByUsuarioId: string | null
   ): Promise<void> {
-    const checkedAt = completado ? new Date().toISOString() : null
-    const { error } = await supabase
-      .from(TABLE)
-      .update({
-        completado,
-        checked_at: checkedAt,
-        checked_by: completado ? checkedByUsuarioId : null,
-      })
-      .eq('id', id)
+    void checkedByUsuarioId
+    const { error } = await supabase.rpc('set_accion_checkpoint_completado', {
+      p_checkpoint_id: id,
+      p_completado: completado,
+    })
     if (error) throw normalizeCheckpointError(error)
   },
 }

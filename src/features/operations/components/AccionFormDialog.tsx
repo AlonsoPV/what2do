@@ -102,9 +102,10 @@ export function AccionFormDialog({
   const canDeleteAccion = isEdit && isSuperAdminByRole(currentUser?.rol)
   const isEditProtectedReadonly = isEdit
   const isActionCreator = !!accion?.created_by && accion.created_by === currentUser?.id
-  const isActionAssignee = !!accion?.responsable && accion.responsable === currentUser?.id
   const canManageChecklistStructure = isActionCreator
-  const canContributeChecklist = isActionCreator || isActionAssignee
+  // La autorizacion final del checklist vive en Supabase. El cliente solo evita
+  // bloquear el click por caches o ids locales desfasados tras cambios de usuario.
+  const canAttemptChecklistContribution = !!currentUser?.id
   const isMutating = createAccion.isPending || updateAccion.isPending || deleteAccion.isPending
   const canViewO2cImpactFields =
     !isAnalystByRole(currentUser?.rol) && !isDirectionByRole(currentUser?.rol)
@@ -666,10 +667,10 @@ export function AccionFormDialog({
                 accionId={accion.id}
                 currentUsuarioId={currentUser?.id ?? null}
                 disabled={updateAccion.isPending}
-                readOnly={!canContributeChecklist && !canManageChecklistStructure}
+                readOnly={!canAttemptChecklistContribution && !canManageChecklistStructure}
                 canEditStructure={canManageChecklistStructure}
-                canAddPoint={canContributeChecklist}
-                canToggle={canContributeChecklist}
+                canAddPoint={canAttemptChecklistContribution}
+                canToggle={canAttemptChecklistContribution}
                 responsableNames={responsableNames}
               />
             </div>
