@@ -1,5 +1,8 @@
+import { getAppNow } from '@/lib/clock'
 import { todayWallClockCDMX } from '@/lib/dateUtils'
 import type { AccionDiaria, ActionStatus } from '@/types'
+
+const CDMX_TZ = 'America/Mexico_City'
 
 const ESTADOS_CERRADOS: ActionStatus[] = ['Hecho', 'Verificado']
 
@@ -38,29 +41,84 @@ export function getFechaCompromisoSlot(fecha: string): FechaCompromisoSlot {
   return 'today'
 }
 
+function normalizeHoraLimite(hora: string | undefined | null): string {
+  const { hours, minutes } = (() => {
+    const raw = (hora ?? '23:59').trim()
+    const [hoursRaw, minutesRaw] = raw.split(':')
+    const h = Number(hoursRaw)
+    const m = Number(minutesRaw)
+    return {
+      hours: Number.isFinite(h) ? h : 23,
+      minutes: Number.isFinite(m) ? m : 59,
+    }
+  })()
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+function getCdmxWallClock(date: Date): { ymd: string; hm: string } {
+  return {
+    ymd: date.toLocaleDateString('en-CA', { timeZone: CDMX_TZ }),
+    hm: date.toLocaleTimeString('en-GB', {
+      timeZone: CDMX_TZ,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }),
+  }
+}
+
+/** Comparación lexicográfica de HH:MM (24h). */
+function isAfterCdmxTime(currentHm: string, deadlineHm: string): boolean {
+  return currentHm > deadlineHm
+}
+
+function isPastAccionDeadline(accion: AccionDiaria, now = getAppNow()): boolean {
+  const fecha = normalizeFechaCompromiso(accion.fecha)
+  const { ymd, hm } = getCdmxWallClock(now)
+  if (ymd > fecha) return true
+  if (ymd < fecha) return false
+  return isAfterCdmxTime(hm, normalizeHoraLimite(accion.hora_limite))
+}
+
+/** Epoch ms de fecha + hora_limite (compatibilidad con countdown del Kanban). */
+export function getAccionDeadlineMs(
+  accion: Pick<AccionDiaria, 'fecha' | 'hora_limite'>
+): number {
+  const [year, month, day] = normalizeFechaCompromiso(accion.fecha).split('-').map(Number)
+  const [hours, minutes] = normalizeHoraLimite(accion.hora_limite).split(':').map(Number)
+  return new Date(year, month - 1, day, hours, minutes, 0, 0).getTime()
+}
+
 function isAutoSyncEligible(accion: AccionDiaria): boolean {
   return !ESTADOS_CERRADOS.includes(accion.estado) && accion.estado !== 'Bloqueado'
 }
 
 /**
- * Retraso si la fecha compromiso ya pasó (día anterior en CDMX).
- * El mismo día cuenta como Hoy aunque la hora límite ya haya pasado.
+ * Retraso si la fecha compromiso ya pasó o si hoy superó fecha + hora_limite (CDMX).
  */
 export function isEnRetraso(a: AccionDiaria): boolean {
   if (ESTADOS_CERRADOS.includes(a.estado)) return false
-  return getFechaCompromisoSlot(a.fecha) === 'past'
+  return isPastAccionDeadline(a)
 }
 
-/** Estado objetivo según fecha compromiso en CDMX; null si no aplica cambio automático. */
+/** Estado objetivo según fecha compromiso y hora límite en CDMX; null si no aplica cambio automático. */
 export function getAutoEstadoPorFechaCompromiso(accion: AccionDiaria): ActionStatus | null {
   if (!isAutoSyncEligible(accion)) return null
-  const slot = getFechaCompromisoSlot(accion.fecha)
-  if (slot === 'past') return accion.estado === 'Retraso' ? null : 'Retraso'
-  if (slot === 'today') {
+
+  const fecha = normalizeFechaCompromiso(accion.fecha)
+  const today = getCdmxWallClock(getAppNow()).ymd
+
+  if (isPastAccionDeadline(accion)) {
+    return accion.estado === 'Retraso' ? null : 'Retraso'
+  }
+  if (fecha > today) {
+    if (accion.estado === 'Retraso' || accion.estado === 'Hoy') return 'Pendiente'
+    return null
+  }
+  if (fecha === today) {
     if (accion.estado === 'Hoy' || accion.estado === 'En_Ejecucion') return null
     return 'Hoy'
   }
-  if (accion.estado === 'Retraso' || accion.estado === 'Hoy') return 'Pendiente'
   return null
 }
 
