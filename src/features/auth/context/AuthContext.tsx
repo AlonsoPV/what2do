@@ -439,8 +439,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         let profile: Awaited<ReturnType<typeof usuariosService.getByAuthId>>
         try {
+          const profileRequest = session.access_token
+            ? usuariosService.getByAuthIdWithAccessToken(user.id, session.access_token)
+            : usuariosService.getByAuthId(user.id)
           profile = await Promise.race([
-            usuariosService.getByAuthId(user.id),
+            profileRequest,
             new Promise<never>((_, reject) => {
               window.setTimeout(
                 () => reject(new Error('AUTH_PROFILE_TIMEOUT')),

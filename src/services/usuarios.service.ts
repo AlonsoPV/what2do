@@ -5,7 +5,8 @@
  * en dropdowns; revisar vista pública de nombres o policy más amplia.
  */
 
-import { supabase } from '@/lib/supabase/client'
+import { SUPABASE_ANON_KEY, SUPABASE_URL, supabase } from '@/lib/supabase/client'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import type { Usuario } from '@/types'
 
 const TABLE = 'usuarios'
@@ -22,6 +23,39 @@ function devLog(message: string, payload?: unknown) {
 }
 
 export const usuariosService = {
+  async getByAuthIdWithAccessToken(authUserId: string, accessToken: string): Promise<Usuario | null> {
+    const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    const url = new URL(`${SUPABASE_URL}/rest/v1/${TABLE}`)
+    url.searchParams.set('select', PROFILE_SELECT)
+    url.searchParams.set('user_id', `eq.${authUserId}`)
+    url.searchParams.set('limit', '1')
+
+    const response = await fetchWithTimeout(url, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`PROFILE_FETCH_FAILED_${response.status}`)
+    }
+
+    const rows = (await response.json()) as Usuario[]
+    const profile = rows[0] ?? null
+    const elapsedMs = Math.round(
+      (typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt
+    )
+
+    devLog('getByAuthIdWithAccessToken resolved', {
+      authUserId,
+      found: !!profile,
+      elapsedMs,
+    })
+    return profile
+  },
+
   /** Perfil por auth user id; null si no hay fila (evita error HTTP de .single() con 0 filas). */
   async getByAuthId(authUserId: string): Promise<Usuario | null> {
     const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()

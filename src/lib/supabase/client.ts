@@ -16,6 +16,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 /** URL del proyecto Supabase (misma que usa auth). Úsala para Edge Functions. */
 export const SUPABASE_URL = supabaseUrl ?? ''
+export const SUPABASE_ANON_KEY = supabaseAnonKey ?? ''
 
 /**
  * Cliente browser: sesión en localStorage, refresh automático.
