@@ -8,7 +8,6 @@ import {
   Gauge,
   GraduationCap,
   MessageSquare,
-  MinusCircle,
   PenLine,
   RefreshCw,
   ShieldCheck,
@@ -169,12 +168,12 @@ export function DisciplinaPage() {
       ) : null}
 
       {loading ? (
-        <div className="grid gap-4 sm:gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="grid gap-4 sm:gap-6">
           <SkeletonBlock className="h-64 sm:h-72" />
           <SkeletonBlock className="h-56 sm:h-72" />
         </div>
       ) : currentUser ? (
-        <div className="grid gap-4 sm:gap-6 lg:grid-cols-2 lg:items-start">
+        <div className="grid gap-4 sm:gap-6">
           <DisciplinaOperativoSection
             fecha={fecha}
             usuarioId={currentUser.id}
@@ -259,15 +258,16 @@ function DisciplinaScoreExplained({
   const inactiveNegative = consequenceRules.filter((rule) => rule.count === 0)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <ScoreHeroPanel metrics={metrics} />
+      <ScoreImpactPanel metrics={metrics} />
       <ScoreActivitySection
         activePositive={activePositive}
         activeNegative={activeNegative}
         inactivePositive={inactivePositive}
         inactiveNegative={inactiveNegative}
       />
-      <section aria-labelledby="disciplina-score-next">
+      <section aria-labelledby="disciplina-score-next" className="pt-1">
         <ScoreSectionLabel step="3" title="Qué conviene mejorar" subtitle="Siguiente acción recomendada" />
         <NextActionPanel metrics={metrics} />
       </section>
@@ -285,13 +285,13 @@ function ScoreSectionLabel({
   subtitle?: string
 }) {
   return (
-    <div className="mb-3 flex items-start gap-2.5">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/40 text-[11px] font-bold text-muted-foreground">
+    <div className="mb-2 flex items-start gap-2.5">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted/40 text-[10px] font-bold text-muted-foreground">
         {step}
       </span>
       <div className="min-w-0">
         <h3 className="text-sm font-semibold text-foreground sm:text-base">{title}</h3>
-        {subtitle ? <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p> : null}
+        {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
       </div>
     </div>
   )
@@ -299,6 +299,7 @@ function ScoreSectionLabel({
 
 function ScoreHeroPanel({ metrics }: { metrics: PersonalMetrics }) {
   const netoTone = scoreToneToMetricTone(metrics.levelTone)
+  const penaltyAbs = Math.abs(metrics.penaltyPoints)
 
   return (
     <section aria-labelledby="disciplina-score-hero">
@@ -307,15 +308,15 @@ function ScoreHeroPanel({ metrics }: { metrics: PersonalMetrics }) {
         title="Puntaje actual"
         subtitle="Resultado neto del periodo evaluado"
       />
-      <div className={cn('overflow-hidden rounded-xl border p-4 sm:p-5', toneSurface(netoTone))}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className={cn('overflow-hidden rounded-xl border p-3 sm:p-4', toneSurface(netoTone))}>
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)] lg:items-center">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               Total acumulado
             </p>
             <p
               className={cn(
-                'mt-1 text-4xl font-bold tabular-nums tracking-tight sm:text-5xl',
+                'mt-0.5 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl',
                 metrics.totalPoints >= 0
                   ? 'text-emerald-700 dark:text-emerald-300'
                   : 'text-destructive'
@@ -324,16 +325,16 @@ function ScoreHeroPanel({ metrics }: { metrics: PersonalMetrics }) {
               {formatSignedPoints(metrics.totalPoints)}
               <span className="ml-1 text-lg font-semibold text-muted-foreground sm:text-xl">pts</span>
             </p>
-            <p className="mt-2 inline-flex rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground">
+            <p className="mt-1.5 inline-flex rounded-full border border-border/60 bg-background/80 px-2.5 py-1 text-xs font-medium text-foreground">
               Nivel: {metrics.level}
             </p>
           </div>
-          <div className="rounded-xl border border-border/60 bg-background/90 px-3 py-3 sm:min-w-[15rem] sm:px-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Cómo se calcula</p>
+          <div className="rounded-xl border border-border/60 bg-background/90 px-3 py-2.5 sm:px-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Formula del puntaje</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-semibold tabular-nums sm:text-base">
               <span className="text-emerald-700 dark:text-emerald-300">+{metrics.earnedPoints}</span>
               <span className="text-muted-foreground">−</span>
-              <span className="text-destructive">{Math.abs(metrics.penaltyPoints)}</span>
+              <span className="text-destructive">{penaltyAbs}</span>
               <span className="text-muted-foreground">=</span>
               <span
                 className={cn(
@@ -345,12 +346,60 @@ function ScoreHeroPanel({ metrics }: { metrics: PersonalMetrics }) {
                 {formatSignedPoints(metrics.totalPoints)}
               </span>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-              <span>Puntos ganados</span>
-              <span className="text-right">Puntos perdidos</span>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <MiniScoreStat label="Ganados" value={`+${metrics.earnedPoints}`} tone="good" />
+              <MiniScoreStat label="Perdidos" value={`-${penaltyAbs}`} tone={penaltyAbs > 0 ? 'risk' : 'neutral'} />
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  )
+}
+
+function MiniScoreStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: MetricTone
+}) {
+  return (
+    <div className={cn('rounded-lg border px-2.5 py-2', toneSurface(tone))}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          'mt-0.5 text-base font-bold tabular-nums',
+          tone === 'good' && 'text-emerald-700 dark:text-emerald-300',
+          tone === 'risk' && 'text-destructive',
+          tone === 'neutral' && 'text-foreground'
+        )}
+      >
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function ScoreImpactPanel({ metrics }: { metrics: PersonalMetrics }) {
+  const overdueRule = metrics.rules.find((rule) => rule.key === 'overdue')
+  if (!overdueRule || overdueRule.count === 0) return null
+
+  return (
+    <section aria-labelledby="disciplina-score-impact">
+      <div className="grid gap-2 rounded-xl border border-destructive/30 bg-destructive/[0.06] px-3 py-2.5 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden />
+          <p id="disciplina-score-impact" className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+            <span className="font-semibold text-foreground">Impacto por retraso:</span> acciones directas en
+            Retraso dentro de Kanban.
+          </p>
+        </div>
+        <p className="text-sm font-bold tabular-nums text-destructive sm:text-right">
+          {overdueRule.count} x {formatSignedPoints(overdueRule.pointsPerUnit)} = {formatSignedPoints(overdueRule.points)} pts
+        </p>
       </div>
     </section>
   )
@@ -392,7 +441,7 @@ function ScoreActivitySection({
       {activeCount > 0 ? (
         <div className="overflow-hidden rounded-xl border border-border/60 bg-background">
           <div className="hidden border-b border-border/60 bg-muted/20 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_4rem] sm:gap-3 sm:px-4">
-            <span>Actividad</span>
+            <span>Actividad / realizado</span>
             <span className="text-center">Veces</span>
             <span className="text-center">Pts c/u</span>
             <span className="text-right">Total</span>
@@ -455,11 +504,11 @@ function ActivityScoreRow({
     variant === 'negative' || rule.points < 0 ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-300'
 
   return (
-    <li className="px-3 py-3 sm:grid sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_4rem] sm:items-center sm:gap-3 sm:px-4 sm:py-3.5">
-      <div className="flex min-w-0 items-start gap-3">
+    <li className="px-3 py-2.5 sm:grid sm:grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_4rem] sm:items-center sm:gap-3 sm:px-4">
+      <div className="flex min-w-0 items-start gap-2.5">
         <div
           className={cn(
-            'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border',
             variant === 'positive'
               ? 'border-emerald-500/20 bg-emerald-500/10'
               : 'border-destructive/20 bg-destructive/10'
@@ -475,8 +524,11 @@ function ActivityScoreRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">{rule.label}</p>
-          <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{rule.helper}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground sm:hidden">
+          <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-foreground/80">
+            Realizado: {activityDoneText(rule)}
+          </p>
+          <p className="line-clamp-1 text-[11px] leading-relaxed text-muted-foreground">{rule.helper}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground sm:hidden">
             <span>
               {rule.count} × {formatSignedPoints(rule.pointsPerUnit)} pts
             </span>
@@ -493,6 +545,18 @@ function ActivityScoreRow({
       </p>
     </li>
   )
+}
+
+function activityDoneText(rule: ActionGamificationRule) {
+  if (rule.count === 0) return 'sin registro en el periodo'
+  if (rule.key === 'onTimeClosed') return `${rule.count} cierre${rule.count === 1 ? '' : 's'} en tiempo`
+  if (rule.key === 'academyModulesCompleted') return `${rule.count} modulo${rule.count === 1 ? '' : 's'} completado${rule.count === 1 ? '' : 's'}`
+  if (rule.key === 'overdue') return `${rule.count} accion${rule.count === 1 ? '' : 'es'} directa${rule.count === 1 ? '' : 's'} en retraso`
+  if (rule.key === 'commentsMade') return `${rule.count} comentario${rule.count === 1 ? '' : 's'} de seguimiento`
+  if (rule.key === 'created') return `${rule.count} accion${rule.count === 1 ? '' : 'es'} creada${rule.count === 1 ? '' : 's'}`
+  if (rule.key === 'assigned') return `${rule.count} accion${rule.count === 1 ? '' : 'es'} asignada${rule.count === 1 ? '' : 's'}`
+  if (rule.key === 'participationStreak') return `${rule.count} dia${rule.count === 1 ? '' : 's'} de racha`
+  return `${rule.count} actividad${rule.count === 1 ? '' : 'es'}`
 }
 
 function InactiveRulesPanel({
@@ -679,6 +743,5 @@ function ruleIcon(key: ActionGamificationRule['key']) {
   if (key === 'created') return PenLine
   if (key === 'assigned') return Users
   if (key === 'participationStreak') return Flame
-  if (key === 'rejected') return MinusCircle
   return Gauge
 }

@@ -1,9 +1,9 @@
 import { addCalendarDays } from '@/lib/dateUtils'
+import { isEnRetraso } from '@/features/operations/utils/accionUtils'
 import type { AccionDiaria } from '@/types'
 import type { AccionComentario } from '@/types/accionComentario'
 
 const DONE_STATES = new Set(['Hecho', 'Verificado'])
-const REJECTED_STATES = new Set(['Rechazo', 'Rechazada', 'Rechazado'])
 
 export const ACTION_GAMIFICATION_POINTS = {
   onTimeClosed: 10,
@@ -13,7 +13,6 @@ export const ACTION_GAMIFICATION_POINTS = {
   created: 3,
   assigned: 1,
   participationStreak: 5,
-  rejected: -12,
 } as const
 
 export type ActionGamificationTone = 'positive' | 'neutral' | 'warning' | 'negative'
@@ -27,7 +26,6 @@ export interface ActionGamificationRule {
     | 'created'
     | 'assigned'
     | 'participationStreak'
-    | 'rejected'
   label: string
   count: number
   pointsPerUnit: number
@@ -50,7 +48,6 @@ export interface ActionGamificationMetrics {
   taggedActions: number
   commentsMade: number
   taggedComments: number
-  rejected: number
   participationStreak: number
   participationDays: string[]
   earnedPoints: number
@@ -77,11 +74,10 @@ export function buildActionGamificationMetrics(
   const taggedComments = comments.filter((comment) => isTaggedInComment(comment, userId))
   const taggedActionIds = new Set(taggedComments.map((comment) => comment.accion_id))
   const taggedActions = actions.filter((action) => taggedActionIds.has(action.id))
-  const userActions = uniqueActions([...assigned, ...created, ...taggedActions])
+  const userActions = uniqueActions([...assigned, ...created])
   const closedUserActions = userActions.filter(isDone)
   const onTimeClosed = closedUserActions.filter(isClosedOnTime)
-  const overdue = userActions.filter((action) => isActionOverdue(action, today))
-  const rejected = userActions.filter(isRejected)
+  const overdue = userActions.filter(isActionOverdue)
   const participationDays = new Set<string>()
 
   created.forEach((action) => addDay(participationDays, action.created_at))
@@ -95,7 +91,7 @@ export function buildActionGamificationMetrics(
       label: 'Cerradas en tiempo',
       count: onTimeClosed.length,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.onTimeClosed,
-      points: onTimeClosed.length * ACTION_GAMIFICATION_POINTS.onTimeClosed,
+      points: calculateRulePoints(onTimeClosed.length, ACTION_GAMIFICATION_POINTS.onTimeClosed),
       helper: 'Cierres antes de la fecha y hora limite.',
       tone: 'positive',
     },
@@ -104,7 +100,7 @@ export function buildActionGamificationMetrics(
       label: 'Módulos de Academia completados',
       count: academyModulesCompleted,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.academyModulesCompleted,
-      points: academyModulesCompleted * ACTION_GAMIFICATION_POINTS.academyModulesCompleted,
+      points: calculateRulePoints(academyModulesCompleted, ACTION_GAMIFICATION_POINTS.academyModulesCompleted),
       helper: 'Módulos terminados en Academia O2C.',
       tone: academyModulesCompleted > 0 ? 'positive' : 'neutral',
     },
@@ -113,8 +109,8 @@ export function buildActionGamificationMetrics(
       label: 'En retraso',
       count: overdue.length,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.overdue,
-      points: overdue.length * ACTION_GAMIFICATION_POINTS.overdue,
-      helper: 'Abiertas vencidas o marcadas en retraso.',
+      points: calculateRulePoints(overdue.length, ACTION_GAMIFICATION_POINTS.overdue),
+      helper: 'Acciones creadas por ti o asignadas a ti que el Kanban clasifica como Retraso.',
       tone: overdue.length > 0 ? 'negative' : 'neutral',
     },
     {
@@ -122,7 +118,7 @@ export function buildActionGamificationMetrics(
       label: 'Comentarios hechos',
       count: commentsMade.length,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.commentsMade,
-      points: commentsMade.length * ACTION_GAMIFICATION_POINTS.commentsMade,
+      points: calculateRulePoints(commentsMade.length, ACTION_GAMIFICATION_POINTS.commentsMade),
       helper: 'Seguimiento escrito por el usuario.',
       tone: 'positive',
     },
@@ -131,7 +127,7 @@ export function buildActionGamificationMetrics(
       label: 'Acciones creadas',
       count: created.length,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.created,
-      points: created.length * ACTION_GAMIFICATION_POINTS.created,
+      points: calculateRulePoints(created.length, ACTION_GAMIFICATION_POINTS.created),
       helper: 'Acciones generadas por el usuario.',
       tone: 'positive',
     },
@@ -140,7 +136,7 @@ export function buildActionGamificationMetrics(
       label: 'Acciones asignadas',
       count: assigned.length,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.assigned,
-      points: assigned.length * ACTION_GAMIFICATION_POINTS.assigned,
+      points: calculateRulePoints(assigned.length, ACTION_GAMIFICATION_POINTS.assigned),
       helper: 'Responsabilidad tomada en el periodo.',
       tone: 'positive',
     },
@@ -149,18 +145,9 @@ export function buildActionGamificationMetrics(
       label: 'Racha de participacion',
       count: participationStreak,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.participationStreak,
-      points: participationStreak * ACTION_GAMIFICATION_POINTS.participationStreak,
+      points: calculateRulePoints(participationStreak, ACTION_GAMIFICATION_POINTS.participationStreak),
       helper: 'Dias seguidos creando, comentando o cerrando.',
       tone: participationStreak > 0 ? 'positive' : 'neutral',
-    },
-    {
-      key: 'rejected',
-      label: 'Rechazadas',
-      count: rejected.length,
-      pointsPerUnit: ACTION_GAMIFICATION_POINTS.rejected,
-      points: rejected.length * ACTION_GAMIFICATION_POINTS.rejected,
-      helper: 'Acciones rechazadas cuando exista ese estado.',
-      tone: rejected.length > 0 ? 'negative' : 'neutral',
     },
   ]
   const earnedPoints = rules.filter((rule) => rule.points > 0).reduce((sum, rule) => sum + rule.points, 0)
@@ -182,7 +169,6 @@ export function buildActionGamificationMetrics(
     taggedActions: taggedActions.length,
     commentsMade: commentsMade.length,
     taggedComments: taggedComments.length,
-    rejected: rejected.length,
     participationStreak,
     participationDays: [...participationDays].sort().reverse(),
     earnedPoints,
@@ -237,7 +223,6 @@ function emptyMetrics(): ActionGamificationMetrics {
     taggedActions: 0,
     commentsMade: 0,
     taggedComments: 0,
-    rejected: 0,
     participationStreak: 0,
     participationDays: [],
     earnedPoints: 0,
@@ -251,10 +236,6 @@ function emptyMetrics(): ActionGamificationMetrics {
 
 function isDone(action: AccionDiaria) {
   return DONE_STATES.has(action.estado)
-}
-
-function isRejected(action: AccionDiaria) {
-  return REJECTED_STATES.has(String(action.estado))
 }
 
 function isTaggedInComment(comment: AccionComentario, userId: string): boolean {
@@ -271,12 +252,13 @@ function isClosedOnTime(action: AccionDiaria) {
   return new Date(closedAt).getTime() <= dueAt.getTime()
 }
 
-function isActionOverdue(action: AccionDiaria, today: string) {
-  if (isDone(action)) return false
-  if (action.estado === 'Retraso') return true
-  const dueAt = new Date(`${action.fecha}T${action.hora_limite || '23:59'}`)
-  const endOfToday = new Date(`${today}T23:59`)
-  return dueAt.getTime() < endOfToday.getTime()
+function isActionOverdue(action: AccionDiaria) {
+  return action.estado === 'Retraso' || isEnRetraso(action)
+}
+
+function calculateRulePoints(count: number, pointsPerUnit: number) {
+  if (count === 0) return 0
+  return count * pointsPerUnit
 }
 
 function percentage(part: number, total: number) {
