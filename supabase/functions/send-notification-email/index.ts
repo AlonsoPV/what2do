@@ -35,6 +35,28 @@ function textFromPayload(payload: Record<string, unknown> | null | undefined, ke
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function stringListFromPayload(payload: Record<string, unknown> | null | undefined, key: string): string[] {
+  const value = payload?.[key]
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+    .slice(0, 12)
+}
+
+function normalizeActionDescription(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  const cleaned = trimmed
+    .replace(/^C[oó]mo:\s*/gim, '')
+    .replace(/^Quiero:\s*/gim, '')
+    .replace(/^Para qu[eé]:\s*/gim, '')
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  return (cleaned.length > 0 ? cleaned : [trimmed]).join('\n\n')
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -121,8 +143,11 @@ function buildEmailHtml(input: {
 }): string {
   const title = subjectForNotification(input.tipo, input.prioridad, input.payload)
   const actionTitle = textFromPayload(input.payload, 'titulo_accion')
-  const description = textFromPayload(input.payload, 'descripcion_accion')
+  const description = normalizeActionDescription(textFromPayload(input.payload, 'descripcion_accion'))
   const message = textFromPayload(input.payload, 'mensaje')
+  const responsible = textFromPayload(input.payload, 'responsable_nombre')
+  const dueDate = textFromPayload(input.payload, 'fecha_compromiso')
+  const checklist = stringListFromPayload(input.payload, 'checklist')
   const actor =
     textFromPayload(input.payload, 'asignador_nombre') ||
     textFromPayload(input.payload, 'autor_nombre') ||
@@ -130,9 +155,18 @@ function buildEmailHtml(input: {
 
   const lines = [
     actionTitle ? `<p><strong>Accion:</strong> ${escapeHtml(actionTitle)}</p>` : '',
+    responsible ? `<p><strong>Responsable:</strong> ${escapeHtml(responsible)}</p>` : '',
+    dueDate ? `<p><strong>Fecha compromiso:</strong> ${escapeHtml(dueDate)}</p>` : '',
     actor ? `<p><strong>Origen:</strong> ${escapeHtml(actor)}</p>` : '',
     message ? `<p><strong>Mensaje:</strong> ${escapeHtml(message)}</p>` : '',
-    description ? `<p style="color:#475569">${escapeHtml(description).slice(0, 700)}</p>` : '',
+    description
+      ? `<p><strong>Descripcion:</strong></p><p style="white-space:pre-line;color:#475569">${escapeHtml(description).slice(0, 900)}</p>`
+      : '',
+    checklist.length > 0
+      ? `<p><strong>Checklist:</strong></p><ul style="margin:8px 0 0;padding-left:20px;color:#475569">${checklist
+          .map((item) => `<li>${escapeHtml(item)}</li>`)
+          .join('')}</ul>`
+      : '',
   ].filter(Boolean)
 
   return `<!doctype html>
@@ -165,15 +199,21 @@ function buildEmailText(input: {
   const title = subjectForNotification(input.tipo, input.prioridad, input.payload)
   const actionTitle = textFromPayload(input.payload, 'titulo_accion')
   const message = textFromPayload(input.payload, 'mensaje')
-  const description = textFromPayload(input.payload, 'descripcion_accion')
+  const description = normalizeActionDescription(textFromPayload(input.payload, 'descripcion_accion'))
+  const responsible = textFromPayload(input.payload, 'responsable_nombre')
+  const dueDate = textFromPayload(input.payload, 'fecha_compromiso')
+  const checklist = stringListFromPayload(input.payload, 'checklist')
 
   return [
     title,
     '',
     `Hola ${input.recipientName}, tienes una nueva notificacion.`,
     actionTitle ? `Accion: ${actionTitle}` : '',
+    responsible ? `Responsable: ${responsible}` : '',
+    dueDate ? `Fecha compromiso: ${dueDate}` : '',
     message ? `Mensaje: ${message}` : '',
-    description ? `Detalle: ${description.slice(0, 700)}` : '',
+    description ? `Descripcion:\n${description.slice(0, 900)}` : '',
+    checklist.length > 0 ? `Checklist:\n${checklist.map((item) => `- ${item}`).join('\n')}` : '',
     '',
     `Abrir en tablero: ${input.url}`,
   ]

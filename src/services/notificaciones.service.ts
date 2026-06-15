@@ -17,7 +17,7 @@ export interface CreateNotificacionInput {
   payload?: Record<string, unknown>
 }
 
-async function sendNotificationEmail(input: CreateNotificacionInput): Promise<void> {
+export async function sendNotificationEmail(input: CreateNotificacionInput): Promise<void> {
   const { error } = await supabase.functions.invoke('send-notification-email', {
     body: {
       usuario_id: input.usuario_id,
@@ -31,6 +31,10 @@ async function sendNotificationEmail(input: CreateNotificacionInput): Promise<vo
 }
 
 export const notificacionesService = {
+  async sendEmail(input: CreateNotificacionInput): Promise<void> {
+    await sendNotificationEmail(input)
+  },
+
   /**
    * Inserta una notificación para otro usuario.
    * No usamos `.select()` tras el insert: la política RLS `notificaciones_select_own` solo permite

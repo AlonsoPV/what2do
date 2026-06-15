@@ -29,7 +29,7 @@ import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import { isAnalystByRole, isDirectionByRole, isSuperAdminByRole } from '@/features/auth/lib/permissions'
 import { usersAdminService } from '@/features/users/services/users.service'
 import { usersQueryKey } from '@/features/users/hooks/useUsers'
-import { notificacionesService } from '@/services/notificaciones.service'
+import { notificacionesService, sendNotificationEmail } from '@/services/notificaciones.service'
 import { EVIDENCIA_ACCEPTED_FORMATS_LABEL, EVIDENCIA_REJECTED_MESSAGE } from '@/lib/evidenciaFileTypes'
 import {
   accionEvidenciasService,
@@ -44,7 +44,7 @@ import type { AccionCreateInput, AccionFormInput } from '../schemas/accion.schem
 import { flattenDescripcionForForm } from '../utils/descripcionAccionTriada'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { Download, ExternalLink, Paperclip, FileText, Image, Trash2 } from 'lucide-react'
+import { Download, ExternalLink, Paperclip, FileText, Image, Mail, Trash2 } from 'lucide-react'
 import {
   AccionChecklistEditor,
   type LocalCheckpointDraft,
@@ -139,6 +139,7 @@ export function AccionFormDialog({
   const [checklistDrafts, setChecklistDrafts] = useState<LocalCheckpointDraft[]>([])
   /** Resumen de validación bajo los botones del pie (RHF/Zod y reglas del diálogo). */
   const [submitFooterErrors, setSubmitFooterErrors] = useState<string[] | null>(null)
+  const [manualEmailPending, setManualEmailPending] = useState(false)
 
   useEffect(() => {
     if (open && !isEdit) {
@@ -193,6 +194,40 @@ export function AccionFormDialog({
     return cached?.find((u) => u.id === userId)?.nombre ?? null
   }
 
+  function accionEmailPayload(input: {
+    accionId: string
+    tituloAccion: string
+    descripcionAccion: string
+    responsableId?: string | null
+    fecha?: string | null
+    horaLimite?: string | null
+    creadorId?: string | null
+    creadorNombre?: string | null
+    checklist?: string[]
+    titulo?: string
+  }): Record<string, unknown> {
+    const fechaCompromiso = [input.fecha, input.horaLimite?.slice(0, 5)].filter(Boolean).join(' ')
+    const responsableNombre =
+      userNameById(input.responsableId) ||
+      (input.responsableId ? responsableNames[input.responsableId] : '') ||
+      ''
+
+    return {
+      titulo: input.titulo ?? 'Te asignaron como responsable',
+      titulo_accion: input.tituloAccion.trim() || undefined,
+      descripcion_accion: flattenDescripcionForForm(input.descripcionAccion ?? '').trim().slice(0, 900) || undefined,
+      responsable_id: input.responsableId ?? null,
+      responsable_nombre: responsableNombre || undefined,
+      fecha_compromiso: fechaCompromiso || undefined,
+      checklist: input.checklist?.map((item) => item.trim()).filter(Boolean) ?? [],
+      creador_id: input.creadorId ?? null,
+      creador_nombre: input.creadorNombre ?? null,
+      accion_id: input.accionId,
+      asignador_id: currentUser?.id ?? null,
+      asignador_nombre: currentUser?.nombre ?? null,
+    }
+  }
+
   async function notifyResponsable(
     usuarioId: string,
     accionId: string,
@@ -201,22 +236,34 @@ export function AccionFormDialog({
       descripcion_accion: string
       creador_id?: string | null
       creador_nombre?: string | null
+      fecha?: string | null
+      hora_limite?: string | null
+      checklist?: string[]
     }
   ) {
     if (!usuarioId || !accionId) return
     try {
+      const checklist =
+        meta.checklist ??
+        (await accionCheckpointsService
+          .listByAccionId(accionId)
+          .then((items) => items.map((item) => item.texto))
+          .catch(() => [] as string[]))
       await notificacionesService.create({
         usuario_id: usuarioId,
         tipo: 'responsable',
         payload: {
-          titulo: 'Te asignaron como responsable',
-          titulo_accion: meta.titulo_accion?.trim() || undefined,
-          descripcion_accion: meta.descripcion_accion?.trim().slice(0, 500) || undefined,
-          creador_id: meta.creador_id ?? null,
-          creador_nombre: meta.creador_nombre ?? null,
-          accion_id: accionId,
-          asignador_id: currentUser?.id ?? null,
-          asignador_nombre: currentUser?.nombre ?? null,
+          ...accionEmailPayload({
+            accionId,
+            tituloAccion: meta.titulo_accion,
+            descripcionAccion: meta.descripcion_accion,
+            responsableId: usuarioId,
+            fecha: meta.fecha ?? accion?.fecha ?? null,
+            horaLimite: meta.hora_limite ?? accion?.hora_limite ?? null,
+            creadorId: meta.creador_id ?? null,
+            creadorNombre: meta.creador_nombre ?? null,
+            checklist,
+          }),
           fecha_asignacion: new Date().toISOString(),
         },
       })
@@ -227,6 +274,46 @@ export function AccionFormDialog({
           ? err.message
           : 'No se pudo enviar la notificación al responsable. Si persiste, revisa permisos o contacta al administrador.'
       )
+    }
+  }
+
+  async function handleSendActionEmail() {
+    if (!accion?.id || !accion.responsable) {
+      toast.error('La accion necesita un responsable para enviar el correo.')
+      return
+    }
+
+    setManualEmailPending(true)
+    try {
+      const checkpoints = await accionCheckpointsService
+        .listByAccionId(accion.id)
+        .then((items) => items.map((item) => item.texto))
+        .catch(() => [] as string[])
+      await sendNotificationEmail({
+        usuario_id: accion.responsable,
+        tipo: 'responsable',
+        payload: {
+          ...accionEmailPayload({
+            accionId: accion.id,
+            tituloAccion: accion.titulo_accion ?? '',
+            descripcionAccion: accion.descripcion_accion ?? '',
+            responsableId: accion.responsable,
+            fecha: accion.fecha,
+            horaLimite: accion.hora_limite,
+            creadorId: accion.created_by ?? null,
+            creadorNombre: userNameById(accion.created_by),
+            checklist: checkpoints,
+            titulo: 'Te compartieron una accion',
+          }),
+          fecha_envio_manual: new Date().toISOString(),
+        },
+      })
+      toast.success('Correo enviado al responsable')
+    } catch (err) {
+      console.error('Error al enviar correo de accion:', err)
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar el correo')
+    } finally {
+      setManualEmailPending(false)
     }
   }
 
@@ -365,6 +452,8 @@ export function AccionFormDialog({
                 descripcion_accion: payload.descripcion_accion ?? accion.descripcion_accion ?? '',
                 creador_id: accion.created_by ?? null,
                 creador_nombre: userNameById(accion.created_by),
+                fecha: payload.fecha ?? accion.fecha,
+                hora_limite: payload.hora_limite ?? accion.hora_limite,
               })
             }
             toast.success('Accion actualizada correctamente')
@@ -462,6 +551,9 @@ export function AccionFormDialog({
                 descripcion_accion: payload.descripcion_accion ?? '',
                 creador_id: currentUser?.id ?? null,
                 creador_nombre: currentUser?.nombre ?? null,
+                fecha: payload.fecha ?? null,
+                hora_limite: payload.hora_limite ?? null,
+                checklist: checklistDrafts.map((item) => item.texto),
               })
             )
           }
@@ -811,15 +903,38 @@ export function AccionFormDialog({
 
           <div
             id={`${formBaseId}-dialog-footer-actions`}
-            className="accion-form-dialog-footer-actions grid w-full grid-cols-2 gap-2"
+            className={cn(
+              'accion-form-dialog-footer-actions grid w-full gap-2 sm:items-center',
+              isEdit && accion
+                ? 'grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]'
+                : 'grid-cols-2'
+            )}
           >
+            {isEdit && accion ? (
+              <Button
+                type="button"
+                variant="outline"
+                id={`${formBaseId}-send-email`}
+                className="accion-form-dialog-send-email h-10 w-full gap-2 px-2 text-sm sm:h-9"
+                onClick={handleSendActionEmail}
+                disabled={manualEmailPending || isMutating || !accion.responsable}
+                title={
+                  accion.responsable
+                    ? `Enviar correo a ${responsableNames[accion.responsable] ?? 'responsable asignado'}`
+                    : 'Asigna un responsable para enviar correo'
+                }
+              >
+                <Mail className="h-4 w-4 shrink-0" />
+                {manualEmailPending ? 'Enviando...' : 'Enviar correo'}
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
               id={`${formBaseId}-cancel`}
               className="accion-form-dialog-cancel h-10 w-full px-2 text-sm sm:h-9"
               onClick={() => onOpenChange(false)}
-              disabled={isMutating}
+              disabled={isMutating || manualEmailPending}
             >
               Cancelar
             </Button>
@@ -829,7 +944,7 @@ export function AccionFormDialog({
               id={`${formBaseId}-submit`}
               variant="default"
               className="accion-form-dialog-submit h-10 w-full px-2 text-sm sm:h-9"
-              disabled={isMutating}
+              disabled={isMutating || manualEmailPending}
             >
               {createAccion.isPending || updateAccion.isPending ? (
                 'Guardando…'
