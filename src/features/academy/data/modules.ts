@@ -1,4 +1,5 @@
 import type { LearningModule } from '../types/academy.types'
+import { getAcademyBaseModulePdfName } from './academyPdfCatalog'
 
 export const ACADEMY_MODULES: LearningModule[] = [
   {
@@ -6,7 +7,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'Diagnostico del Proceso Actual',
     subtitle: 'BPMN AS-IS: Order-to-Cash',
     duration: '2-3 horas',
-    pdfName: 'Modulo_1_Diagnostico.pdf',
+    pdfName: getAcademyBaseModulePdfName(1),
     objectives: [
       'Entender que es un diagrama BPMN y como leerlo.',
       'Mapear tu proceso actual Order-to-Cash de principio a fin.',
@@ -92,7 +93,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'Vision del Proceso Objetivo',
     subtitle: 'BPMN TO-BE: El Futuro Digitalizado',
     duration: '2 horas',
-    pdfName: 'Modulo_2_Vision_Proceso_Objetivo.pdf',
+    pdfName: getAcademyBaseModulePdfName(2),
     objectives: [
       'Comprender el proceso objetivo digitalizado y automatizado.',
       'Identificar diferencias clave AS-IS vs TO-BE.',
@@ -167,7 +168,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'Analisis de Brechas',
     subtitle: 'Los 18 Gaps entre el AS-IS y TO-BE',
     duration: '3 horas',
-    pdfName: 'Modulo_3_Analisis_Brechas.pdf',
+    pdfName: getAcademyBaseModulePdfName(3),
     objectives: [
       'Comprender los 18 gaps identificados.',
       'Entender priorizacion: CRITICO, ALTO, MEDIO, ESTRUCTURAL.',
@@ -242,7 +243,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'KPIs y OKRs Estrategicos',
     subtitle: 'Metricas para Medir el Exito',
     duration: '2 horas',
-    pdfName: 'Modulo_4_KPIs_OKRs.pdf',
+    pdfName: getAcademyBaseModulePdfName(4),
     objectives: [
       'Diferenciar KPI y OKR.',
       'Conocer metas numericas por sprint para cada KPI.',
@@ -312,7 +313,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'Matriz RACI y Estructura Lean',
     subtitle: 'Quien Hace Que - Roles Claros',
     duration: '3 horas',
-    pdfName: 'Modulo_5_RACI_Lean.pdf',
+    pdfName: getAcademyBaseModulePdfName(5),
     objectives: [
       'Comprender la matriz RACI.',
       'Identificar duplicidades y solapamientos.',
@@ -392,7 +393,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'Metodologia Agil Aplicada',
     subtitle: 'Scrum Adaptado a Logistica Farmaceutica',
     duration: '2 horas',
-    pdfName: 'Modulo_6_Metodologia_Agil.pdf',
+    pdfName: getAcademyBaseModulePdfName(6),
     objectives: [
       'Entender principios de Scrum en el contexto O2C.',
       'Conocer ceremonias clave de sprint.',
@@ -472,7 +473,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'User Stories y Backlog',
     subtitle: '46 Historias de Usuario Detalladas',
     duration: '3 horas',
-    pdfName: 'Modulo_7_User_Stories_Backlog.pdf',
+    pdfName: getAcademyBaseModulePdfName(7),
     objectives: [
       'Aprender formato correcto de user stories.',
       'Entender story points y estimacion relativa.',
@@ -552,7 +553,7 @@ export const ACADEMY_MODULES: LearningModule[] = [
     title: 'Roadmap y Ejecucion',
     subtitle: 'Plan de 18 Meses - Arrancamos',
     duration: '2 horas',
-    pdfName: 'Modulo_8_Roadmap_Ejecucion.pdf',
+    pdfName: getAcademyBaseModulePdfName(8),
     objectives: [
       'Visualizar plan completo de 18 meses con hitos.',
       'Entender fases Foundation, Scale y Optimize.',

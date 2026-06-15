@@ -160,9 +160,9 @@ export function AcademyModuleDetail({
                 </button>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  PDF no encontrado en Storage. Verifica que el archivo esté en el bucket{' '}
-                  <span className="font-medium">academia</span> con nombre{' '}
-                  <span className="font-medium">{module.pdfName}</span>.
+                  PDF no disponible. Los documentos oficiales viven en el bucket{' '}
+                  <span className="font-medium">academia</span> de Supabase Storage. Verifica que exista{' '}
+                  <span className="font-medium">{module.pdfName}</span> (o renómbralo según el catálogo del módulo).
                 </p>
               )}
             </div>

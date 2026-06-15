@@ -14,5 +14,5 @@
       "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     }
   ],
-  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/((?!assets/|docs/).*)", "destination": "/index.html" }]
 }
