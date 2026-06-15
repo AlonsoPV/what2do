@@ -55,7 +55,7 @@ export function ProtectedRoute() {
   }
 
   if (sessionStatus === 'signed_out') {
-    return <Navigate to={ROUTES.LOGIN} replace />
+    return <Navigate to={ROUTES.LOGIN} replace state={{ from: location }} />
   }
 
   if (profileStatus === 'loading') {

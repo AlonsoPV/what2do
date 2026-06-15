@@ -44,18 +44,57 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#039;')
 }
 
+const DEFAULT_APP_BASE_URL = 'https://dev-tablero-operativo.vercel.app'
+
+function normalizeAppBaseUrl(value: string | undefined): string | null {
+  const trimmed = value?.trim().replace(/\/+$/, '')
+  if (!trimmed) return null
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const url = new URL(withProtocol)
+    const hostname = url.hostname.toLowerCase()
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1'
+    if (!isLocalhost && !hostname.includes('.')) return null
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
 function appBaseUrl(): string {
-  return (
+  return normalizeAppBaseUrl(
     Deno.env.get('APP_BASE_URL') ||
     Deno.env.get('PUBLIC_APP_URL') ||
-    Deno.env.get('SITE_URL') ||
-    'https://dev-tablero-operativo.vercel.app'
-  ).replace(/\/+$/, '')
+    Deno.env.get('SITE_URL')
+  ) || DEFAULT_APP_BASE_URL
+}
+
+function optionalEnv(name: string): string {
+  return Deno.env.get(name)?.trim() ?? ''
+}
+
+function hasGoogleMailSecrets(): boolean {
+  return Boolean(
+    optionalEnv('GOOGLE_CLIENT_ID') &&
+      optionalEnv('GOOGLE_CLIENT_SECRET') &&
+      optionalEnv('GOOGLE_REFRESH_TOKEN')
+  )
 }
 
 function actionUrl(payload: Record<string, unknown> | null | undefined): string {
   const accionId = textFromPayload(payload, 'accion_id')
   if (accionId) return `${appBaseUrl()}/kanban?accion=${encodeURIComponent(accionId)}`
+  const reminderDue = textFromPayload(payload, 'fecha_limite')
+  if (reminderDue) {
+    const date = Number.isFinite(new Date(reminderDue).getTime())
+      ? new Date(reminderDue).toISOString().slice(0, 10)
+      : ''
+    if (date) return `${appBaseUrl()}/calendario?fecha=${encodeURIComponent(date)}&tipo=recordatorios`
+  }
+  const ticketId = textFromPayload(payload, 'ticket_id')
+  if (ticketId) return `${appBaseUrl()}/tickets`
   return `${appBaseUrl()}/notificaciones`
 }
 
@@ -142,6 +181,145 @@ function buildEmailText(input: {
     .join('\n')
 }
 
+function base64(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary)
+}
+
+function base64Url(value: string): string {
+  return base64(value).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+}
+
+function mimeHeader(value: string): string {
+  return `=?UTF-8?B?${base64(value)}?=`
+}
+
+async function googleAccessToken(): Promise<string> {
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: optionalEnv('GOOGLE_CLIENT_ID'),
+      client_secret: optionalEnv('GOOGLE_CLIENT_SECRET'),
+      refresh_token: optionalEnv('GOOGLE_REFRESH_TOKEN'),
+      grant_type: 'refresh_token',
+    }),
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || typeof data?.access_token !== 'string') {
+    throw new Error(data?.error_description || data?.error || 'No se pudo obtener token de Google')
+  }
+  return data.access_token
+}
+
+function gmailRawMessage(input: {
+  from: string
+  to: string
+  subject: string
+  html: string
+  text: string
+  replyTo?: string
+}): string {
+  const boundary = `tablero_${crypto.randomUUID().replaceAll('-', '')}`
+  const headers = [
+    `From: ${input.from}`,
+    `To: ${input.to}`,
+    `Subject: ${mimeHeader(input.subject)}`,
+    'MIME-Version: 1.0',
+    input.replyTo ? `Reply-To: ${input.replyTo}` : null,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+  ].filter((line): line is string => Boolean(line))
+
+  return [
+    ...headers,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    input.text,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    input.html,
+    '',
+    `--${boundary}--`,
+  ].join('\r\n')
+}
+
+async function sendWithGoogleMail(input: {
+  to: string
+  subject: string
+  html: string
+  text: string
+}): Promise<{ provider: 'gmail'; id: string | null }> {
+  const token = await googleAccessToken()
+  const from = optionalEnv('GOOGLE_GMAIL_FROM') || optionalEnv('NOTIFICATION_EMAIL_FROM') || 'me'
+  const raw = gmailRawMessage({
+    from,
+    to: input.to,
+    subject: input.subject,
+    html: input.html,
+    text: input.text,
+    replyTo: optionalEnv('NOTIFICATION_EMAIL_REPLY_TO') || undefined,
+  })
+
+  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw: base64Url(raw) }),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(result?.error?.message || 'No se pudo enviar correo por Gmail')
+  }
+  return { provider: 'gmail', id: result?.id ?? null }
+}
+
+async function sendWithResend(input: {
+  to: string
+  subject: string
+  html: string
+  text: string
+}): Promise<{ provider: 'resend'; id: string | null }> {
+  const resendApiKey = optionalEnv('RESEND_API_KEY')
+  const from = optionalEnv('NOTIFICATION_EMAIL_FROM')
+  if (!resendApiKey || !from) {
+    throw new Error('Faltan secretos de correo')
+  }
+
+  const emailResponse = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [input.to],
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+      reply_to: optionalEnv('NOTIFICATION_EMAIL_REPLY_TO') || undefined,
+    }),
+  })
+
+  if (!emailResponse.ok) {
+    const details = await emailResponse.text().catch(() => '')
+    throw new Error(`No se pudo enviar correo de notificacion: ${details}`)
+  }
+
+  const result = await emailResponse.json().catch(() => ({}))
+  return { provider: 'resend', id: result?.id ?? null }
+}
+
 Deno.serve(async (req) => {
   const preflight = handleCorsPreflight(req)
   if (preflight) return preflight
@@ -155,14 +333,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  const resendApiKey = Deno.env.get('RESEND_API_KEY')
-  const from = Deno.env.get('NOTIFICATION_EMAIL_FROM')
 
   if (!supabaseUrl || !serviceRoleKey) {
     return jsonResponse({ ok: false, message: 'Faltan credenciales de Supabase' }, 500)
-  }
-  if (!resendApiKey || !from) {
-    return jsonResponse({ ok: false, message: 'Faltan secretos de correo' }, 500)
   }
 
   const body = (await req.json().catch(() => null)) as NotificationEmailPayload | null
@@ -208,30 +381,29 @@ Deno.serve(async (req) => {
   const html = buildEmailHtml({ recipientName, tipo, prioridad, payload, url })
   const text = buildEmailText({ recipientName, tipo, prioridad, payload, url })
 
-  const emailResponse = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject,
-      html,
-      text,
-      reply_to: Deno.env.get('NOTIFICATION_EMAIL_REPLY_TO') || undefined,
-    }),
-  })
+  try {
+    const result = hasGoogleMailSecrets()
+      ? await sendWithGoogleMail({
+          to: email,
+          subject,
+          html,
+          text,
+        })
+      : await sendWithResend({
+          to: email,
+          subject,
+          html,
+          text,
+        })
 
-  if (!emailResponse.ok) {
-    const details = await emailResponse.text().catch(() => '')
+    return jsonResponse({ ok: true, provider: result.provider, email_id: result.id })
+  } catch (error) {
     return jsonResponse(
-      { ok: false, message: 'No se pudo enviar correo de notificacion', details },
+      {
+        ok: false,
+        message: error instanceof Error ? error.message : 'No se pudo enviar correo de notificacion',
+      },
       502
     )
   }
-
-  const result = await emailResponse.json().catch(() => ({}))
-  return jsonResponse({ ok: true, email_id: result?.id ?? null })
 })

@@ -11,6 +11,7 @@ import { AcademyModuleCard } from '../components/AcademyModuleCard'
 import { AcademyProgressBar } from '../components/AcademyProgressBar'
 import { AcademyModuleDetail } from '../components/AcademyModuleDetail'
 import { AcademyQuiz } from '../components/AcademyQuiz'
+import type { QuizAnswer } from '../types/academy.types'
 
 export function AcademyPage() {
   const [selectedModuleId, setSelectedModuleId] = useState(1)
@@ -36,7 +37,7 @@ export function AcademyPage() {
   const selectedIndex = modules.findIndex((m) => m.id === selectedModule?.id)
   const isSelectedLocked = selectedModule ? !isModuleUnlocked(selectedModule.id) : true
 
-  const handleQuizSubmit = async (answers: number[]) => {
+  const handleQuizSubmit = async (answers: QuizAnswer[]) => {
     if (!selectedModule) {
       return { allCorrect: false, incorrectIndexes: [] }
     }

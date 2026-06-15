@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { createAcademyModule } from '../services/academyModules.service'
 import { uploadAcademyPdf } from '@/services/academyStorage.service'
 import type { AcademyConcept, QuizQuestion } from '../types/academy.types'
+import { getQuestionCorrectIndexes, isMultipleChoiceQuestion } from '../utils/academyProgress'
 
 function lines(value: string): string[] {
   return value.split('\n').map((line) => line.trim()).filter(Boolean)
@@ -44,17 +45,20 @@ function createEmptyQuestion(): QuizQuestion {
   return {
     question: '',
     options: ['', '', '', ''],
+    type: 'single',
     correctIndex: 0,
+    correctIndexes: [0],
   }
 }
 
 function isQuestionReady(question: QuizQuestion): boolean {
+  const correctIndexes = getQuestionCorrectIndexes(question)
   return Boolean(
     question.question.trim() &&
       question.options.length >= 2 &&
       question.options.every((option) => option.trim()) &&
-      question.correctIndex >= 0 &&
-      question.correctIndex < question.options.length
+      correctIndexes.length > 0 &&
+      correctIndexes.every((index) => index >= 0 && index < question.options.length)
   )
 }
 
@@ -167,9 +171,37 @@ export function AcademyModulesAdminPage() {
     )
   }
 
+  const setQuestionType = (questionIndex: number, type: 'single' | 'multiple') => {
+    setQuiz((prev) =>
+      prev.map((question, index) => {
+        if (index !== questionIndex) return question
+        const correctIndexes = getQuestionCorrectIndexes(question)
+        const firstCorrect = correctIndexes[0] ?? 0
+        return type === 'single'
+          ? { ...question, type, correctIndex: firstCorrect, correctIndexes: [firstCorrect] }
+          : { ...question, type, correctIndex: firstCorrect, correctIndexes: correctIndexes.length ? correctIndexes : [0] }
+      })
+    )
+  }
+
   const setCorrectOption = (questionIndex: number, correctIndex: number) => {
     setQuiz((prev) =>
-      prev.map((question, index) => (index === questionIndex ? { ...question, correctIndex } : question))
+      prev.map((question, index) =>
+        index === questionIndex ? { ...question, correctIndex, correctIndexes: [correctIndex] } : question
+      )
+    )
+  }
+
+  const toggleCorrectOption = (questionIndex: number, optionIndex: number) => {
+    setQuiz((prev) =>
+      prev.map((question, index) => {
+        if (index !== questionIndex) return question
+        const current = getQuestionCorrectIndexes(question)
+        const next = current.includes(optionIndex)
+          ? current.filter((index) => index !== optionIndex)
+          : [...current, optionIndex].sort((a, b) => a - b)
+        return { ...question, type: 'multiple', correctIndex: next[0], correctIndexes: next }
+      })
     )
   }
 
@@ -188,13 +220,11 @@ export function AcademyModulesAdminPage() {
       prev.map((question, index) => {
         if (index !== questionIndex || question.options.length <= 2) return question
         const options = question.options.filter((_, currentOptionIndex) => currentOptionIndex !== optionIndex)
-        const correctIndex =
-          question.correctIndex === optionIndex
-            ? 0
-            : question.correctIndex > optionIndex
-              ? question.correctIndex - 1
-              : question.correctIndex
-        return { ...question, options, correctIndex }
+        const nextCorrectIndexes = getQuestionCorrectIndexes(question)
+          .filter((correctIndex) => correctIndex !== optionIndex)
+          .map((correctIndex) => (correctIndex > optionIndex ? correctIndex - 1 : correctIndex))
+        const fallbackCorrectIndexes = nextCorrectIndexes.length ? nextCorrectIndexes : [0]
+        return { ...question, options, correctIndex: fallbackCorrectIndexes[0], correctIndexes: fallbackCorrectIndexes }
       })
     )
   }
@@ -206,7 +236,7 @@ export function AcademyModulesAdminPage() {
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Super admin</p>
           <h1 className="text-2xl font-semibold tracking-tight">Modulos de Academia</h1>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Crea modulos con PDF unico, objetivos, conceptos, practica y quiz de opcion unica.
+            Crea modulos con PDF unico, objetivos, conceptos, practica y quiz de opcion unica o multiple.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 text-sm sm:min-w-64">
@@ -332,7 +362,7 @@ export function AcademyModulesAdminPage() {
               <div>
                 <CardTitle>Preguntas del quiz</CardTitle>
                 <CardDescription>
-                  Cada pregunta usa radio button y una sola respuesta correcta, igual que el quiz del alumno.
+                  Cada pregunta puede ser de opcion unica o de opcion multiple, igual que el quiz del alumno.
                 </CardDescription>
               </div>
               <Button type="button" variant="outline" onClick={addQuestion}>
@@ -356,6 +386,8 @@ export function AcademyModulesAdminPage() {
               ) : (
                 quiz.map((question, questionIndex) => {
                   const questionReady = isQuestionReady(question)
+                  const isMultiple = isMultipleChoiceQuestion(question)
+                  const correctIndexes = getQuestionCorrectIndexes(question)
                   return (
                     <section
                       key={questionIndex}
@@ -400,6 +432,28 @@ export function AcademyModulesAdminPage() {
                       </div>
 
                       <div className="mt-4 space-y-2">
+                        <div className="space-y-2">
+                          <Label>Tipo de pregunta</Label>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant={!isMultiple ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setQuestionType(questionIndex, 'single')}
+                            >
+                              Opcion unica
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={isMultiple ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setQuestionType(questionIndex, 'multiple')}
+                            >
+                              Opcion multiple
+                            </Button>
+                          </div>
+                        </div>
+
                         <div className="flex items-center justify-between gap-3">
                           <Label>Opciones</Label>
                           <Button
@@ -413,15 +467,23 @@ export function AcademyModulesAdminPage() {
                             Opcion
                           </Button>
                         </div>
-                        <div className="space-y-2" role="radiogroup" aria-label={`Respuesta correcta pregunta ${questionIndex + 1}`}>
+                        <div
+                          className="space-y-2"
+                          role={isMultiple ? 'group' : 'radiogroup'}
+                          aria-label={`Respuesta correcta pregunta ${questionIndex + 1}`}
+                        >
                           {question.options.map((option, optionIndex) => (
                             <div key={optionIndex} className="flex items-center gap-2 rounded-md border bg-muted/20 p-2">
                               <input
-                                type="radio"
+                                type={isMultiple ? 'checkbox' : 'radio'}
                                 name={`academy-admin-q-${questionIndex}`}
                                 className="h-4 w-4 shrink-0"
-                                checked={question.correctIndex === optionIndex}
-                                onChange={() => setCorrectOption(questionIndex, optionIndex)}
+                                checked={correctIndexes.includes(optionIndex)}
+                                onChange={() =>
+                                  isMultiple
+                                    ? toggleCorrectOption(questionIndex, optionIndex)
+                                    : setCorrectOption(questionIndex, optionIndex)
+                                }
                                 aria-label={`Marcar opcion ${optionIndex + 1} como correcta`}
                               />
                               <Input
@@ -451,7 +513,9 @@ export function AcademyModulesAdminPage() {
                           ))}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Selecciona con el radio button la unica respuesta correcta.
+                          {isMultiple
+                            ? 'Marca todas las respuestas correctas. El alumno debera seleccionar exactamente esas opciones.'
+                            : 'Selecciona con el radio button la unica respuesta correcta.'}
                         </p>
                       </div>
                     </section>
@@ -501,7 +565,11 @@ export function AcademyModulesAdminPage() {
                       <div className="min-w-0">
                         <p className="font-medium">{index + 1}. {q.question || 'Pregunta sin texto'}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Respuesta: {q.options[q.correctIndex] || 'Selecciona y escribe una opcion'}
+                          Respuesta:{' '}
+                          {getQuestionCorrectIndexes(q)
+                            .map((correctIndex) => q.options[correctIndex])
+                            .filter(Boolean)
+                            .join(', ') || 'Selecciona y escribe una opcion'}
                         </p>
                       </div>
                     </div>

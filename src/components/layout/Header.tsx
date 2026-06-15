@@ -18,6 +18,8 @@ import { hasPlanAccionAccess } from '@/features/plan-accion/lib/planAccionAccess
 import { APP_NAME, ROUTES } from '@/constants'
 import { cn } from '@/lib/utils'
 
+const DISCIPLINE_SCORE_LABEL = 'Score'
+
 export function Header() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -26,7 +28,7 @@ export function Header() {
   const { profile, logout } = useAuth()
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const { metrics: gamificationMetrics, isLoading: gamificationLoading } = useActionGamificationScore(profile?.id, {
-    enabled: profileMenuOpen,
+    enabled: Boolean(profile?.id),
   })
   const showPlanAccion = hasPlanAccionAccess(profile)
   const showNotifications = canAccessRouteByRole(profile?.rol, ROUTES.NOTIFICACIONES)
@@ -50,13 +52,13 @@ export function Header() {
         </Button>
         <h1 className="text-lg font-semibold truncate">{APP_NAME}</h1>
       </div>
-      <div className="flex items-center gap-1 sm:gap-2">
+      <div className="flex min-w-0 shrink items-center gap-1 sm:gap-2">
         {showPlanAccion ? (
           <Button
             variant={location.pathname === ROUTES.PLAN_ACCION ? 'secondary' : 'ghost'}
             size="sm"
             className={cn(
-              'gap-1.5 text-xs sm:text-sm',
+              'shrink-0 gap-1.5 text-xs sm:text-sm',
               location.pathname === ROUTES.PLAN_ACCION && 'font-medium'
             )}
             asChild
@@ -69,27 +71,19 @@ export function Header() {
           </Button>
         ) : null}
         {profile ? (
-          <div className="flex items-center gap-0.5 sm:gap-1">
+          <div className="flex min-w-0 items-center gap-1 sm:gap-1.5">
+            <DisciplineScoreHeaderChip
+              points={gamificationMetrics.totalPoints}
+              loading={gamificationLoading}
+            />
             <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2">
+                <Button variant="ghost" size="sm" className="min-w-0 gap-2">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                     <User className="h-4 w-4 text-primary" />
                   </div>
-                  <span className="hidden max-w-[120px] truncate sm:inline">
+                  <span className="hidden min-w-0 max-w-[96px] truncate md:max-w-[120px] lg:max-w-[160px] sm:inline">
                     {profile.nombre}
-                  </span>
-                  <span
-                    className={cn(
-                      'hidden items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums sm:inline-flex',
-                      scoreChipClass(gamificationMetrics.totalPoints)
-                    )}
-                    title="Score de disciplina operativa"
-                  >
-                    <Trophy className="h-3 w-3" aria-hidden />
-                    {!profileMenuOpen || gamificationLoading
-                      ? '...'
-                      : `${formatSignedPoints(gamificationMetrics.totalPoints)} pts`}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
@@ -131,6 +125,26 @@ export function Header() {
         ) : null}
       </div>
     </header>
+  )
+}
+
+function DisciplineScoreHeaderChip({ points, loading }: { points: number; loading: boolean }) {
+  const value = loading ? '...' : `${formatSignedPoints(points)} pts`
+
+  return (
+    <Link
+      to={ROUTES.DISCIPLINA}
+      className={cn(
+        'hidden shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors hover:bg-muted/40 sm:inline-flex',
+        scoreChipClass(points)
+      )}
+      title={DISCIPLINE_SCORE_LABEL}
+      aria-label={`${DISCIPLINE_SCORE_LABEL}: ${value}`}
+    >
+      <Trophy className="h-3 w-3 shrink-0" aria-hidden />
+      <span className="hidden whitespace-nowrap md:inline">{DISCIPLINE_SCORE_LABEL}</span>
+      <span className="whitespace-nowrap tabular-nums">{value}</span>
+    </Link>
   )
 }
 

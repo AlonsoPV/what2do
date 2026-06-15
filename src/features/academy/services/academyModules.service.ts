@@ -24,6 +24,26 @@ function normalizeStringArray(value: string[]): string[] {
   return value.map((item) => item.trim()).filter(Boolean)
 }
 
+function normalizeQuizQuestion(question: QuizQuestion): QuizQuestion {
+  const correctIndexes = Array.isArray(question.correctIndexes)
+    ? question.correctIndexes
+    : Number.isInteger(question.correctIndex)
+      ? [question.correctIndex as number]
+      : []
+  const normalizedCorrectIndexes = correctIndexes
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < question.options.length)
+    .sort((a, b) => a - b)
+  const firstCorrect = normalizedCorrectIndexes[0] ?? 0
+  const type = question.type === 'multiple' || normalizedCorrectIndexes.length > 1 ? 'multiple' : 'single'
+
+  return {
+    ...question,
+    type,
+    correctIndex: firstCorrect,
+    correctIndexes: normalizedCorrectIndexes.length ? normalizedCorrectIndexes : [firstCorrect],
+  }
+}
+
 export function academyModuleFromRow(row: AcademyModuleRow): LearningModule {
   return {
     id: row.id,
@@ -36,7 +56,7 @@ export function academyModuleFromRow(row: AcademyModuleRow): LearningModule {
     steps: row.steps ?? [],
     exercise: row.exercise,
     deliverable: row.deliverable,
-    quiz: row.quiz ?? [],
+    quiz: (row.quiz ?? []).map(normalizeQuizQuestion),
   }
 }
 

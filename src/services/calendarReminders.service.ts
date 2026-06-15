@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { validateFutureInstant } from '@/lib/futureDateValidation'
 
 const TABLE = 'calendar_reminders'
 const CALENDAR_REMINDER_SELECT =
@@ -63,6 +64,8 @@ export const calendarRemindersService = {
   },
 
   async create(input: CreateCalendarReminderInput): Promise<CalendarReminder> {
+    const futureError = validateFutureInstant(input.fecha_limite, 'La fecha y hora del recordatorio')
+    if (futureError) throw new Error(futureError)
     const { data, error } = await supabase
       .from(TABLE)
       .insert({

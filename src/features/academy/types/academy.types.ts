@@ -3,8 +3,12 @@ export type AcademyStepKey = `${number}-${number}` | `${number}-exercise`
 export interface QuizQuestion {
   question: string
   options: string[]
-  correctIndex: number
+  type?: 'single' | 'multiple'
+  correctIndex?: number
+  correctIndexes?: number[]
 }
+
+export type QuizAnswer = number | number[]
 
 /** Concepto clave con descripción detallada (referencia Academia O2C). */
 export interface AcademyConcept {

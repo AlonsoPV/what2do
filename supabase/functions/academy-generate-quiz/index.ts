@@ -7,8 +7,9 @@ import { lovableChatCompletion, MAX_CHAT_MESSAGE_CHARS } from '../_shared/lovabl
 const SYSTEM_PROMPT =
   'Eres un diseñador instruccional experto en operaciones O2C. ' +
   'A partir del texto de un PDF, genera un quiz de evaluacion en espanol. ' +
-  'Devuelve SOLO JSON valido con la forma {"quiz":[{"question":"...","options":["...","...","...","..."],"correctIndex":0}]}. ' +
-  'Cada pregunta debe tener 4 opciones, una sola correcta, correctIndex de 0 a 3, y respuestas claras.'
+  'Devuelve SOLO JSON valido con la forma {"quiz":[{"question":"...","type":"single","options":["...","...","...","..."],"correctIndex":0,"correctIndexes":[0]}]}. ' +
+  'Cada pregunta debe tener 4 opciones. Usa type "single" para una sola correcta y type "multiple" cuando haya varias correctas. ' +
+  'correctIndexes debe contener todos los indices correctos de 0 a 3; correctIndex debe ser el primer indice correcto.'
 
 function parseQuiz(raw: string): unknown {
   const trimmed = raw.trim()
@@ -22,11 +23,18 @@ function normalizeQuestion(q: unknown) {
   const record = q as Record<string, unknown>
   const question = String(record.question ?? '').trim()
   const options = Array.isArray(record.options) ? record.options.map((o) => String(o).trim()).filter(Boolean) : []
-  const correctIndex = Number(record.correctIndex)
-  if (!question || options.length !== 4 || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) {
+  const rawCorrectIndexes = Array.isArray(record.correctIndexes) ? record.correctIndexes : [record.correctIndex]
+  const correctIndexes = rawCorrectIndexes
+    .map((index) => Number(index))
+    .filter((index) => Number.isInteger(index) && index >= 0 && index <= 3)
+    .sort((a, b) => a - b)
+  const uniqueCorrectIndexes = [...new Set(correctIndexes)]
+  if (!question || options.length !== 4 || uniqueCorrectIndexes.length === 0) {
     return null
   }
-  return { question, options, correctIndex }
+  const type = String(record.type ?? '').trim() === 'multiple' || uniqueCorrectIndexes.length > 1 ? 'multiple' : 'single'
+  const normalizedCorrectIndexes = type === 'single' ? [uniqueCorrectIndexes[0]] : uniqueCorrectIndexes
+  return { question, type, options, correctIndex: normalizedCorrectIndexes[0], correctIndexes: normalizedCorrectIndexes }
 }
 
 Deno.serve(async (req) => {

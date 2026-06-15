@@ -297,7 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         )
 
         if (runId !== bootstrapRunIdRef.current) {
-          devWarn('stale bootstrap ignored', { runId, latestRunId: bootstrapRunIdRef.current, reason, elapsedMs })
+          devLog('stale bootstrap ignored', { runId, latestRunId: bootstrapRunIdRef.current, reason, elapsedMs })
           return result
         }
 
@@ -542,6 +542,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         devLog('SIGNED_IN ignored: duplicate after full auth for this user', {
           userId: session.user.id,
         })
+        return
+      }
+
+      if (
+        (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') &&
+        session?.user?.id &&
+        session.user.id === lastFullyAuthenticatedUserIdRef.current
+      ) {
+        devLog('auth event ignored: session already bootstrapped', { event, userId: session.user.id })
+        return
+      }
+
+      if (
+        event === 'INITIAL_SESSION' &&
+        initialCheckDoneRef.current &&
+        session?.user?.id &&
+        session.user.id === lastFullyAuthenticatedUserIdRef.current
+      ) {
+        devLog('INITIAL_SESSION ignored: bootstrap already completed', { userId: session.user.id })
         return
       }
 

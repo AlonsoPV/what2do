@@ -3,6 +3,8 @@ import type {
   AcademyProgressState,
   AcademyStepKey,
   LearningModule,
+  QuizAnswer,
+  QuizQuestion,
 } from '../types/academy.types'
 
 export function createEmptyAcademyProgress(): AcademyProgressState {
@@ -100,6 +102,32 @@ export function countAcademyModuleBuckets(
   return { completados, enProgreso, pendientes }
 }
 
-export function allQuizAnswersCorrect(module: LearningModule, answers: number[]): boolean {
-  return module.quiz.every((q, i) => answers[i] === q.correctIndex)
+export function getQuestionCorrectIndexes(question: QuizQuestion): number[] {
+  const fromMultiple = Array.isArray(question.correctIndexes) ? question.correctIndexes : []
+  const indexes = fromMultiple.length > 0 ? fromMultiple : [question.correctIndex]
+  return indexes
+    .filter((index): index is number => Number.isInteger(index))
+    .filter((index) => index >= 0 && index < question.options.length)
+    .sort((a, b) => a - b)
+}
+
+export function isMultipleChoiceQuestion(question: QuizQuestion): boolean {
+  return question.type === 'multiple' || getQuestionCorrectIndexes(question).length > 1
+}
+
+function normalizeAnswerIndexes(answer: QuizAnswer | undefined): number[] {
+  const indexes = Array.isArray(answer) ? answer : [answer]
+  return indexes
+    .filter((index): index is number => Number.isInteger(index))
+    .sort((a, b) => a - b)
+}
+
+export function isQuizAnswerCorrect(question: QuizQuestion, answer: QuizAnswer | undefined): boolean {
+  const correct = getQuestionCorrectIndexes(question)
+  const selected = normalizeAnswerIndexes(answer)
+  return correct.length > 0 && correct.length === selected.length && correct.every((index, i) => index === selected[i])
+}
+
+export function allQuizAnswersCorrect(module: LearningModule, answers: QuizAnswer[]): boolean {
+  return module.quiz.every((q, i) => isQuizAnswerCorrect(q, answers[i]))
 }

@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase/client'
+import { validateFutureDateTimeCDMX } from '@/lib/futureDateValidation'
 import { gapActionsLogService } from '@/services/gapActionsLog.service'
 import { listGapIdsForAccion } from '@/services/accionLinks.service'
 import { usuariosService } from '@/services/usuarios.service'
@@ -294,6 +295,12 @@ export const accionesService = {
    */
   async create(payload: Partial<AccionDiaria>) {
     const cleanPayload = normalizeAccionPayload(payload)
+    const futureError = validateFutureDateTimeCDMX(
+      cleanPayload.fecha,
+      cleanPayload.hora_limite,
+      'La fecha y hora limite de la accion'
+    )
+    if (futureError) throw new Error(futureError)
     const { data, error } = await supabase
       .from(TABLE)
       .insert(cleanPayload)

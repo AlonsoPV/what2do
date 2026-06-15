@@ -24,6 +24,12 @@ type GoogleSyncPayload = {
   attendees?: string[]
 }
 
+type ResolvedUsuario = {
+  id: string
+  nombre: string
+  email: string
+}
+
 type UsuarioEmailProfile = {
   id: string
   user_id: string | null
@@ -33,6 +39,11 @@ type UsuarioEmailProfile = {
 
 const TIME_ZONE = 'America/Mexico_City'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const SOURCE_LABELS: Record<GoogleSource, string> = {
+  accion: 'Accion',
+  recordatorio: 'Recordatorio',
+  minuta: 'Minuta',
+}
 
 function env(name: string): string {
   const value = Deno.env.get(name)?.trim()
@@ -48,23 +59,53 @@ function sanitizeText(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value.trim() : fallback
 }
 
+const DEFAULT_APP_BASE_URL = 'https://dev-tablero-operativo.vercel.app'
+
+function normalizeAppBaseUrl(value: string | undefined): string | null {
+  const trimmed = value?.trim().replace(/\/+$/, '')
+  if (!trimmed) return null
+
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const url = new URL(withProtocol)
+    const hostname = url.hostname.toLowerCase()
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1'
+    if (!isLocalhost && !hostname.includes('.')) return null
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
 function appBaseUrl(): string {
-  return (
+  return normalizeAppBaseUrl(
     Deno.env.get('APP_BASE_URL') ||
     Deno.env.get('PUBLIC_APP_URL') ||
-    Deno.env.get('SITE_URL') ||
-    'https://dev-tablero-operativo.vercel.app'
-  ).replace(/\/+$/, '')
+    Deno.env.get('SITE_URL')
+  ) || DEFAULT_APP_BASE_URL
 }
 
 function sourceUrl(input: GoogleSyncPayload): string {
+  const baseUrl = appBaseUrl()
   if (input.source === 'accion' && input.actionId) {
-    return `${appBaseUrl()}/kanban?accion=${encodeURIComponent(input.actionId)}`
+    return `${baseUrl}/kanban?accion=${encodeURIComponent(input.actionId)}`
   }
-  if (input.date) {
-    return `${appBaseUrl()}/calendario?fecha=${encodeURIComponent(input.date)}`
+  const date =
+    input.date ||
+    (input.dueAt && Number.isFinite(new Date(input.dueAt).getTime())
+      ? new Date(input.dueAt).toISOString().slice(0, 10)
+      : '')
+  if (date) {
+    const tipo =
+      input.source === 'recordatorio'
+        ? '&tipo=recordatorios'
+        : input.source === 'minuta'
+          ? '&tipo=minutas'
+          : ''
+    return `${baseUrl}/calendario?fecha=${encodeURIComponent(date)}${tipo}`
   }
-  return appBaseUrl()
+  return baseUrl
 }
 
 function parseDateTime(input: GoogleSyncPayload): Date {
@@ -79,8 +120,45 @@ function parseDateTime(input: GoogleSyncPayload): Date {
   return new Date(Date.now() + 60 * 60 * 1000)
 }
 
+function formatDateTimeMx(date: Date): string {
+  return date.toLocaleString('es-MX', {
+    timeZone: TIME_ZONE,
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
 function addMinutes(date: Date, minutes: number): Date {
   return new Date(date.getTime() + minutes * 60_000)
+}
+
+function buildWorkspaceDescription(input: {
+  source: GoogleSource
+  title: string
+  description: string
+  url: string
+  start: Date
+  responsibleName?: string
+  actionId?: string
+}): string {
+  const lines = [
+    'Tablero Operativo',
+    '',
+    `Tipo: ${SOURCE_LABELS[input.source]}`,
+    `Fecha: ${formatDateTimeMx(input.start)}`,
+    input.responsibleName ? `Responsable: ${input.responsibleName}` : '',
+    input.actionId ? `Accion ID: ${input.actionId}` : '',
+    '',
+    'Descripcion:',
+    input.description || input.title,
+    '',
+    'Abrir en tablero:',
+    input.url,
+  ]
+
+  return lines
+    .filter((line, index, array) => line !== '' || (array[index - 1] !== '' && array[index + 1] !== ''))
+    .join('\n')
 }
 
 function toRfc2822(input: { from: string; to: string[]; subject: string; text: string }): string {
@@ -136,10 +214,10 @@ async function googleJson<T>(url: string, token: string, body: unknown): Promise
   return data as T
 }
 
-async function resolveUsuarioEmails(
+async function resolveUsuarios(
   adminClient: ReturnType<typeof createClient>,
   ids: string[]
-): Promise<string[]> {
+): Promise<ResolvedUsuario[]> {
   const uniqueIds = [...new Set(ids.filter((id) => UUID_RE.test(id)))]
   if (uniqueIds.length === 0) return []
 
@@ -150,16 +228,26 @@ async function resolveUsuarioEmails(
     .returns<UsuarioEmailProfile[]>()
   if (error || !data) return []
 
-  const emails = await Promise.all(
+  const users = await Promise.all(
     data
       .filter((profile) => profile.activo !== false && profile.user_id)
       .map(async (profile) => {
         const result = await adminClient.auth.admin.getUserById(profile.user_id!)
-        return result.data.user?.email?.trim() ?? ''
+        const email = result.data.user?.email?.trim() ?? ''
+        if (!email) return null
+        return {
+          id: profile.id,
+          nombre: profile.nombre?.trim() || email,
+          email,
+        }
       })
   )
 
-  return [...new Set(emails.filter(Boolean))]
+  const uniqueByEmail = new Map<string, ResolvedUsuario>()
+  for (const user of users) {
+    if (user) uniqueByEmail.set(user.email, user)
+  }
+  return [...uniqueByEmail.values()]
 }
 
 Deno.serve(async (req) => {
@@ -187,17 +275,26 @@ Deno.serve(async (req) => {
     })
 
     const currentEmail = auth.data.user.email?.trim() ?? ''
-    const profileEmails = await resolveUsuarioEmails(
-      adminClient,
-      body.responsibleUserId ? [body.responsibleUserId] : []
-    )
+    const start = parseDateTime(body)
+    const resolvedUsers = await resolveUsuarios(adminClient, body.responsibleUserId ? [body.responsibleUserId] : [])
+    const profileEmails = resolvedUsers.map((profile) => profile.email)
+    const responsibleName = body.responsibleUserId
+      ? resolvedUsers.find((profile) => profile.id === body.responsibleUserId)?.nombre
+      : undefined
     const explicitAttendees = Array.isArray(body.attendees) ? body.attendees : []
     const recipients = [...new Set([...explicitAttendees, ...profileEmails, currentEmail].filter(Boolean))]
     const url = sourceUrl(body)
-    const details = [description, '', `Abrir en tablero: ${url}`].filter(Boolean).join('\n')
+    const details = buildWorkspaceDescription({
+      source,
+      title,
+      description,
+      url,
+      start,
+      responsibleName,
+      actionId: body.actionId,
+    })
 
     if (target === 'task') {
-      const due = parseDateTime(body)
       const tasklist = encodeURIComponent(optionalEnv('GOOGLE_TASKLIST_ID', '@default'))
       const task = await googleJson<{ id?: string; title?: string; webViewLink?: string }>(
         `https://tasks.googleapis.com/tasks/v1/lists/${tasklist}/tasks`,
@@ -205,7 +302,7 @@ Deno.serve(async (req) => {
         {
           title,
           notes: details,
-          due: due.toISOString(),
+          due: start.toISOString(),
         }
       )
       return jsonResponse({ ok: true, target, id: task.id ?? null, url: task.webViewLink ?? null })
@@ -229,7 +326,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, target, id: sent.id ?? null, recipients: to })
     }
 
-    const start = parseDateTime(body)
     const end = addMinutes(start, source === 'accion' ? 30 : 60)
     const calendarId = encodeURIComponent(optionalEnv('GOOGLE_CALENDAR_ID', 'primary'))
     const withMeet = target === 'calendar_meet'

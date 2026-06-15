@@ -479,6 +479,7 @@ export function AccionForm({
             <Input
               id={fieldId('fecha')}
               type="date"
+              min={todayWallClockCDMX()}
               {...form.register('fecha')}
               disabled={isEditProtectedReadonly}
               className={`${inputBase} h-10`}

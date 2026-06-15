@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { validateTodayOrFutureDateCDMX } from '@/lib/futureDateValidation'
 
 const TABLE = 'calendar_notes'
 const CALENDAR_NOTE_SELECT = 'id,user_id,fecha,titulo,texto,created_at,updated_at'
@@ -50,6 +51,8 @@ export const calendarNotesService = {
   },
 
   async create(input: { user_id: string; fecha: string; titulo: string; texto: string }): Promise<CalendarNote> {
+    const dateError = validateTodayOrFutureDateCDMX(input.fecha, 'La fecha del elemento')
+    if (dateError) throw new Error(dateError)
     const { data, error } = await supabase
       .from(TABLE)
       .insert({

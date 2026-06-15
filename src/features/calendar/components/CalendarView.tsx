@@ -19,6 +19,12 @@ import {
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -32,7 +38,13 @@ import { ROUTES } from '@/constants'
 import { EvidenciaCargadaIndicator } from '@/features/operations'
 import { useAcciones } from '@/features/operations/hooks/useAcciones'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
+import { getAppNow } from '@/lib/clock'
 import { dateOnlyCDMX, monthName } from '@/lib/dateUtils'
+import {
+  splitDateTimeLocal,
+  validateFutureDateTimeCDMX,
+  validateTodayOrFutureDateCDMX,
+} from '@/lib/futureDateValidation'
 import { cn } from '@/lib/utils'
 import { accionComentariosService } from '@/services/accionComentarios.service'
 import { accionesService } from '@/services/acciones.service'
@@ -49,6 +61,7 @@ import type { AccionesFilter } from '@/services/acciones.service'
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const WEEKDAYS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+const CDMX_TZ = 'America/Mexico_City'
 
 type CalendarDayTab = 'acciones' | 'recordatorios' | 'minutas'
 
@@ -156,7 +169,20 @@ function filterAccionesByCalendarVisibility(
 }
 
 function datetimeLocalForDate(date: string | null): string {
-  const base = date ?? dateOnlyCDMX(new Date().toISOString())
+  const now = getAppNow()
+  const today = dateOnlyCDMX(now.toISOString())
+  const base = date ?? today
+  if (base === today) {
+    const next = new Date(now.getTime() + 30 * 60_000)
+    const nextDate = dateOnlyCDMX(next.toISOString())
+    const nextTime = next.toLocaleTimeString('en-GB', {
+      timeZone: CDMX_TZ,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    return `${nextDate}T${nextTime}`
+  }
   return `${base}T09:00`
 }
 
@@ -483,7 +509,7 @@ export function CalendarView({
   )
 
   const openNoteDialog = useCallback(() => {
-    if (!selectedDate) setSelectedDate(dateOnlyCDMX(new Date().toISOString()))
+    if (!selectedDate) setSelectedDate(dateOnlyCDMX(getAppNow().toISOString()))
     setEditingNote(null)
     setNoteTitle('')
     setNoteText('')
@@ -500,7 +526,7 @@ export function CalendarView({
   const noteSaving = createNote.isPending || updateNote.isPending
 
   const openReminderDialog = useCallback(() => {
-    const nextDate = selectedDate ?? dateOnlyCDMX(new Date().toISOString())
+    const nextDate = selectedDate ?? dateOnlyCDMX(getAppNow().toISOString())
     if (!selectedDate) setSelectedDate(nextDate)
     setReminderDeadline(datetimeLocalForDate(nextDate))
     setReminderDialogOpen(true)
@@ -834,6 +860,7 @@ export function CalendarView({
                     target,
                     title: reminder.titulo,
                     description: reminder.descripcion,
+                    date: dateOnlyFromReminder(reminder),
                     dueAt: reminder.fecha_limite,
                   })
                 }
@@ -902,6 +929,7 @@ export function CalendarView({
                     target,
                     title: reminder.titulo,
                     description: reminder.descripcion,
+                    date: dateOnlyFromReminder(reminder),
                     dueAt: reminder.fecha_limite,
                   })
                 }
@@ -967,7 +995,12 @@ export function CalendarView({
             })
             return
           }
-          const targetDate = selectedDate ?? dateOnlyCDMX(new Date().toISOString())
+          const targetDate = selectedDate ?? dateOnlyCDMX(getAppNow().toISOString())
+          const dateError = validateTodayOrFutureDateCDMX(targetDate, 'La fecha del elemento')
+          if (dateError) {
+            toast.error(dateError)
+            return
+          }
           createNote.mutate({
             user_id: currentUser.id,
             fecha: targetDate,
@@ -991,6 +1024,16 @@ export function CalendarView({
         onSubmit={() => {
           if (!currentUser?.id) return
           if (!reminderTitle.trim() || !reminderDeadline || !reminderDescription.trim()) return
+          const parts = splitDateTimeLocal(reminderDeadline)
+          const futureError = validateFutureDateTimeCDMX(
+            parts?.date,
+            parts?.time,
+            'La fecha y hora del recordatorio'
+          )
+          if (futureError) {
+            toast.error(futureError)
+            return
+          }
           createReminder.mutate({
             user_id: currentUser.id,
             titulo: reminderTitle,
@@ -1200,7 +1243,7 @@ function CalendarRemindersPanel({
                   type="button"
                   variant={reminder.completed_at ? 'ghost' : 'outline'}
                   size="sm"
-                  className="h-8 w-full text-xs sm:w-auto"
+                  className="h-8 shrink-0 text-xs"
                   disabled={Boolean(reminder.completed_at) || closingId === reminder.id}
                   onClick={() => onComplete(reminder.id)}
                 >
@@ -1247,10 +1290,10 @@ function CalendarActionsPanel({
       ) : (
         <ul className="max-h-[min(18rem,50vh)] space-y-1.5 overflow-y-auto overscroll-y-contain">
           {acciones.map((accion) => (
-            <li key={accion.id}>
+            <li key={accion.id} className="rounded-lg border border-border/50 bg-background px-2.5 py-2">
               <button
                 type="button"
-                className="flex w-full min-h-11 items-center gap-2 rounded-lg border border-border/50 bg-background px-2.5 py-2 text-left transition-colors hover:bg-muted/30 active:bg-muted/40"
+                className="flex w-full min-h-11 items-center gap-2 text-left transition-colors hover:text-foreground active:text-foreground"
                 onClick={() => onOpenAccion(accion)}
               >
                 <div className="min-w-0 flex-1">
@@ -1269,7 +1312,7 @@ function CalendarActionsPanel({
               </button>
               {onGoogleSync ? (
                 <GoogleSyncButtons
-                  className="mt-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-2"
+                  className="mt-1.5"
                   targets={['task', 'calendar', 'gmail']}
                   disabled={googleSyncDisabled}
                   onSync={(target) =>
@@ -1296,37 +1339,67 @@ function GoogleSyncButtons({
   onSync: (target: GoogleWorkspaceTarget) => void
   className?: string
 }) {
-  const meta: Record<GoogleWorkspaceTarget, { label: string; icon: ReactNode }> = {
-    task: { label: 'Google Tasks', icon: <ListTodo className="h-3.5 w-3.5" aria-hidden /> },
-    calendar: { label: 'Google Calendar', icon: <CalendarIcon className="h-3.5 w-3.5" aria-hidden /> },
-    calendar_meet: { label: 'Google Meet', icon: <Video className="h-3.5 w-3.5" aria-hidden /> },
-    gmail: { label: 'Gmail', icon: <Mail className="h-3.5 w-3.5" aria-hidden /> },
+  const meta: Record<GoogleWorkspaceTarget, { label: string; helper: string; icon: ReactNode }> = {
+    task: {
+      label: 'Crear task',
+      helper: 'Google Tasks',
+      icon: <ListTodo className="h-3.5 w-3.5" aria-hidden />,
+    },
+    calendar: {
+      label: 'Crear evento',
+      helper: 'Google Calendar',
+      icon: <CalendarIcon className="h-3.5 w-3.5" aria-hidden />,
+    },
+    calendar_meet: {
+      label: 'Crear Meet',
+      helper: 'Calendar + liga Meet',
+      icon: <Video className="h-3.5 w-3.5" aria-hidden />,
+    },
+    gmail: {
+      label: 'Enviar correo',
+      helper: 'Gmail',
+      icon: <Mail className="h-3.5 w-3.5" aria-hidden />,
+    },
   }
 
   return (
-    <div className={cn('flex flex-wrap items-center gap-1.5', className)}>
-      {targets.map((target) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
         <Button
-          key={target}
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 px-2 text-[11px]"
+          className={cn('h-8 shrink-0 gap-1.5 px-2 text-[11px]', className)}
           disabled={disabled}
-          onClick={() => onSync(target)}
-          title={meta[target].label}
         >
-          {meta[target].icon}
-          {target === 'calendar_meet'
-            ? 'Meet'
-            : target === 'calendar'
-              ? 'Calendar'
-              : target === 'task'
-                ? 'Tasks'
-                : 'Gmail'}
+          <Send className="h-3.5 w-3.5" aria-hidden />
+          <span>Google</span>
         </Button>
-      ))}
-    </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[210px]">
+        {targets.map((target) => (
+          <DropdownMenuItem
+            key={target}
+            className="gap-2 py-2"
+            disabled={disabled}
+            onClick={(event) => {
+              event.stopPropagation()
+              onSync(target)
+            }}
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              {meta[target].icon}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium leading-tight">{meta[target].label}</span>
+              <span className="block truncate text-[11px] leading-tight text-muted-foreground">
+                {meta[target].helper}
+              </span>
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

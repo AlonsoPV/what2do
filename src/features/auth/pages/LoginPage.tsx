@@ -3,8 +3,8 @@
  * Si el usuario ya está autenticado y tiene perfil válido, redirige al dashboard.
  */
 
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, LayoutDashboard, ShieldCheck } from 'lucide-react'
 import { APP_NAME, ROUTES } from '@/constants'
@@ -18,6 +18,7 @@ import type { LoginFormValues } from '../schemas/login.schema'
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const {
     status,
     authLoading,
@@ -31,12 +32,21 @@ export function LoginPage() {
   } = useAuth()
 
   const pendingLoginResolutionRef = useRef(false)
+  const redirectAfterLogin = useMemo(() => {
+    const from = location.state && typeof location.state === 'object' ? location.state.from : null
+    const pathname = typeof from?.pathname === 'string' ? from.pathname : ''
+    const search = typeof from?.search === 'string' ? from.search : ''
+    const hash = typeof from?.hash === 'string' ? from.hash : ''
+    return pathname.startsWith('/') && pathname !== ROUTES.LOGIN
+      ? `${pathname}${search}${hash}`
+      : ROUTES.DASHBOARD
+  }, [location.state])
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && isReady && profile?.activo) {
-      navigate(ROUTES.DASHBOARD, { replace: true })
+      navigate(redirectAfterLogin, { replace: true })
     }
-  }, [authLoading, isAuthenticated, isReady, profile?.activo, navigate])
+  }, [authLoading, isAuthenticated, isReady, profile?.activo, navigate, redirectAfterLogin])
 
   useEffect(() => {
     if (!pendingLoginResolutionRef.current || authLoading) return
@@ -47,7 +57,7 @@ export function LoginPage() {
       pendingLoginResolutionRef.current = false
       setLoginLoading(false)
       toast.success('Sesión iniciada', { closeButton: true })
-      navigate(ROUTES.DASHBOARD, { replace: true })
+      navigate(redirectAfterLogin, { replace: true })
       return
     }
 
@@ -64,7 +74,7 @@ export function LoginPage() {
       setLoginLoading(false)
       setLoginError(error?.message ?? 'No pudimos cargar tu perfil.')
     }
-  }, [authLoading, sessionStatus, profileStatus, profile?.activo, error?.message, logout, navigate])
+  }, [authLoading, sessionStatus, profileStatus, profile?.activo, error?.message, logout, navigate, redirectAfterLogin])
 
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)

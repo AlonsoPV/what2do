@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { supabase } from '@/lib/supabase/client'
-import type { AcademyProgressRow, AcademyProgressState, LearningModule, QuizSubmitResult } from '../types/academy.types'
+import type { AcademyProgressRow, AcademyProgressState, LearningModule, QuizAnswer, QuizSubmitResult } from '../types/academy.types'
 import {
   academyProgressFromRow,
   academyProgressToRowPayload,
   allQuizAnswersCorrect,
   cloneAcademyProgress,
   createEmptyAcademyProgress,
+  isQuizAnswerCorrect,
   isModuleUnlocked,
   moduleExerciseStepKey,
   moduleStepKey,
@@ -131,12 +132,12 @@ export function useAcademyProgress() {
   )
 
   const submitQuiz = useCallback(
-    async (module: LearningModule, answers: number[]): Promise<QuizSubmitResult> => {
+    async (module: LearningModule, answers: QuizAnswer[]): Promise<QuizSubmitResult> => {
       const allCorrect = allQuizAnswersCorrect(module, answers)
       if (!allCorrect) {
         const incorrectIndexes = module.quiz
           .map((q, i) => ({ q, i }))
-          .filter(({ q, i }) => answers[i] !== q.correctIndex)
+          .filter(({ q, i }) => !isQuizAnswerCorrect(q, answers[i]))
           .map(({ i }) => i)
         return { allCorrect: false, incorrectIndexes }
       }

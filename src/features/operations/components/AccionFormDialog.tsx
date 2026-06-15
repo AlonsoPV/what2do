@@ -66,6 +66,7 @@ import {
 } from '@/services/accionLinks.service'
 
 import { todayWallClockCDMX } from '@/lib/dateUtils'
+import { validateFutureDateTimeCDMX } from '@/lib/futureDateValidation'
 import {
   downloadLocalFile,
   isPreviewableDocument,
@@ -307,6 +308,18 @@ export function AccionFormDialog({
     const gapIds = isEditProtectedReadonly ? originalGapIds : (values.gap_ids ?? [])
     const catalogKpiIds = isEditProtectedReadonly ? originalCatalogKpiIds : (values.catalog_kpi_ids ?? [])
     const fecha = isEditProtectedReadonly && accion ? accion.fecha : (values.fecha ?? todayISO())
+    if (!isEdit) {
+      const futureError = validateFutureDateTimeCDMX(
+        fecha,
+        values.hora_limite,
+        'La fecha y hora limite de la accion'
+      )
+      if (futureError) {
+        setSubmitFooterErrors([futureError])
+        toast.error(futureError)
+        return
+      }
+    }
     const prioridad =
       isEditProtectedReadonly && accion
         ? accion.prioridad
