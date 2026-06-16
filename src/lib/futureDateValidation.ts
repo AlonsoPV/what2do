@@ -70,3 +70,16 @@ export function validateFutureInstant(value: string | null | undefined, label: s
   }
   return null
 }
+
+/** Valida `datetime-local` contra el reloj real (ignora `VITE_DEV_FIXED_NOW`). */
+export function validateFutureDatetimeLocalWallClock(
+  value: string | null | undefined,
+  label: string
+): string | null {
+  if (!value) return `${label} debe quedar despues del momento de creacion.`
+  const ms = new Date(value).getTime()
+  if (!Number.isFinite(ms) || ms <= Date.now()) {
+    return `${label} debe quedar despues del momento de creacion.`
+  }
+  return null
+}

@@ -7,17 +7,15 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ListTodo,
-  Mail,
-  Plus,
+  ClipboardList,
   Send,
   SlidersHorizontal,
   StickyNote,
   Pencil,
-  Video,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,10 +37,9 @@ import { EvidenciaCargadaIndicator } from '@/features/operations'
 import { useAcciones } from '@/features/operations/hooks/useAcciones'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import { getAppNow } from '@/lib/clock'
-import { dateOnlyCDMX, monthName } from '@/lib/dateUtils'
+import { addCalendarDays, dateOnlyCDMX, todayWallClockCDMX, wallClockDatetimeLocalAhead } from '@/lib/dateUtils'
 import {
-  splitDateTimeLocal,
-  validateFutureDateTimeCDMX,
+  validateFutureDatetimeLocalWallClock,
   validateTodayOrFutureDateCDMX,
 } from '@/lib/futureDateValidation'
 import { cn } from '@/lib/utils'
@@ -50,18 +47,15 @@ import { accionComentariosService } from '@/services/accionComentarios.service'
 import { accionesService } from '@/services/acciones.service'
 import { calendarNotesService, type CalendarNote } from '@/services/calendarNotes.service'
 import { calendarRemindersService, type CalendarReminder } from '@/services/calendarReminders.service'
-import {
-  googleWorkspaceService,
-  type GoogleWorkspaceSyncInput,
-  type GoogleWorkspaceTarget,
-} from '@/services/googleWorkspace.service'
 import type { AccionComentarioVisibility } from '@/services/accionComentarios.service'
 import type { AccionDiaria, ActionStatus } from '@/types'
 import type { AccionesFilter } from '@/services/acciones.service'
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const WEEKDAYS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
-const CDMX_TZ = 'America/Mexico_City'
+
+/** Calendario: acciones activas = cualquier estado excepto Verificado. */
+const CALENDAR_EXCLUDED_STATUSES: ActionStatus[] = ['Verificado']
 
 type CalendarDayTab = 'acciones' | 'recordatorios' | 'minutas'
 
@@ -83,64 +77,65 @@ export interface CalendarViewProps {
   filterBar?: ReactNode
 }
 
-function currentYearMonth(): { year: number; month: number } {
-  const d = new Date()
-  return { year: d.getFullYear(), month: d.getMonth() + 1 }
-}
-
-function yearMonthFromDate(date: string): { year: number; month: number } {
-  const [year, month] = date.split('-').map(Number)
-  if (!year || !month) return currentYearMonth()
-  return { year, month }
-}
-
 function weekdayMondayFirst(date: Date): number {
   return (date.getDay() + 6) % 7
 }
 
-function getCalendarDays(year: number, month: number): { date: string; isCurrentMonth: boolean; day: number }[] {
-  const first = new Date(year, month - 1, 1)
-  const startPad = weekdayMondayFirst(first)
-  const daysInMonth = new Date(year, month, 0).getDate()
-  const totalCells = 42
-  const result: { date: string; isCurrentMonth: boolean; day: number }[] = []
+const CALENDAR_VISIBLE_WEEKS = 4
+const CALENDAR_VISIBLE_DAYS = CALENDAR_VISIBLE_WEEKS * 7
 
-  if (startPad > 0) {
-    const prevDate = new Date(year, month - 2, 1)
-    const prevYear = prevDate.getFullYear()
-    const prevMonth = prevDate.getMonth() + 1
-    const prevLastDay = new Date(year, month - 1, 0).getDate()
-    for (let i = 0; i < startPad; i += 1) {
-      const day = prevLastDay - startPad + 1 + i
-      result.push({
-        date: `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
-        isCurrentMonth: false,
-        day,
-      })
-    }
+function mondayOfWeekContaining(ymd: string): string {
+  const [year, month, day] = ymd.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() - weekdayMondayFirst(date))
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function defaultGridStartDate(): string {
+  return mondayOfWeekContaining(todayWallClockCDMX())
+}
+
+function getCalendarDays(gridStartYmd: string): { date: string; day: number }[] {
+  const result: { date: string; day: number }[] = []
+  for (let i = 0; i < CALENDAR_VISIBLE_DAYS; i += 1) {
+    const date = addCalendarDays(gridStartYmd, i)
+    const day = Number(date.split('-')[2])
+    result.push({ date, day })
+  }
+  return result
+}
+
+function formatCalendarPeriodLabel(
+  startYmd: string,
+  endYmd: string
+): { primary: string; secondary: string; dateTime: string } {
+  const start = new Date(`${startYmd}T12:00:00`)
+  const end = new Date(`${endYmd}T12:00:00`)
+  const startYear = start.getFullYear()
+  const endYear = end.getFullYear()
+  const startMonth = start.getMonth()
+  const endMonth = end.getMonth()
+  const startDay = start.getDate()
+  const endDay = end.getDate()
+
+  const dayMonth = (date: Date) =>
+    date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+
+  let primary: string
+  if (startYear === endYear && startMonth === endMonth) {
+    const month = start.toLocaleDateString('es-MX', { month: 'short' })
+    primary = `${startDay} – ${endDay} ${month}`
+  } else {
+    primary = `${dayMonth(start)} – ${dayMonth(end)}`
   }
 
-  for (let i = 1; i <= daysInMonth; i += 1) {
-    result.push({
-      date: `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`,
-      isCurrentMonth: true,
-      day: i,
-    })
-  }
+  const secondary = startYear === endYear ? String(startYear) : `${startYear} – ${endYear}`
 
-  const nextDate = new Date(year, month, 1)
-  const nextYear = nextDate.getFullYear()
-  const nextMonth = nextDate.getMonth() + 1
-  const remaining = totalCells - result.length
-  for (let i = 1; i <= remaining; i += 1) {
-    result.push({
-      date: `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(i).padStart(2, '0')}`,
-      isCurrentMonth: false,
-      day: i,
-    })
+  return {
+    primary,
+    secondary,
+    dateTime: `${startYmd}/${endYmd}`,
   }
-
-  return result.slice(0, totalCells)
 }
 
 function isTaggedInComment(comment: AccionComentarioVisibility, userId: string): boolean {
@@ -168,22 +163,9 @@ function filterAccionesByCalendarVisibility(
   )
 }
 
-function datetimeLocalForDate(date: string | null): string {
-  const now = getAppNow()
-  const today = dateOnlyCDMX(now.toISOString())
-  const base = date ?? today
-  if (base === today) {
-    const next = new Date(now.getTime() + 30 * 60_000)
-    const nextDate = dateOnlyCDMX(next.toISOString())
-    const nextTime = next.toLocaleTimeString('en-GB', {
-      timeZone: CDMX_TZ,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-    return `${nextDate}T${nextTime}`
-  }
-  return `${base}T09:00`
+/** Fecha/hora por defecto al crear recordatorio: ahora real + 30 min en hora local. */
+function defaultReminderDeadline(): string {
+  return wallClockDatetimeLocalAhead(30)
 }
 
 function dateOnlyFromReminder(reminder: CalendarReminder): string {
@@ -226,8 +208,8 @@ export function CalendarView({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: currentUser } = useCurrentUser()
-  const [view, setView] = useState(() =>
-    initialSelectedDate ? yearMonthFromDate(initialSelectedDate) : currentYearMonth()
+  const [gridStartDate, setGridStartDate] = useState(() =>
+    initialSelectedDate ? mondayOfWeekContaining(initialSelectedDate) : defaultGridStartDate()
   )
   const [selectedDate, setSelectedDate] = useState<string | null>(initialSelectedDate)
   const [noteDialogOpen, setNoteDialogOpen] = useState(false)
@@ -236,31 +218,38 @@ export function CalendarView({
   const [noteTitle, setNoteTitle] = useState('')
   const [noteText, setNoteText] = useState('')
   const [reminderTitle, setReminderTitle] = useState('')
-  const [reminderDeadline, setReminderDeadline] = useState(datetimeLocalForDate(null))
+  const [reminderDeadline, setReminderDeadline] = useState(defaultReminderDeadline)
   const [reminderDescription, setReminderDescription] = useState('')
   const [mobileDayTab, setMobileDayTab] = useState<CalendarDayTab>('acciones')
   const dayDetailRef = useRef<HTMLDivElement | null>(null)
   const shouldScrollToDetailRef = useRef(false)
 
-  const calendarDays = useMemo(() => getCalendarDays(view.year, view.month), [view.year, view.month])
+  const calendarDays = useMemo(() => getCalendarDays(gridStartDate), [gridStartDate])
   const gridFirstDate = calendarDays[0]?.date ?? ''
   const gridLastDate = calendarDays[calendarDays.length - 1]?.date ?? ''
+  const showActions = shouldShowCalendarItem(filters.itemType, 'acciones')
+  const showReminders = shouldShowCalendarItem(filters.itemType, 'recordatorios')
+  const showNotes = shouldShowCalendarItem(filters.itemType, 'minutas')
+  const calendarPeriod = useMemo(
+    () => formatCalendarPeriodLabel(gridFirstDate, gridLastDate),
+    [gridFirstDate, gridLastDate]
+  )
 
   useEffect(() => {
     if (!initialSelectedDate) return
     setSelectedDate(initialSelectedDate)
-    setView(yearMonthFromDate(initialSelectedDate))
+    setGridStartDate(mondayOfWeekContaining(initialSelectedDate))
   }, [initialSelectedDate])
 
   const accionesFilter = useMemo<AccionesFilter>(
     () => ({
       calendario_creadas_hasta: selectedDate || undefined,
-      excluir_estados: filters.estado ? undefined : ['Verificado'],
-      area: filters.area,
-      responsable: filters.responsable,
-      estado: filters.estado,
+      excluir_estados: CALENDAR_EXCLUDED_STATUSES,
+      area: showActions ? filters.area : undefined,
+      responsable: showActions ? filters.responsable : undefined,
+      estado: showActions ? filters.estado : undefined,
     }),
-    [filters.area, filters.estado, filters.responsable, selectedDate]
+    [filters.area, filters.estado, filters.responsable, selectedDate, showActions]
   )
 
   const { data: actionCountsByDate = {}, isLoading: actionCountsLoading } = useQuery({
@@ -269,9 +258,9 @@ export function CalendarView({
       currentUser?.id ?? '',
       gridFirstDate,
       gridLastDate,
-      filters.area ?? '',
-      filters.responsable ?? '',
-      filters.estado ?? '',
+      showActions ? filters.area ?? '' : '',
+      showActions ? filters.responsable ?? '' : '',
+      showActions ? filters.estado ?? '' : '',
     ],
     queryFn: () =>
       accionesService.calendarCountsByDay({
@@ -282,12 +271,12 @@ export function CalendarView({
         responsable: filters.responsable,
         estado: filters.estado,
       }),
-    enabled: Boolean(currentUser?.id && gridFirstDate && gridLastDate),
+    enabled: Boolean(currentUser?.id && gridFirstDate && gridLastDate && showActions),
     staleTime: 2 * 60_000,
   })
 
   const { data: acciones = [], isLoading } = useAcciones(accionesFilter, {
-    enabled: Boolean(currentUser?.id && selectedDate),
+    enabled: Boolean(currentUser?.id && selectedDate && showActions),
   })
 
   const actionIds = useMemo(() => acciones.map((accion) => accion.id), [acciones])
@@ -297,12 +286,15 @@ export function CalendarView({
   } = useQuery({
     queryKey: ['calendar-action-comments', currentUser?.id ?? '', actionIds],
     queryFn: () => accionComentariosService.listVisibilityByAccionIds(actionIds),
-    enabled: Boolean(currentUser?.id && actionIds.length > 0),
+    enabled: Boolean(currentUser?.id && showActions && actionIds.length > 0),
     staleTime: 2 * 60_000,
   })
 
   const visibleAcciones = useMemo(
-    () => filterAccionesByCalendarVisibility(acciones, calendarComments, currentUser?.id),
+    () =>
+      filterAccionesByCalendarVisibility(acciones, calendarComments, currentUser?.id).filter(
+        (accion) => !CALENDAR_EXCLUDED_STATUSES.includes(accion.estado)
+      ),
     [acciones, calendarComments, currentUser?.id]
   )
 
@@ -378,7 +370,7 @@ export function CalendarView({
     onSuccess: () => {
       setReminderTitle('')
       setReminderDescription('')
-      setReminderDeadline(datetimeLocalForDate(selectedDate))
+      setReminderDeadline(defaultReminderDeadline())
       setReminderDialogOpen(false)
       void queryClient.invalidateQueries({ queryKey: ['calendar-reminders'] })
       toast.success('Recordatorio creado')
@@ -386,29 +378,21 @@ export function CalendarView({
     onError: (error) => toast.error(error instanceof Error ? error.message : 'No se pudo crear el recordatorio'),
   })
 
-  const syncGoogle = useMutation({
-    mutationFn: googleWorkspaceService.sync,
-    onSuccess: (result) => {
-      const label =
-        result.target === 'task'
-          ? 'Tarea creada en Google Tasks'
-          : result.target === 'gmail'
-            ? 'Correo enviado con Gmail'
-            : result.target === 'calendar_meet'
-              ? 'Evento con Google Meet creado'
-              : 'Evento creado en Google Calendar'
-      toast.success(label)
-      const url = result.meetUrl || result.url
-      if (url) window.open(url, '_blank', 'noopener,noreferrer')
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : 'No se pudo sincronizar con Google'),
-  })
-
   const completeReminder = useMutation({
     mutationFn: (id: string) => calendarRemindersService.complete(id, currentUser!.id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['calendar-reminders'] })
       void queryClient.invalidateQueries({ queryKey: ['calendar-reminders-due'] })
+      if (!result.googleSynced && result.googleMessage) {
+        toast.success('Recordatorio cerrado en SCRUMBAN', {
+          description: `Google no se actualizó: ${result.googleMessage}`,
+        })
+        return
+      }
+      if (result.reminder.google_calendar_event_id || result.reminder.google_task_id) {
+        toast.success('Recordatorio cerrado y sincronizado con Google')
+        return
+      }
       toast.success('Recordatorio cerrado')
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : 'No se pudo cerrar el recordatorio'),
@@ -434,15 +418,15 @@ export function CalendarView({
   }, [reminders])
 
   const goPrev = useCallback(() => {
-    setView((current) => current.month === 1 ? { year: current.year - 1, month: 12 } : { year: current.year, month: current.month - 1 })
+    setGridStartDate((current) => addCalendarDays(current, -CALENDAR_VISIBLE_DAYS))
   }, [])
 
   const goNext = useCallback(() => {
-    setView((current) => current.month === 12 ? { year: current.year + 1, month: 1 } : { year: current.year, month: current.month + 1 })
+    setGridStartDate((current) => addCalendarDays(current, CALENDAR_VISIBLE_DAYS))
   }, [])
 
   const goToday = useCallback(() => {
-    setView(currentYearMonth())
+    setGridStartDate(defaultGridStartDate())
     setSelectedDate(null)
   }, [])
 
@@ -451,12 +435,9 @@ export function CalendarView({
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   }, [])
 
-  const selectedActions = selectedDate ? visibleAcciones : []
+  const selectedActions = selectedDate && showActions ? visibleAcciones : []
   const selectedNotes = selectedDate ? (notesByDate[selectedDate] ?? []) : []
   const selectedReminders = selectedDate ? (remindersByDate[selectedDate] ?? []) : []
-  const showActions = shouldShowCalendarItem(filters.itemType, 'acciones')
-  const showReminders = shouldShowCalendarItem(filters.itemType, 'recordatorios')
-  const showNotes = shouldShowCalendarItem(filters.itemType, 'minutas')
   const hasTypeFilter = Boolean(filters.itemType && filters.itemType !== 'todos')
 
   const visibleDayTabs = useMemo(() => {
@@ -526,18 +507,9 @@ export function CalendarView({
   const noteSaving = createNote.isPending || updateNote.isPending
 
   const openReminderDialog = useCallback(() => {
-    const nextDate = selectedDate ?? dateOnlyCDMX(getAppNow().toISOString())
-    if (!selectedDate) setSelectedDate(nextDate)
-    setReminderDeadline(datetimeLocalForDate(nextDate))
+    setReminderDeadline(defaultReminderDeadline())
     setReminderDialogOpen(true)
-  }, [selectedDate])
-
-  const handleGoogleSync = useCallback(
-    (input: GoogleWorkspaceSyncInput) => {
-      syncGoogle.mutate(input)
-    },
-    [syncGoogle]
-  )
+  }, [])
 
   return (
     <div id="calendar-view" className="calendar-view relative space-y-3 p-3 sm:space-y-4 sm:p-4 md:p-5">
@@ -548,28 +520,28 @@ export function CalendarView({
         <div
           className="calendar-toolbar-nav flex shrink-0 justify-center sm:justify-start"
           role="group"
-          aria-label="Navegación del mes"
+          aria-label="Navegación del periodo"
         >
           <div className="inline-flex h-9 items-stretch overflow-hidden rounded-lg border border-border/60 bg-background shadow-sm sm:h-10">
             <Button
               variant="ghost"
               size="icon"
               onClick={goPrev}
-              aria-label="Mes anterior"
+              aria-label="4 semanas anteriores"
               className="h-full w-8 shrink-0 rounded-none border-r border-border/50 px-0 text-muted-foreground hover:bg-muted/60 hover:text-foreground sm:w-9"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="calendar-toolbar-period flex min-w-[6.75rem] flex-col items-center justify-center bg-muted/20 px-3 sm:min-w-[7.75rem] sm:px-3.5">
+            <div className="calendar-toolbar-period flex min-w-[6.75rem] flex-col items-center justify-center bg-muted/20 px-3 sm:min-w-[8.5rem] sm:px-3.5">
               <time
-                dateTime={`${view.year}-${String(view.month).padStart(2, '0')}`}
+                dateTime={calendarPeriod.dateTime}
                 className="flex flex-col items-center leading-none"
               >
-                <span className="truncate text-[13px] font-semibold capitalize tracking-tight text-foreground sm:text-sm">
-                  {monthName(view.year, view.month)}
+                <span className="truncate text-[12px] font-semibold capitalize tracking-tight text-foreground sm:text-sm">
+                  {calendarPeriod.primary}
                 </span>
                 <span className="mt-1 text-[10px] font-semibold tabular-nums tracking-wide text-muted-foreground sm:text-[11px]">
-                  {view.year}
+                  {calendarPeriod.secondary}
                 </span>
               </time>
             </div>
@@ -577,7 +549,7 @@ export function CalendarView({
               variant="ghost"
               size="icon"
               onClick={goNext}
-              aria-label="Mes siguiente"
+              aria-label="4 semanas siguientes"
               className="h-full w-8 shrink-0 rounded-none border-l border-border/50 px-0 text-muted-foreground hover:bg-muted/60 hover:text-foreground sm:w-9"
             >
               <ChevronRight className="h-4 w-4" />
@@ -585,27 +557,22 @@ export function CalendarView({
           </div>
         </div>
 
-        <div className="calendar-toolbar-actions grid min-w-0 grid-cols-4 gap-1.5 sm:min-w-0 sm:flex-1 lg:flex lg:flex-none lg:items-center lg:gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={openNoteDialog}
-            className="h-8 min-w-0 gap-1 border-border/60 bg-background/80 px-1.5 text-[11px] sm:h-9 sm:px-2.5 sm:text-xs lg:px-3 lg:text-sm"
-          >
-            <StickyNote className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">Minuta</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={openReminderDialog}
-            className="h-8 min-w-0 gap-1 border-border/60 bg-background/80 px-1.5 text-[11px] sm:h-9 sm:px-2.5 sm:text-xs lg:px-3 lg:text-sm"
-          >
-            <AlarmClock className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate xl:hidden">Record.</span>
-            <span className="hidden truncate xl:inline">Recordatorio</span>
-          </Button>
-          <Button
+        <div
+          className={cn(
+            'calendar-toolbar-actions grid min-w-0 gap-1.5 sm:min-w-0 sm:flex-1 lg:flex lg:flex-none lg:items-center lg:gap-2',
+            onToggleFilters ? 'grid-cols-3' : 'grid-cols-2'
+          )}
+        >
+            {showNotes || showReminders ? (
+              <CalendarCreateDropdown
+                onCreateNote={openNoteDialog}
+                onCreateReminder={openReminderDialog}
+                showNotes={showNotes}
+                showReminders={showReminders}
+                className="h-8 min-w-0 gap-1 border-border/60 bg-background/80 px-1.5 text-[11px] sm:h-9 sm:px-2.5 sm:text-xs lg:px-3 lg:text-sm"
+              />
+            ) : null}
+            <Button
             variant="default"
             size="sm"
             onClick={goToday}
@@ -673,7 +640,7 @@ export function CalendarView({
             </div>
           ) : (
             <p className="mt-2 text-xs text-muted-foreground">
-              Sin {calendarFilterLabel(filters.itemType)} este mes.
+              Sin {calendarFilterLabel(filters.itemType)} en este periodo.
             </p>
           )}
         </div>
@@ -689,7 +656,7 @@ export function CalendarView({
           ))}
         </div>
         <div className="grid grid-cols-7">
-          {calendarDays.map(({ date, isCurrentMonth, day }) => {
+          {calendarDays.map(({ date, day }) => {
             const count = actionCountsByDate[date] ?? 0
             const noteCount = (notesByDate[date] ?? []).length
             const reminderCount = (remindersByDate[date] ?? []).length
@@ -707,7 +674,6 @@ export function CalendarView({
                 className={cn(
                   'min-h-[3.25rem] border-b border-r border-border/50 p-1 text-left transition-colors touch-manipulation sm:min-h-[5.5rem] sm:p-1.5 md:min-h-[88px] md:p-2',
                   'hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset',
-                  !isCurrentMonth && 'bg-muted/20 text-muted-foreground',
                   isToday && 'bg-primary/5 ring-1 ring-primary/40 ring-inset sm:ring-2',
                   isSelected && 'bg-primary/10 ring-1 ring-primary ring-inset sm:ring-2',
                   hasTypeFilter && !hasVisibleItems && 'opacity-35'
@@ -715,10 +681,8 @@ export function CalendarView({
               >
                 <span
                   className={cn(
-                    'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium sm:h-7 sm:w-7 sm:text-sm',
-                    isToday && 'bg-primary text-primary-foreground',
-                    !isToday && isCurrentMonth && 'text-foreground',
-                    !isCurrentMonth && 'text-muted-foreground'
+                    'inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium text-foreground sm:h-7 sm:w-7 sm:text-sm',
+                    isToday && 'bg-primary text-primary-foreground'
                   )}
                 >
                   {day}
@@ -770,9 +734,9 @@ export function CalendarView({
         <div
           ref={dayDetailRef}
           id="calendar-day-detail"
-          className="calendar-day-detail scroll-mt-4 rounded-lg border border-border/60 bg-card p-3 sm:scroll-mt-6 sm:rounded-xl sm:p-4"
+          className="calendar-day-detail scroll-mt-4 rounded-xl border border-border/60 bg-card p-3 shadow-sm sm:scroll-mt-6 sm:rounded-2xl sm:p-5"
         >
-          <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-3 flex flex-col gap-2 border-b border-border/40 pb-3 sm:mb-4 sm:flex-row sm:items-center sm:justify-between sm:pb-4">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 Día seleccionado
@@ -785,21 +749,32 @@ export function CalendarView({
                 })}
               </h4>
             </div>
-            {showActions ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 w-full shrink-0 text-xs sm:w-auto sm:text-sm"
-                onClick={() => navigate(`${ROUTES.KANBAN}?fecha=${selectedDate}`)}
-              >
-                Kanban
-              </Button>
-            ) : null}
+            <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              {showNotes || showReminders ? (
+                <CalendarCreateDropdown
+                  onCreateNote={openNoteDialog}
+                  onCreateReminder={openReminderDialog}
+                  showNotes={showNotes}
+                  showReminders={showReminders}
+                  className="h-9 w-full text-xs sm:w-auto sm:text-sm"
+                />
+              ) : null}
+              {showActions ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-full shrink-0 text-xs sm:w-auto sm:text-sm"
+                  onClick={() => navigate(`${ROUTES.KANBAN}?fecha=${selectedDate}`)}
+                >
+                  Kanban
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           {visibleDayTabs.length > 1 ? (
             <div
-              className="mb-3 grid gap-1 rounded-lg border border-border/60 bg-muted/25 p-1 md:hidden"
+              className="mb-3 grid gap-1 rounded-xl border border-border/60 bg-muted/20 p-1 md:hidden"
               style={{ gridTemplateColumns: `repeat(${visibleDayTabs.length}, minmax(0, 1fr))` }}
               role="tablist"
               aria-label="Contenido del día"
@@ -832,17 +807,6 @@ export function CalendarView({
                 isLoading={notesLoading}
                 isError={notesError}
                 onEdit={openEditNoteDialog}
-                onCreate={openNoteDialog}
-                onGoogleSync={(note, target) =>
-                  handleGoogleSync({
-                    source: 'minuta',
-                    target,
-                    title: note.titulo,
-                    description: note.texto,
-                    date: note.fecha,
-                  })
-                }
-                googleSyncDisabled={syncGoogle.isPending}
                 compact
               />
             ) : null}
@@ -853,18 +817,6 @@ export function CalendarView({
                 isError={remindersError}
                 closingId={completeReminder.isPending ? completeReminder.variables ?? null : null}
                 onComplete={(id) => completeReminder.mutate(id)}
-                onCreate={openReminderDialog}
-                onGoogleSync={(reminder, target) =>
-                  handleGoogleSync({
-                    source: 'recordatorio',
-                    target,
-                    title: reminder.titulo,
-                    description: reminder.descripcion,
-                    date: dateOnlyFromReminder(reminder),
-                    dueAt: reminder.fecha_limite,
-                  })
-                }
-                googleSyncDisabled={syncGoogle.isPending}
                 compact
               />
             ) : null}
@@ -876,25 +828,12 @@ export function CalendarView({
                   if (onSelectAccion) onSelectAccion(accion)
                   else navigate(`${ROUTES.KANBAN}?accion=${accion.id}`)
                 }}
-                onGoogleSync={(accion, target) =>
-                  handleGoogleSync({
-                    source: 'accion',
-                    target,
-                    title: accion.titulo_accion?.trim() || accion.descripcion_accion,
-                    description: accion.descripcion_accion,
-                    date: accion.fecha,
-                    dueAt: `${accion.fecha}T${accion.hora_limite?.slice(0, 5) || '09:00'}:00-06:00`,
-                    actionId: accion.id,
-                    responsibleUserId: accion.responsable,
-                  })
-                }
-                googleSyncDisabled={syncGoogle.isPending}
                 compact
               />
             ) : null}
           </div>
 
-          <div className="hidden space-y-4 md:block">
+          <div className="hidden space-y-3 md:block md:space-y-4">
             {showNotes ? (
               <CalendarNotesPanel
                 date={selectedDate}
@@ -902,17 +841,6 @@ export function CalendarView({
                 isLoading={notesLoading}
                 isError={notesError}
                 onEdit={openEditNoteDialog}
-                onCreate={openNoteDialog}
-                onGoogleSync={(note, target) =>
-                  handleGoogleSync({
-                    source: 'minuta',
-                    target,
-                    title: note.titulo,
-                    description: note.texto,
-                    date: note.fecha,
-                  })
-                }
-                googleSyncDisabled={syncGoogle.isPending}
               />
             ) : null}
             {showReminders ? (
@@ -922,18 +850,6 @@ export function CalendarView({
                 isError={remindersError}
                 closingId={completeReminder.isPending ? completeReminder.variables ?? null : null}
                 onComplete={(id) => completeReminder.mutate(id)}
-                onCreate={openReminderDialog}
-                onGoogleSync={(reminder, target) =>
-                  handleGoogleSync({
-                    source: 'recordatorio',
-                    target,
-                    title: reminder.titulo,
-                    description: reminder.descripcion,
-                    date: dateOnlyFromReminder(reminder),
-                    dueAt: reminder.fecha_limite,
-                  })
-                }
-                googleSyncDisabled={syncGoogle.isPending}
               />
             ) : null}
             {showActions ? (
@@ -944,19 +860,6 @@ export function CalendarView({
                   if (onSelectAccion) onSelectAccion(accion)
                   else navigate(`${ROUTES.KANBAN}?accion=${accion.id}`)
                 }}
-                onGoogleSync={(accion, target) =>
-                  handleGoogleSync({
-                    source: 'accion',
-                    target,
-                    title: accion.titulo_accion?.trim() || accion.descripcion_accion,
-                    description: accion.descripcion_accion,
-                    date: accion.fecha,
-                    dueAt: `${accion.fecha}T${accion.hora_limite?.slice(0, 5) || '09:00'}:00-06:00`,
-                    actionId: accion.id,
-                    responsibleUserId: accion.responsable,
-                  })
-                }
-                googleSyncDisabled={syncGoogle.isPending}
               />
             ) : null}
           </div>
@@ -967,7 +870,9 @@ export function CalendarView({
         </p>
       )}
 
-      {actionCountsLoading || isLoading || commentsLoading ? (
+      {((showActions && (actionCountsLoading || isLoading || commentsLoading)) ||
+        (showReminders && remindersLoading) ||
+        (showNotes && notesLoading)) ? (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/60">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </div>
@@ -1024,10 +929,8 @@ export function CalendarView({
         onSubmit={() => {
           if (!currentUser?.id) return
           if (!reminderTitle.trim() || !reminderDeadline || !reminderDescription.trim()) return
-          const parts = splitDateTimeLocal(reminderDeadline)
-          const futureError = validateFutureDateTimeCDMX(
-            parts?.date,
-            parts?.time,
+          const futureError = validateFutureDatetimeLocalWallClock(
+            reminderDeadline,
             'La fecha y hora del recordatorio'
           )
           if (futureError) {
@@ -1042,6 +945,37 @@ export function CalendarView({
           })
         }}
       />
+    </div>
+  )
+}
+
+const CALENDAR_DAY_LIST_CLASS =
+  'max-h-[min(18rem,50vh)] space-y-1 overflow-y-auto overscroll-y-contain pr-0.5'
+
+const CALENDAR_DAY_ITEM_CLASS =
+  'flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-2 py-1.5 shadow-sm'
+
+const CALENDAR_DAY_ACTION_ITEM_CLASS =
+  'flex flex-col gap-1 rounded-md border border-border/60 bg-background px-2 py-1.5 shadow-sm'
+
+const CALENDAR_DAY_ACTION_BTN_CLASS = 'h-7 shrink-0 gap-1 px-1.5 text-[10px]'
+
+function CalendarDayItemActions({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cn('flex shrink-0 items-center gap-1', className)}>{children}</div>
+  )
+}
+
+function CalendarDayEmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border/50 bg-muted/15 px-3 py-5 text-center">
+      <p className="text-xs text-muted-foreground">{message}</p>
     </div>
   )
 }
@@ -1064,16 +998,20 @@ function CalendarPanelShell({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border/60 bg-muted/10',
+        'rounded-xl border border-border/60 bg-muted/10 shadow-sm',
         compact ? 'p-2.5' : 'p-3 sm:p-4'
       )}
     >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          {icon ?? null}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {icon ? (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-background shadow-sm ring-1 ring-border/60">
+              {icon}
+            </span>
+          ) : null}
           <p className="truncate text-sm font-semibold text-foreground">{title}</p>
           {count != null ? (
-            <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-semibold tabular-nums text-muted-foreground">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
               {count}
             </span>
           ) : null}
@@ -1090,9 +1028,6 @@ function CalendarNotesPanel({
   isLoading,
   isError,
   onEdit,
-  onCreate,
-  onGoogleSync,
-  googleSyncDisabled,
   compact,
 }: {
   date: string
@@ -1100,9 +1035,6 @@ function CalendarNotesPanel({
   isLoading: boolean
   isError: boolean
   onEdit?: (note: CalendarNote) => void
-  onCreate?: () => void
-  onGoogleSync?: (note: CalendarNote, target: Extract<GoogleWorkspaceTarget, 'calendar_meet' | 'gmail'>) => void
-  googleSyncDisabled?: boolean
   compact?: boolean
 }) {
   return (
@@ -1111,54 +1043,40 @@ function CalendarNotesPanel({
       icon={<StickyNote className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />}
       count={notes.length}
       compact={compact}
-      action={
-        onCreate ? (
-          <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 px-2 text-xs" onClick={onCreate}>
-            <Plus className="h-3.5 w-3.5" aria-hidden />
-            <span className="hidden sm:inline">Crear</span>
-          </Button>
-        ) : null
-      }
     >
       {isError ? (
         <p className="text-xs text-destructive">No se pudieron cargar.</p>
       ) : isLoading ? (
         <CalendarListSkeleton />
       ) : notes.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Sin minutas este día.</p>
+        <CalendarDayEmptyState message="Sin minutas este día." />
       ) : (
-        <ul className="max-h-[min(16rem,45vh)] space-y-1.5 overflow-y-auto overscroll-y-contain">
+        <ul className={CALENDAR_DAY_LIST_CLASS}>
           {notes.map((note) => (
-            <li key={note.id} className="rounded-md border border-border/60 bg-background px-2.5 py-2">
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-1 text-sm font-medium text-foreground">{note.titulo}</p>
-                  <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-xs text-muted-foreground">
-                    {note.texto}
-                  </p>
-                </div>
-                {onEdit ? (
+            <li
+              key={note.id}
+              className={cn(CALENDAR_DAY_ITEM_CLASS, 'border-l-2 border-l-emerald-500/40')}
+            >
+              <div className="min-w-0 flex-1 truncate">
+                <span className="text-sm font-medium text-foreground">{note.titulo}</span>
+                {note.texto?.trim() ? (
+                  <span className="text-[10px] text-muted-foreground"> · {note.texto.trim()}</span>
+                ) : null}
+              </div>
+              {onEdit ? (
+                <CalendarDayItemActions>
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+                    variant="outline"
+                    size="sm"
+                    className={CALENDAR_DAY_ACTION_BTN_CLASS}
                     aria-label={`Editar minuta ${note.titulo}`}
                     onClick={() => onEdit(note)}
                   >
-                    <Pencil className="h-3.5 w-3.5" />
+                    <Pencil className="h-3 w-3" aria-hidden />
+                    <span className="hidden sm:inline">Editar</span>
                   </Button>
-                ) : null}
-              </div>
-              {onGoogleSync ? (
-                <GoogleSyncButtons
-                  className="mt-2"
-                  targets={['calendar_meet', 'gmail']}
-                  disabled={googleSyncDisabled}
-                  onSync={(target) =>
-                    onGoogleSync(note, target as Extract<GoogleWorkspaceTarget, 'calendar_meet' | 'gmail'>)
-                  }
-                />
+                </CalendarDayItemActions>
               ) : null}
             </li>
           ))}
@@ -1170,9 +1088,9 @@ function CalendarNotesPanel({
 
 function CalendarListSkeleton() {
   return (
-    <ul className="space-y-1.5" aria-busy="true">
+    <ul className="space-y-1" aria-busy="true">
       {[1, 2, 3].map((i) => (
-        <li key={i} className="h-11 animate-pulse rounded-md border border-border/40 bg-muted/30" />
+        <li key={i} className="h-9 animate-pulse rounded-md border border-border/40 bg-muted/30" />
       ))}
     </ul>
   )
@@ -1184,9 +1102,6 @@ function CalendarRemindersPanel({
   isError,
   closingId,
   onComplete,
-  onCreate,
-  onGoogleSync,
-  googleSyncDisabled,
   compact,
 }: {
   reminders: CalendarReminder[]
@@ -1194,9 +1109,6 @@ function CalendarRemindersPanel({
   isError: boolean
   closingId: string | null
   onComplete: (id: string) => void
-  onCreate: () => void
-  onGoogleSync?: (reminder: CalendarReminder, target: Extract<GoogleWorkspaceTarget, 'calendar' | 'task' | 'gmail'>) => void
-  googleSyncDisabled?: boolean
   compact?: boolean
 }) {
   return (
@@ -1205,63 +1117,75 @@ function CalendarRemindersPanel({
       icon={<AlarmClock className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />}
       count={reminders.length}
       compact={compact}
-      action={
-        <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 px-2 text-xs" onClick={onCreate}>
-          <Plus className="h-3.5 w-3.5" aria-hidden />
-          <span className="hidden sm:inline">Crear</span>
-        </Button>
-      }
     >
       {isError ? (
         <p className="text-xs text-destructive">No se pudieron cargar.</p>
       ) : isLoading ? (
         <CalendarListSkeleton />
       ) : reminders.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Sin recordatorios este día.</p>
+        <CalendarDayEmptyState message="Sin recordatorios este día." />
       ) : (
-        <ul className="max-h-[min(16rem,45vh)] space-y-1.5 overflow-y-auto overscroll-y-contain">
-          {reminders.map((reminder) => (
-            <li
-              key={reminder.id}
-              className={cn(
-                'rounded-md border px-2.5 py-2',
-                reminder.completed_at
-                  ? 'border-emerald-500/25 bg-emerald-500/5'
-                  : 'border-border/60 bg-background'
-              )}
-            >
-              <div className="flex flex-col gap-2">
-                <div className="min-w-0">
-                  <p className="line-clamp-1 text-sm font-medium text-foreground">{reminder.titulo}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {reminder.completed_at
-                      ? `Cerrado · ${formatReminderDateTime(reminder.completed_at)}`
+        <ul className={CALENDAR_DAY_LIST_CLASS}>
+          {reminders.map((reminder) => {
+            const isCompleted = Boolean(reminder.completed_at)
+            const isClosing = closingId === reminder.id
+
+            return (
+              <li
+                key={reminder.id}
+                className={cn(
+                  CALENDAR_DAY_ITEM_CLASS,
+                  'border-l-2',
+                  isCompleted
+                    ? 'border-l-emerald-500/50 bg-emerald-500/[0.04]'
+                    : 'border-l-amber-500/50'
+                )}
+              >
+                <div className="min-w-0 flex-1 truncate">
+                  <span
+                    className={cn(
+                      'text-sm font-medium',
+                      isCompleted ? 'text-muted-foreground line-through' : 'text-foreground'
+                    )}
+                  >
+                    {reminder.titulo}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {' · '}
+                    {isCompleted
+                      ? formatReminderDateTime(reminder.completed_at!)
                       : formatReminderDateTime(reminder.fecha_limite)}
-                  </p>
+                  </span>
                 </div>
-                <Button
-                  type="button"
-                  variant={reminder.completed_at ? 'ghost' : 'outline'}
-                  size="sm"
-                  className="h-8 shrink-0 text-xs"
-                  disabled={Boolean(reminder.completed_at) || closingId === reminder.id}
-                  onClick={() => onComplete(reminder.id)}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'hidden h-5 shrink-0 px-1.5 text-[9px] font-medium sm:inline-flex',
+                    isCompleted
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                      : 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300'
+                  )}
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {reminder.completed_at ? 'Cerrado' : closingId === reminder.id ? 'Cerrando…' : 'Cerrar'}
-                </Button>
-                {onGoogleSync ? (
-                  <GoogleSyncButtons
-                    targets={['task', 'calendar', 'gmail']}
-                    disabled={googleSyncDisabled || Boolean(reminder.completed_at)}
-                    onSync={(target) =>
-                      onGoogleSync(reminder, target as Extract<GoogleWorkspaceTarget, 'calendar' | 'task' | 'gmail'>)
-                    }
-                  />
-                ) : null}
-              </div>
-            </li>
-          ))}
+                  {isCompleted ? 'Cerrado' : 'Pendiente'}
+                </Badge>
+                <CalendarDayItemActions>
+                  <Button
+                    type="button"
+                    variant={isCompleted ? 'ghost' : 'outline'}
+                    size="sm"
+                    className={CALENDAR_DAY_ACTION_BTN_CLASS}
+                    disabled={isCompleted || isClosing}
+                    onClick={() => onComplete(reminder.id)}
+                  >
+                    <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden />
+                    <span className="hidden sm:inline">
+                      {isCompleted ? 'Cerrado' : isClosing ? 'Cerrando…' : 'Cerrar'}
+                    </span>
+                  </Button>
+                </CalendarDayItemActions>
+              </li>
+            )
+          })}
         </ul>
       )}
     </CalendarPanelShell>
@@ -1272,54 +1196,50 @@ function CalendarActionsPanel({
   acciones,
   responsableNames,
   onOpenAccion,
-  onGoogleSync,
-  googleSyncDisabled,
   compact,
 }: {
   acciones: AccionDiaria[]
   responsableNames: Record<string, string>
   onOpenAccion: (accion: AccionDiaria) => void
-  onGoogleSync?: (accion: AccionDiaria, target: Extract<GoogleWorkspaceTarget, 'calendar' | 'task' | 'gmail'>) => void
-  googleSyncDisabled?: boolean
   compact?: boolean
 }) {
   return (
-    <CalendarPanelShell title="Acciones" count={acciones.length} compact={compact} icon={null}>
+    <CalendarPanelShell
+      title="Acciones"
+      count={acciones.length}
+      compact={compact}
+      icon={<ClipboardList className="h-4 w-4 shrink-0 text-primary" aria-hidden />}
+    >
       {acciones.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Sin acciones visibles este día.</p>
+        <CalendarDayEmptyState message="Sin acciones visibles este día." />
       ) : (
-        <ul className="max-h-[min(18rem,50vh)] space-y-1.5 overflow-y-auto overscroll-y-contain">
+        <ul className={CALENDAR_DAY_LIST_CLASS}>
           {acciones.map((accion) => (
-            <li key={accion.id} className="rounded-lg border border-border/50 bg-background px-2.5 py-2">
+            <li
+              key={accion.id}
+              className={cn(CALENDAR_DAY_ACTION_ITEM_CLASS, 'border-l-2 border-l-primary/35')}
+            >
               <button
                 type="button"
-                className="flex w-full min-h-11 items-center gap-2 text-left transition-colors hover:text-foreground active:text-foreground"
+                className="flex w-full min-w-0 items-center gap-1 text-left transition-colors hover:text-foreground active:text-foreground"
                 onClick={() => onOpenAccion(accion)}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="line-clamp-1 flex-1 text-sm font-medium text-foreground">
-                      {accion.titulo_accion?.trim() || accion.descripcion_accion}
-                    </p>
-                    <EvidenciaCargadaIndicator cargada={accion.evidencia_cargada} className="shrink-0" />
-                  </div>
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                    {accion.hora_limite?.slice(0, 5) ?? '—'} ·{' '}
-                    {responsableNames[accion.responsable] ?? '—'} · {accion.estado}
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                  {accion.titulo_accion?.trim() || accion.descripcion_accion}
+                </span>
+                <EvidenciaCargadaIndicator cargada={accion.evidencia_cargada} className="shrink-0" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
               </button>
-              {onGoogleSync ? (
-                <GoogleSyncButtons
-                  className="mt-1.5"
-                  targets={['task', 'calendar', 'gmail']}
-                  disabled={googleSyncDisabled}
-                  onSync={(target) =>
-                    onGoogleSync(accion, target as Extract<GoogleWorkspaceTarget, 'calendar' | 'task' | 'gmail'>)
-                  }
-                />
-              ) : null}
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[10px] text-muted-foreground">
+                  <span className="shrink-0">{accion.hora_limite?.slice(0, 5) ?? '—'}</span>
+                  <span className="text-muted-foreground/50">·</span>
+                  <span className="truncate">{responsableNames[accion.responsable] ?? 'Sin responsable'}</span>
+                  <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px] font-medium">
+                    {accion.estado}
+                  </Badge>
+                </div>
+              </div>
             </li>
           ))}
         </ul>
@@ -1328,39 +1248,20 @@ function CalendarActionsPanel({
   )
 }
 
-function GoogleSyncButtons({
-  targets,
-  disabled,
-  onSync,
+function CalendarCreateDropdown({
+  onCreateNote,
+  onCreateReminder,
+  showNotes = true,
+  showReminders = true,
   className,
 }: {
-  targets: GoogleWorkspaceTarget[]
-  disabled?: boolean
-  onSync: (target: GoogleWorkspaceTarget) => void
+  onCreateNote: () => void
+  onCreateReminder: () => void
+  showNotes?: boolean
+  showReminders?: boolean
   className?: string
 }) {
-  const meta: Record<GoogleWorkspaceTarget, { label: string; helper: string; icon: ReactNode }> = {
-    task: {
-      label: 'Crear task',
-      helper: 'Google Tasks',
-      icon: <ListTodo className="h-3.5 w-3.5" aria-hidden />,
-    },
-    calendar: {
-      label: 'Crear evento',
-      helper: 'Google Calendar',
-      icon: <CalendarIcon className="h-3.5 w-3.5" aria-hidden />,
-    },
-    calendar_meet: {
-      label: 'Crear Meet',
-      helper: 'Calendar + liga Meet',
-      icon: <Video className="h-3.5 w-3.5" aria-hidden />,
-    },
-    gmail: {
-      label: 'Enviar correo',
-      helper: 'Gmail',
-      icon: <Mail className="h-3.5 w-3.5" aria-hidden />,
-    },
-  }
+  if (!showNotes && !showReminders) return null
 
   return (
     <DropdownMenu>
@@ -1369,35 +1270,25 @@ function GoogleSyncButtons({
           type="button"
           variant="outline"
           size="sm"
-          className={cn('h-8 shrink-0 gap-1.5 px-2 text-[11px]', className)}
-          disabled={disabled}
+          className={cn('gap-1.5 border-border/60 bg-background/80', className)}
         >
-          <Send className="h-3.5 w-3.5" aria-hidden />
-          <span>Google</span>
+          <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="truncate">Crear</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[210px]">
-        {targets.map((target) => (
-          <DropdownMenuItem
-            key={target}
-            className="gap-2 py-2"
-            disabled={disabled}
-            onClick={(event) => {
-              event.stopPropagation()
-              onSync(target)
-            }}
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-              {meta[target].icon}
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-medium leading-tight">{meta[target].label}</span>
-              <span className="block truncate text-[11px] leading-tight text-muted-foreground">
-                {meta[target].helper}
-              </span>
-            </span>
+      <DropdownMenuContent align="end" className="min-w-[11rem]">
+        {showNotes ? (
+          <DropdownMenuItem className="gap-2" onClick={onCreateNote}>
+            <StickyNote className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+            Minuta
           </DropdownMenuItem>
-        ))}
+        ) : null}
+        {showReminders ? (
+          <DropdownMenuItem className="gap-2" onClick={onCreateReminder}>
+            <AlarmClock className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+            Recordatorio
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   )

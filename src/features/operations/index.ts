@@ -40,7 +40,11 @@ export {
 export { useActionEstadoPermissions } from './hooks/useActionEstadoPermissions'
 export { KanbanHeader } from './components/KanbanHeader'
 export { KanbanNextDeadline } from './components/KanbanNextDeadline'
-export { KanbanToolbar } from './components/KanbanToolbar'
+export {
+  KanbanToolbar,
+  createKanbanDefaultFilter,
+  hasKanbanActiveFilters,
+} from './components/KanbanToolbar'
 export type { KanbanToolbarLayout } from './components/KanbanToolbar'
 export { CountdownTimer } from './components/CountdownTimer'
 export { metricasFromAcciones, type MetricasAcciones } from './utils/metricas'

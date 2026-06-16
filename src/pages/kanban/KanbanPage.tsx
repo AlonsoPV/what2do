@@ -14,6 +14,7 @@ import {
   KanbanBoard,
   KanbanHeader,
   KanbanToolbar,
+  hasKanbanActiveFilters,
   AccionesControlTable,
   AccionFormDialog,
   KanbanNextDeadline,
@@ -30,8 +31,7 @@ import { todayWallClockCDMX } from '@/lib/dateUtils'
 import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
 import { useGapAccionesForGapIds } from '@/features/kpi/hooks/useGapAccionesForGapIds'
 import { useGap } from '@/features/kpi/hooks/useGaps'
-
-const DEFAULT_FILTER: AccionesFilter = {}
+import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 
 export function KanbanPage() {
   const qc = useQueryClient()
@@ -44,9 +44,9 @@ export function KanbanPage() {
     })
   }, [qc])
 
-  const [filter, setFilter] = useState<AccionesFilter>(() => ({
-    ...DEFAULT_FILTER,
-  }))
+  const { data: currentUser } = useCurrentUser()
+
+  const [filter, setFilter] = useState<AccionesFilter>(() => ({}))
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [viewMode, setViewMode] = useState<KanbanViewMode>('kanban')
   const filterForQuery = useMemo(() => ({ ...filter }), [filter])
@@ -83,6 +83,15 @@ export function KanbanPage() {
   const fechaFromUrl = searchParams.get('fecha')
   const { data: accionFromUrl } = useAccion(accionIdFromUrl)
 
+  const [filtersCleared, setFiltersCleared] = useState(false)
+
+  useEffect(() => {
+    if (!currentUser?.id || filtersCleared) return
+    setFilter((prev) =>
+      prev.responsable === undefined ? { ...prev, responsable: currentUser.id } : prev
+    )
+  }, [currentUser?.id, filtersCleared])
+
   useEffect(() => {
     if (fechaFromUrl && /^\d{4}-\d{2}-\d{2}$/.test(fechaFromUrl)) {
       setFilter((f) => ({ ...f, fecha_min: fechaFromUrl, fecha_max: fechaFromUrl }))
@@ -109,6 +118,7 @@ export function KanbanPage() {
   }, [accionFromUrl, accionIdFromUrl, setSearchParams])
 
   const handleFilterChange = useCallback((next: AccionesFilter | Partial<AccionesFilter>) => {
+    setFiltersCleared(false)
     setFilter((prev) => {
       const merged = { ...prev, ...next }
       return merged
@@ -116,7 +126,8 @@ export function KanbanPage() {
   }, [])
 
   const handleClearFilters = useCallback(() => {
-    setFilter({ ...DEFAULT_FILTER })
+    setFiltersCleared(true)
+    setFilter({})
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.delete('gap')
@@ -165,10 +176,11 @@ export function KanbanPage() {
       ((filter.search != null && filter.search.trim() !== '') ||
         filter.prioridad != null ||
         (filter.area != null && filter.area !== '') ||
-        (filter.responsable != null && filter.responsable !== '') ||
         Boolean(gapIdFromUrl)),
-    [filterEstadoSingle, filter.search, filter.prioridad, filter.area, filter.responsable, gapIdFromUrl]
+    [filterEstadoSingle, filter.search, filter.prioridad, filter.area, gapIdFromUrl]
   )
+
+  const hasActiveFilters = useMemo(() => hasKanbanActiveFilters(filter), [filter])
 
   const handleSelectAccion = useCallback((accion: AccionDiaria) => {
     void prefetchEvidenceCatalog()
@@ -195,6 +207,7 @@ export function KanbanPage() {
       <KanbanHeader
         filtersExpanded={filtersExpanded}
         onToggleFilters={() => setFiltersExpanded((v) => !v)}
+        hasActiveFilters={hasActiveFilters}
         onNewAction={handleNewAction}
         viewMode={viewMode}
         onViewModeChange={setViewMode}

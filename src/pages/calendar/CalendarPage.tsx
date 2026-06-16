@@ -1,11 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
-import { useAreas } from '@/features/catalogs/hooks/useAreas'
 import { CalendarView, type CalendarFilters } from '@/features/calendar'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import type { AccionDiaria } from '@/types'
-import { CalendarFiltersBar } from './components/CalendarFiltersBar'
+import { CalendarFiltersBar, hasCalendarActiveFilters } from './components/CalendarFiltersBar'
 import { ROUTES } from '@/constants'
 
 function isCalendarItemType(value: string | null): value is NonNullable<CalendarFilters['itemType']> {
@@ -24,7 +23,6 @@ export function CalendarPage() {
   const tipoParam = searchParams.get('tipo')
   const initialItemType = isCalendarItemType(tipoParam) ? tipoParam : undefined
   const { data: users = [] } = useUsers({ activo: true })
-  const { data: areas = [] } = useAreas({ activo: true })
   const [filters, setFilters] = useState<CalendarFilters>(() => ({
     itemType: initialItemType,
   }))
@@ -44,12 +42,7 @@ export function CalendarPage() {
     navigate(`${ROUTES.KANBAN}?accion=${accion.id}`)
   }, [navigate])
 
-  const hasFilters = Boolean(
-    filters.area ||
-      filters.responsable ||
-      filters.estado ||
-      (filters.itemType && filters.itemType !== 'todos')
-  )
+  const hasFilters = hasCalendarActiveFilters(filters)
 
   return (
     <div
@@ -84,13 +77,7 @@ export function CalendarPage() {
             onToggleFilters={() => setFiltersExpanded((v) => !v)}
             hasActiveFilters={hasFilters}
             filterBar={
-              <CalendarFiltersBar
-                filters={filters}
-                onFiltersChange={setFilters}
-                areas={areas}
-                users={users}
-                hasActiveFilters={hasFilters}
-              />
+              <CalendarFiltersBar filters={filters} onFiltersChange={setFilters} />
             }
           />
         </SectionCardBody>

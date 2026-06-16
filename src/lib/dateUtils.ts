@@ -57,6 +57,20 @@ export function addCalendarDays(ymd: string, delta: number): string {
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
 }
 
+/** Valor para `input type="datetime-local"` en hora local del navegador. */
+export function toDatetimeLocalInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/**
+ * Default para `datetime-local`: reloj real del sistema (+ minutos), sin `VITE_DEV_FIXED_NOW`.
+ * El input interpreta la cadena en hora local del navegador.
+ */
+export function wallClockDatetimeLocalAhead(minutesAhead = 30): string {
+  return toDatetimeLocalInputValue(new Date(Date.now() + minutesAhead * 60_000))
+}
+
 /**
  * Domingo de la semana que contiene `ymd` (YYYY-MM-DD en calendario local del navegador).
  */

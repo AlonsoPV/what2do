@@ -29,5 +29,8 @@ verify_jwt = false
 [functions.google-workspace-sync]
 verify_jwt = false
 
+[functions.google-reminder-complete]
+verify_jwt = false
+
 [functions.send-notification-email]
 verify_jwt = false

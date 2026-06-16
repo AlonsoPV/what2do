@@ -17,6 +17,8 @@ export type KanbanViewMode = 'kanban' | 'lista'
 export interface KanbanHeaderProps {
   filtersExpanded?: boolean
   onToggleFilters?: () => void
+  /** Muestra indicador cuando hay filtros aplicados (incl. responsable por defecto). */
+  hasActiveFilters?: boolean
   onNewAction?: () => void
   viewMode?: KanbanViewMode
   onViewModeChange?: (mode: KanbanViewMode) => void
@@ -30,11 +32,18 @@ const VIEW_LABELS: Record<KanbanViewMode, string> = {
 }
 
 const ACTION_BTN =
-  'h-10 w-full justify-center gap-1.5 text-sm md:h-9 md:w-auto md:min-w-[5.25rem]'
+  'h-11 min-h-11 w-full min-w-0 justify-center gap-1.5 px-2 text-[11px] font-semibold leading-tight shadow-sm sm:h-10 sm:min-h-10 sm:w-auto sm:min-w-[6rem] sm:gap-2 sm:px-4 sm:text-sm'
+
+const SECONDARY_ACTION_BTN =
+  'border-2 border-border bg-card font-semibold text-foreground shadow-sm hover:bg-muted/60 hover:text-foreground'
+
+const PRIMARY_ACTION_BTN =
+  'flex-col gap-0.5 sm:flex-row sm:gap-2 shadow-md ring-2 ring-primary/25'
 
 export function KanbanHeader({
   filtersExpanded,
   onToggleFilters,
+  hasActiveFilters = false,
   onNewAction,
   viewMode = 'kanban',
   onViewModeChange,
@@ -44,12 +53,9 @@ export function KanbanHeader({
   return (
     <header
       id="kanban-header"
-      className={cn(
-        'kanban-header flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6',
-        className
-      )}
+      className={cn('kanban-header flex min-w-0 flex-col gap-2.5', className)}
     >
-      <div className="kanban-header-title-area min-w-0 flex-1 space-y-2.5">
+      <div className="kanban-header-title-area min-w-0 space-y-2.5">
         <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Operaciones
         </p>
@@ -73,38 +79,51 @@ export function KanbanHeader({
             ? 'Gestiona acciones por estado. Arrastra tarjetas entre columnas.'
             : 'Vista en lista. Toca una fila para editar la acción.'}
         </p>
-      </div>
 
-      <div className="kanban-header-actions flex w-full min-w-0 shrink-0 flex-col gap-2 md:w-auto">
-        {onNewAction ? (
-          <Button
-            id="kanban-btn-new-action"
-            variant="default"
-            className="kanban-btn-new-action h-11 w-full shadow-sm md:h-9 md:w-auto"
-            onClick={onNewAction}
-            size="sm"
-          >
-            <Plus className="h-4 w-4 shrink-0" />
-            Nueva acción
-          </Button>
-        ) : null}
+        <div
+          className={cn(
+            'kanban-header-actions grid w-full min-w-0 grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/25 p-2 shadow-sm ring-1 ring-border/30 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:p-3'
+          )}
+        >
+          {onNewAction ? (
+            <Button
+              id="kanban-btn-new-action"
+              variant="default"
+              className={cn('kanban-btn-new-action', ACTION_BTN, PRIMARY_ACTION_BTN)}
+              onClick={onNewAction}
+              size="sm"
+            >
+              <Plus className="h-4 w-4 shrink-0 stroke-[2.5] sm:h-4 sm:w-4" />
+              <span className="truncate sm:hidden">Nueva</span>
+              <span className="hidden truncate sm:inline">Nueva acción</span>
+            </Button>
+          ) : null}
 
-        <div className="kanban-header-actions-secondary grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:flex-wrap md:items-center md:justify-end md:gap-2">
           {onToggleFilters ? (
             <Button
               id="kanban-btn-filters"
               className={cn(
-                'kanban-btn-filters border-border/60 bg-background/80',
+                'kanban-btn-filters relative flex-col gap-0.5 sm:flex-row sm:gap-2',
                 ACTION_BTN,
-                filtersExpanded && 'border-primary/40 bg-primary/5 text-primary'
+                SECONDARY_ACTION_BTN,
+                filtersExpanded && 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20',
+                hasActiveFilters &&
+                  !filtersExpanded &&
+                  'border-primary/50 bg-primary/5 text-primary ring-2 ring-primary/15'
               )}
               variant={filtersExpanded ? 'secondary' : 'outline'}
               size="sm"
               onClick={onToggleFilters}
               aria-expanded={filtersExpanded}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+              <SlidersHorizontal className="h-4 w-4 shrink-0 stroke-[2.25]" />
               <span className="truncate">Filtros</span>
+              {hasActiveFilters ? (
+                <span
+                  className="absolute right-1 top-1 h-2 w-2 rounded-full border border-card bg-primary shadow-sm sm:-right-0.5 sm:-top-0.5 sm:h-2.5 sm:w-2.5 sm:border-2"
+                  aria-label="Filtros activos"
+                />
+              ) : null}
             </Button>
           ) : null}
 
@@ -112,40 +131,44 @@ export function KanbanHeader({
             <DropdownMenuTrigger asChild>
               <Button
                 id="kanban-btn-view"
-                className={cn('kanban-btn-view border-border/60 bg-background/80', ACTION_BTN)}
+                className={cn(
+                  'kanban-btn-view flex-col gap-0.5 sm:flex-row sm:gap-2',
+                  ACTION_BTN,
+                  SECONDARY_ACTION_BTN
+                )}
                 variant="outline"
                 size="sm"
               >
                 {viewMode === 'kanban' ? (
-                  <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
+                  <LayoutGrid className="h-4 w-4 shrink-0 stroke-[2.25]" />
                 ) : (
-                  <List className="h-3.5 w-3.5 shrink-0" />
+                  <List className="h-4 w-4 shrink-0 stroke-[2.25]" />
                 )}
                 <span className="truncate">Vista</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[160px]">
-              <DropdownMenuItem
-                onClick={() => onViewModeChange?.('kanban')}
-                className="flex items-center justify-between"
-              >
-                <span className="flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4" />
-                  {VIEW_LABELS.kanban}
-                </span>
-                {viewMode === 'kanban' ? <Check className="h-4 w-4 text-primary" /> : null}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => onViewModeChange?.('lista')}
-                className="flex items-center justify-between"
-              >
-                <span className="flex items-center gap-2">
-                  <List className="h-4 w-4" />
-                  {VIEW_LABELS.lista}
-                </span>
-                {viewMode === 'lista' ? <Check className="h-4 w-4 text-primary" /> : null}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+              <DropdownMenuContent align="end" className="min-w-[160px]">
+                <DropdownMenuItem
+                  onClick={() => onViewModeChange?.('kanban')}
+                  className="flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <LayoutGrid className="h-4 w-4" />
+                    {VIEW_LABELS.kanban}
+                  </span>
+                  {viewMode === 'kanban' ? <Check className="h-4 w-4 text-primary" /> : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => onViewModeChange?.('lista')}
+                  className="flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <List className="h-4 w-4" />
+                    {VIEW_LABELS.lista}
+                  </span>
+                  {viewMode === 'lista' ? <Check className="h-4 w-4 text-primary" /> : null}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>

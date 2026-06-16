@@ -19,9 +19,16 @@ type GoogleSyncPayload = {
   description?: string
   date?: string
   dueAt?: string
+  createdAt?: string
   actionId?: string
+  reminderId?: string
   responsibleUserId?: string | null
   attendees?: string[]
+}
+
+type TaskSchedule = {
+  start: Date
+  end: Date
 }
 
 type ResolvedUsuario = {
@@ -108,16 +115,85 @@ function sourceUrl(input: GoogleSyncPayload): string {
   return baseUrl
 }
 
+function parseInstant(value: unknown): Date | null {
+  if (typeof value !== 'string' || !value.trim()) return null
+  const parsed = new Date(value)
+  return Number.isFinite(parsed.getTime()) ? parsed : null
+}
+
+function dateOnlyCdmx(value: Date): string {
+  return value.toLocaleDateString('en-CA', { timeZone: TIME_ZONE })
+}
+
+function parseCommitmentDateTime(fecha: string, horaLimite?: string | null): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return null
+  const time = (horaLimite ?? '09:00').slice(0, 5)
+  const parsed = new Date(`${fecha}T${time}:00-06:00`)
+  return Number.isFinite(parsed.getTime()) ? parsed : null
+}
+
 function parseDateTime(input: GoogleSyncPayload): Date {
-  if (input.dueAt) {
-    const due = new Date(input.dueAt)
-    if (Number.isFinite(due.getTime())) return due
-  }
+  const due = parseInstant(input.dueAt)
+  if (due) return due
   if (input.date && /^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
-    const date = new Date(`${input.date}T09:00:00-06:00`)
-    if (Number.isFinite(date.getTime())) return date
+    const date = parseCommitmentDateTime(input.date)
+    if (date) return date
   }
   return new Date(Date.now() + 60 * 60 * 1000)
+}
+
+function formatGoogleTaskDue(end: Date): string {
+  return `${dateOnlyCdmx(end)}T00:00:00.000Z`
+}
+
+function addDaysYmd(ymd: string, days: number): string {
+  const base = new Date(`${ymd}T12:00:00-06:00`)
+  base.setDate(base.getDate() + days)
+  return dateOnlyCdmx(base)
+}
+
+async function resolveTaskSchedule(
+  adminClient: ReturnType<typeof createClient>,
+  input: GoogleSyncPayload,
+  source: GoogleSource
+): Promise<TaskSchedule> {
+  if (source === 'accion' && input.actionId && UUID_RE.test(input.actionId)) {
+    const { data } = await adminClient
+      .from('acciones_diarias')
+      .select('created_at, fecha, hora_limite')
+      .eq('id', input.actionId)
+      .maybeSingle()
+
+    if (data?.created_at && data.fecha) {
+      const start = parseInstant(data.created_at)
+      const end = parseCommitmentDateTime(data.fecha, data.hora_limite)
+      if (start && end) return { start, end: end.getTime() >= start.getTime() ? end : start }
+    }
+  }
+
+  if (source === 'recordatorio' && input.reminderId && UUID_RE.test(input.reminderId)) {
+    const { data } = await adminClient
+      .from('calendar_reminders')
+      .select('created_at, fecha_limite')
+      .eq('id', input.reminderId)
+      .maybeSingle()
+
+    if (data?.created_at && data.fecha_limite) {
+      const start = parseInstant(data.created_at)
+      const end = parseInstant(data.fecha_limite)
+      if (start && end) return { start, end: end.getTime() >= start.getTime() ? end : start }
+    }
+  }
+
+  const end = parseDateTime(input)
+  const start =
+    parseInstant(input.createdAt) ??
+    (input.date && /^\d{4}-\d{2}-\d{2}$/.test(input.date)
+      ? parseCommitmentDateTime(input.date, '09:00')
+      : null) ??
+    end
+
+  return { start, end: end.getTime() >= start.getTime() ? end : start }
 }
 
 function formatDateTimeMx(date: Date): string {
@@ -138,14 +214,20 @@ function buildWorkspaceDescription(input: {
   description: string
   url: string
   start: Date
+  end?: Date
   responsibleName?: string
   actionId?: string
 }): string {
+  const period =
+    input.end && input.end.getTime() !== input.start.getTime()
+      ? `Periodo: ${formatDateTimeMx(input.start)} → ${formatDateTimeMx(input.end)}`
+      : `Fecha: ${formatDateTimeMx(input.start)}`
+
   const lines = [
     'Tablero Operativo',
     '',
     `Tipo: ${SOURCE_LABELS[input.source]}`,
-    `Fecha: ${formatDateTimeMx(input.start)}`,
+    period,
     input.responsibleName ? `Responsable: ${input.responsibleName}` : '',
     input.actionId ? `Accion ID: ${input.actionId}` : '',
     '',
@@ -250,6 +332,35 @@ async function resolveUsuarios(
   return [...uniqueByEmail.values()]
 }
 
+async function linkReminderGoogleIds(
+  adminClient: ReturnType<typeof createClient>,
+  authUserId: string,
+  reminderId: string,
+  target: GoogleTarget,
+  externalId: string | null | undefined
+): Promise<void> {
+  if (!externalId || !UUID_RE.test(reminderId)) return
+  if (target !== 'calendar' && target !== 'calendar_meet' && target !== 'task') return
+
+  const { data: usuario } = await adminClient
+    .from('usuarios')
+    .select('id')
+    .eq('user_id', authUserId)
+    .maybeSingle()
+  if (!usuario?.id) return
+
+  const patch =
+    target === 'task'
+      ? { google_task_id: externalId }
+      : { google_calendar_event_id: externalId }
+
+  await adminClient
+    .from('calendar_reminders')
+    .update(patch)
+    .eq('id', reminderId)
+    .eq('user_id', usuario.id)
+}
+
 Deno.serve(async (req) => {
   const preflight = handleCorsPreflight(req)
   if (preflight) return preflight
@@ -275,7 +386,10 @@ Deno.serve(async (req) => {
     })
 
     const currentEmail = auth.data.user.email?.trim() ?? ''
-    const start = parseDateTime(body)
+    const usesPeriod = source === 'accion' || source === 'recordatorio'
+    const schedule = usesPeriod ? await resolveTaskSchedule(adminClient, body, source) : null
+    const start = schedule?.start ?? parseDateTime(body)
+    const end = schedule?.end ?? parseDateTime(body)
     const resolvedUsers = await resolveUsuarios(adminClient, body.responsibleUserId ? [body.responsibleUserId] : [])
     const profileEmails = resolvedUsers.map((profile) => profile.email)
     const responsibleName = body.responsibleUserId
@@ -290,21 +404,44 @@ Deno.serve(async (req) => {
       description,
       url,
       start,
+      end: usesPeriod ? end : undefined,
       responsibleName,
       actionId: body.actionId,
     })
 
     if (target === 'task') {
       const tasklist = encodeURIComponent(optionalEnv('GOOGLE_TASKLIST_ID', '@default'))
+      const startDate = dateOnlyCdmx(start)
+      const endDate = dateOnlyCdmx(end)
       const task = await googleJson<{ id?: string; title?: string; webViewLink?: string }>(
         `https://tasks.googleapis.com/tasks/v1/lists/${tasklist}/tasks`,
         token,
         {
           title,
           notes: details,
-          due: start.toISOString(),
+          due: formatGoogleTaskDue(end),
         }
       )
+
+      // Tasks API solo admite due (un dia). Evento all-day en Calendar si el periodo abarca varios dias.
+      if (usesPeriod && startDate !== endDate) {
+        const calendarId = encodeURIComponent(optionalEnv('GOOGLE_CALENDAR_ID', 'primary'))
+        await googleJson(
+          `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
+          token,
+          {
+            summary: title,
+            description: details,
+            start: { date: startDate, timeZone: TIME_ZONE },
+            end: { date: addDaysYmd(endDate, 1), timeZone: TIME_ZONE },
+            transparency: 'transparent',
+          }
+        )
+      }
+
+      if (source === 'recordatorio' && body.reminderId) {
+        await linkReminderGoogleIds(adminClient, auth.data.user.id, body.reminderId, target, task.id)
+      }
       return jsonResponse({ ok: true, target, id: task.id ?? null, url: task.webViewLink ?? null })
     }
 
@@ -326,7 +463,10 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, target, id: sent.id ?? null, recipients: to })
     }
 
-    const end = addMinutes(start, source === 'accion' ? 30 : 60)
+    const calendarEnd =
+      usesPeriod && end.getTime() > start.getTime()
+        ? end
+        : addMinutes(start, source === 'accion' ? 30 : 60)
     const calendarId = encodeURIComponent(optionalEnv('GOOGLE_CALENDAR_ID', 'primary'))
     const withMeet = target === 'calendar_meet'
     const event = await googleJson<{ id?: string; htmlLink?: string; hangoutLink?: string }>(
@@ -338,7 +478,7 @@ Deno.serve(async (req) => {
         summary: title,
         description: details,
         start: { dateTime: start.toISOString(), timeZone: TIME_ZONE },
-        end: { dateTime: end.toISOString(), timeZone: TIME_ZONE },
+        end: { dateTime: calendarEnd.toISOString(), timeZone: TIME_ZONE },
         attendees: recipients.map((email) => ({ email })),
         reminders: {
           useDefault: false,
@@ -352,6 +492,9 @@ Deno.serve(async (req) => {
           : undefined,
       }
     )
+    if (source === 'recordatorio' && body.reminderId) {
+      await linkReminderGoogleIds(adminClient, auth.data.user.id, body.reminderId, target, event.id)
+    }
     return jsonResponse({
       ok: true,
       target,

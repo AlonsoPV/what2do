@@ -11,6 +11,7 @@ import {
   useChecklistProgressByAccionIds,
   AccionFormDialog,
   KanbanToolbar,
+  hasKanbanActiveFilters,
   metricasFromAcciones,
 } from '@/features/operations'
 import {
@@ -173,15 +174,7 @@ export function DashboardPage() {
     [impactRows]
   )
 
-  const advancedFiltersActive = Boolean(
-    filter.estado != null ||
-      (filter.fecha_min != null && filter.fecha_min !== '') ||
-      (filter.fecha_max != null && filter.fecha_max !== '') ||
-      filter.prioridad != null ||
-      (filter.area != null && filter.area !== '') ||
-      filter.responsable != null ||
-      filter.created_by != null
-  )
+  const advancedFiltersActive = useMemo(() => hasKanbanActiveFilters(filter), [filter])
 
   const handleFilterChange = useCallback((next: AccionesFilter | Partial<AccionesFilter>) => {
     setFilter((prev) => {
@@ -222,23 +215,18 @@ export function DashboardPage() {
             advancedFiltersActive={advancedFiltersActive}
             title={usesOperationalDashboard ? 'Vision general' : undefined}
             eyebrow={usesOperationalDashboard ? 'Tablero operativo' : undefined}
-            showExport={!usesOperationalDashboard}
             onToggleFilters={() => setFiltersExpanded((v) => !v)}
             onNewAction={handleCreate}
+            filtersPanel={
+              <KanbanToolbar
+                filter={filter}
+                onFilterChange={handleFilterChange}
+                onClear={handleClearFilters}
+                layout="dashboard"
+                advancedExpanded
+              />
+            }
           />
-
-          <div
-            id="dashboard-toolbar"
-            className="dashboard-toolbar-wrapper sticky top-0 z-30 -mx-4 -mt-1 border-y border-border/40 bg-background/88 px-4 py-3 shadow-[0_6px_16px_-8px_rgba(0,0,0,0.1)] backdrop-blur-md sm:-mx-6 sm:px-6 dark:bg-background/85 dark:shadow-[0_6px_16px_-8px_rgba(0,0,0,0.38)]"
-          >
-            <KanbanToolbar
-              filter={filter}
-              onFilterChange={handleFilterChange}
-              onClear={handleClearFilters}
-              layout="dashboard"
-              advancedExpanded={filtersExpanded}
-            />
-          </div>
         </section>
 
         {!usesOperationalDashboard ? (

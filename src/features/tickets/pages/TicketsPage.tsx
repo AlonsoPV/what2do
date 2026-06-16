@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  Search,
   Send,
   Trash2,
   Wrench,
@@ -87,6 +88,18 @@ const PRIORITY_BADGE: Record<string, string> = {
   alta: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
   urgente: 'bg-red-500/10 text-red-700 dark:text-red-300',
 }
+
+const TICKET_TOOLBAR_BTN =
+  'h-11 min-h-11 w-full min-w-0 justify-center gap-1.5 px-2 text-[11px] font-semibold leading-tight shadow-sm sm:h-10 sm:min-h-10 sm:w-auto sm:gap-2 sm:px-4 sm:text-sm'
+
+const TICKET_TOOLBAR_PRIMARY_BTN =
+  'flex-col gap-0.5 shadow-md ring-2 ring-primary/25 sm:flex-row sm:gap-2'
+
+const TICKET_TOOLBAR_FIELD =
+  'h-11 min-h-11 w-full min-w-0 border-2 border-border bg-card text-[11px] font-medium shadow-sm sm:h-10 sm:min-h-10 sm:text-sm'
+
+const TICKET_TOOLBAR_FIELD_ACTIVE =
+  'border-primary/50 bg-primary/5 ring-2 ring-primary/15'
 
 function optionLabel(options: { label: string; value: string }[], value: string | null | undefined) {
   return options.find((option) => option.value === value)?.label ?? value ?? '-'
@@ -1018,6 +1031,7 @@ export function TicketsPage() {
   const priorityOptions = priorityOptionsRaw.filter((option) => option.activo)
   const impactOptions = impactOptionsRaw.filter((option) => option.activo)
   const { data: tickets = [], isLoading, isError, error, refetch } = useTickets({ search, status })
+  const hasActiveFilters = search.trim() !== '' || status !== 'todos'
   const ticketIdFromUrl = searchParams.get('ticket')
   const { data: ticketFromUrl } = useTicket(ticketIdFromUrl)
   const ticketIds = useMemo(() => tickets.map((ticket) => ticket.id), [tickets])
@@ -1050,39 +1064,84 @@ export function TicketsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col space-y-6 overflow-x-hidden px-3 py-5 sm:px-6 sm:py-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <header className="min-w-0 space-y-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-primary">
             <LifeBuoy className="h-4 w-4" />
             Mesa de ayuda
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Tickets</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
             Registra errores, mejoras o cambios. Veras tus tickets; super admin ve y administra todos.
           </p>
         </div>
-        <Button type="button" className="gap-1.5" onClick={openNew}>
-          <Plus className="h-4 w-4" />
-          Nuevo ticket
-        </Button>
-      </header>
 
-      <SectionCard>
-        <SectionCardBody className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Field label="Buscar" htmlFor="ticket-search" className="flex-1">
-            <Input id="ticket-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Titulo, descripcion o modulo" />
-          </Field>
-          <Field label="Estatus" htmlFor="ticket-filter-status" className="sm:w-56">
-            <Select value={status} onValueChange={(value) => setStatus(value as TicketStatus | 'todos')}>
-              <SelectTrigger id="ticket-filter-status"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                {STATUS_ORDER.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-        </SectionCardBody>
-      </SectionCard>
+        <div
+          className={cn(
+            'tickets-toolbar grid w-full min-w-0 grid-cols-3 gap-2 rounded-xl border border-border/70 bg-muted/25 p-2 shadow-sm ring-1 ring-border/30 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:p-3'
+          )}
+        >
+          <Button
+            type="button"
+            className={cn('tickets-btn-new gap-1.5', TICKET_TOOLBAR_BTN, TICKET_TOOLBAR_PRIMARY_BTN)}
+            onClick={openNew}
+            size="sm"
+          >
+            <Plus className="h-4 w-4 shrink-0 stroke-[2.5]" />
+            <span className="truncate sm:hidden">Nuevo</span>
+            <span className="hidden truncate sm:inline">Nuevo ticket</span>
+          </Button>
+
+          <div className="contents sm:flex sm:flex-1 sm:items-center sm:justify-end sm:gap-3 sm:pl-2">
+            <div className="relative min-w-0">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground sm:left-3"
+                aria-hidden
+              />
+              <Input
+                id="ticket-search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar"
+                className={cn(
+                  'tickets-search pl-8 sm:pl-9',
+                  TICKET_TOOLBAR_FIELD,
+                  search.trim() !== '' && TICKET_TOOLBAR_FIELD_ACTIVE
+                )}
+              />
+            </div>
+
+            <div className="relative min-w-0 sm:w-48">
+              <Select value={status} onValueChange={(value) => setStatus(value as TicketStatus | 'todos')}>
+                <SelectTrigger
+                  id="ticket-filter-status"
+                  className={cn(
+                    'tickets-filter-status',
+                    TICKET_TOOLBAR_FIELD,
+                    status !== 'todos' && TICKET_TOOLBAR_FIELD_ACTIVE
+                  )}
+                >
+                  <SelectValue placeholder="Estatus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {STATUS_ORDER.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {hasActiveFilters ? (
+                <span
+                  className="pointer-events-none absolute right-1 top-1 h-2 w-2 rounded-full border border-card bg-primary shadow-sm sm:right-1.5 sm:top-1.5 sm:h-2.5 sm:w-2.5 sm:border-2"
+                  aria-label="Filtros activos"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </header>
 
       {isError ? (
         <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">

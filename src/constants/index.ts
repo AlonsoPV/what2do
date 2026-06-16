@@ -41,3 +41,6 @@ export const ROUTES = {
   SETTINGS_CATALOGS_GAPS: '/settings/catalogs/gaps',
   SETTINGS_ACADEMY_MODULES: '/settings/academy/modules',
 } as const
+
+/** Exportar minutas, acciones y recordatorios a Google Calendar / Tasks / Gmail. */
+export const GOOGLE_WORKSPACE_CALENDAR_SYNC_ENABLED = false

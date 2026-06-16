@@ -4,6 +4,7 @@ import {
   isTodayOrFutureDateCDMX,
   splitDateTimeLocal,
   validateFutureDateTimeCDMX,
+  validateFutureDatetimeLocalWallClock,
   validateFutureInstant,
   validateTodayOrFutureDateCDMX,
 } from './futureDateValidation'
@@ -53,5 +54,13 @@ describe('futureDateValidation', () => {
   it('separa datetime-local en fecha y hora', () => {
     expect(splitDateTimeLocal('2026-06-15T11:45')).toEqual({ date: '2026-06-15', time: '11:45' })
     expect(splitDateTimeLocal('')).toBeNull()
+  })
+
+  it('valida datetime-local contra el reloj real del sistema', () => {
+    vi.stubEnv('VITE_DEV_FIXED_NOW', '2026-04-10T16:58:00-06:00')
+    expect(validateFutureDatetimeLocalWallClock('2026-06-15T23:08', 'La fecha y hora')).toBeNull()
+    expect(validateFutureDatetimeLocalWallClock('2026-04-10T16:58', 'La fecha y hora')).toBe(
+      'La fecha y hora debe quedar despues del momento de creacion.'
+    )
   })
 })

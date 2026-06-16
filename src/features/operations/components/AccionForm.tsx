@@ -30,10 +30,10 @@ import { isAnalystByRole, isDirectionByRole } from '@/features/auth/lib/permissi
 import { cn } from '@/lib/utils'
 import { todayWallClockCDMX } from '@/lib/dateUtils'
 import { STORY_POINTS_OPTIONS } from '../utils/tipoAccionConfig'
-import { DEFAULT_PRIORITY_NOMBRE } from '../utils/priorityLabels'
-import type { Priority } from '@/features/catalogs/types/catalogs.types'
+import { DEFAULT_PRIORITY_NOMBRE, priorityDisplayLabel } from '../utils/priorityLabels'
 import { AccionFormField } from './AccionFormSection'
 import { AccionFormBlock } from './form/AccionFormBlock'
+import { AccionPrioridadSelect, resolveDefaultPrioridadNombre } from './form/AccionPrioridadSelect'
 import { CatalogSearchMultiSelect } from './form/CatalogSearchMultiSelect'
 import { EvidenceOptionPicker } from './form/EvidenceOptionPicker'
 import { CatalogLoadError } from './form/CatalogLoadError'
@@ -234,34 +234,16 @@ export function AccionForm({
   const catalogKpiIds = useMemo(() => watchedCatalogKpiIds ?? [], [watchedCatalogKpiIds])
   const prioridadSeleccionada = form.watch('prioridad')
 
-  const priorityOptions = useMemo((): Priority[] => {
+  const priorityOptions = useMemo((): { id: string; nombre: string }[] => {
     const sorted = [...priorities].sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre))
     const nombre = (prioridadSeleccionada ?? '').trim()
     if (nombre && !sorted.some((p) => p.nombre === nombre)) {
-      return [
-        {
-          id: `legacy-${nombre}`,
-          nombre,
-          descripcion: null,
-          orden: 999,
-          activo: false,
-          created_at: '',
-          updated_at: '',
-        },
-        ...sorted,
-      ]
+      return [{ id: `legacy-${nombre}`, nombre }, ...sorted.map((p) => ({ id: p.id, nombre: p.nombre }))]
     }
-    return sorted
+    return sorted.map((p) => ({ id: p.id, nombre: p.nombre }))
   }, [priorities, prioridadSeleccionada])
 
-  const defaultPrioridadNombre = useMemo(() => {
-    const sorted = [...priorities].sort((a, b) => a.orden - b.orden)
-    return (
-      sorted.find((p) => p.nombre === DEFAULT_PRIORITY_NOMBRE)?.nombre ??
-      sorted[0]?.nombre ??
-      DEFAULT_PRIORITY_NOMBRE
-    )
-  }, [priorities])
+  const defaultPrioridadNombre = useMemo(() => resolveDefaultPrioridadNombre(priorities), [priorities])
 
   const gapSearchItems = useMemo(
     () =>
@@ -290,8 +272,11 @@ export function AccionForm({
     const titulo = (form.watch('titulo_accion') ?? '').trim()
     const resp = users.find((u) => u.id === form.watch('responsable'))?.nombre
     const fecha = form.watch('fecha')
+    const prioridad = (form.watch('prioridad') ?? '').trim()
     if (!titulo && !resp) return undefined
-    return [titulo || 'Sin título', resp, fecha].filter(Boolean).join(' · ')
+    return [titulo || 'Sin título', resp, prioridad ? priorityDisplayLabel(prioridad) : null, fecha]
+      .filter(Boolean)
+      .join(' · ')
   }, [form, users])
 
   useEffect(() => {
@@ -463,6 +448,7 @@ export function AccionForm({
           )}
         </AccionFormField>
 
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-start">
         <AccionFormField
           label="Responsable de ejecutar"
           htmlFor={fieldId('responsable')}
@@ -496,6 +482,23 @@ export function AccionForm({
             </SelectContent>
           </Select>
         </AccionFormField>
+
+        <AccionFormField
+          label="Prioridad"
+          htmlFor={fieldId('prioridad')}
+          hint="Urgencia según el catálogo O2C."
+          hintAsIcon
+          required
+          error={form.formState.errors.prioridad?.message}
+        >
+          <AccionPrioridadSelect
+            id={fieldId('prioridad')}
+            value={form.watch('prioridad')}
+            onChange={(v) => form.setValue('prioridad', v, { shouldValidate: true })}
+            disabled={isEditProtectedReadonly}
+          />
+        </AccionFormField>
+        </div>
 
         <AccionFormField
           label="Fecha y hora límite"
