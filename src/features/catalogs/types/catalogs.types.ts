@@ -98,6 +98,7 @@ export interface Priority {
   id: string
   nombre: string
   descripcion: string | null
+  color: string | null
   orden: number
   activo: boolean
   created_at: string
@@ -107,6 +108,7 @@ export interface Priority {
 export interface CreatePriorityInput {
   nombre: string
   descripcion?: string | null
+  color?: string | null
   orden?: number
   activo?: boolean
 }
@@ -114,6 +116,7 @@ export interface CreatePriorityInput {
 export interface UpdatePriorityInput {
   nombre?: string
   descripcion?: string | null
+  color?: string | null
   orden?: number
   activo?: boolean
 }

@@ -57,6 +57,20 @@ describe('role route permissions', () => {
     expect(getDefaultRouteByRole(role)).toBe(ROUTES.KANBAN)
   })
 
+  it('keeps Analista limited to Kanban only', () => {
+    const role = 'Analista'
+
+    expect(canAccessRouteByRole(role, ROUTES.KANBAN)).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.DISCIPLINA)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.CALENDARIO)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.ACADEMIA)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.TICKETS)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.SETTINGS_PROFILE)).toBe(false)
+    expect(usesOperationalDashboardByRole(role)).toBe(false)
+    expect(getDefaultRouteByRole(role)).toBe(ROUTES.KANBAN)
+  })
+
   it('keeps executive roles on the executive dashboard experience', () => {
     expect(usesOperationalDashboardByRole('DG')).toBe(false)
     expect(usesOperationalDashboardByRole('Sistemas')).toBe(false)

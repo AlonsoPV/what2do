@@ -35,11 +35,29 @@ export const prioritiesService = {
   },
 
   async update(id: string, input: UpdatePriorityInput): Promise<Priority> {
+    const existing = await this.getById(id)
     const payload: Record<string, unknown> = { ...input }
     if (payload.nombre !== undefined) payload.nombre = (payload.nombre as string).trim()
     if (payload.descripcion !== undefined) payload.descripcion = (payload.descripcion as string)?.trim() ?? null
     const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select().single()
     if (error) throw error
+
+    const { error: syncError } = await supabase.rpc('sync_acciones_prioridad_for_priority', {
+      p_priority_id: id,
+    })
+    if (syncError) {
+      const newNombre = typeof input.nombre === 'string' ? input.nombre.trim() : null
+      if (existing && newNombre && newNombre !== existing.nombre) {
+        const { error: fallbackError } = await supabase
+          .from('acciones_diarias')
+          .update({ prioridad: newNombre })
+          .eq('prioridad', existing.nombre)
+        if (fallbackError) throw fallbackError
+      } else if (syncError.code !== 'PGRST202') {
+        throw syncError
+      }
+    }
+
     return data as Priority
   },
 

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { isAdminByRole } from '@/features/auth/lib/permissions'
+import { isAdminByRole, isAnalystByRole } from '@/features/auth/lib/permissions'
 import type { AccionDiaria } from '@/types'
 import type { ActionStatus } from '@/types'
 import {
@@ -15,15 +15,19 @@ export function useActionEstadoPermissions(
   currentUser: { id: string; rol: string } | null | undefined
 ) {
   const bypassEstadoRoles = currentUser ? isAdminByRole(currentUser.rol) : false
+  const readOnly = currentUser ? isAnalystByRole(currentUser.rol) : false
   const uid = currentUser?.id
 
   return useMemo(
     () => ({
       canChangeTo: (accion: AccionDiaria, target: ActionStatus) =>
+        !readOnly &&
         canChangeAccionEstado(accion, uid, target, { bypassEstadoRoles }),
       denialMessage: (accion: AccionDiaria, target: ActionStatus) =>
-        getAccionEstadoChangeDenialMessage(accion, uid, target, { bypassEstadoRoles }),
+        readOnly
+          ? 'El rol Analista solo puede visualizar sus acciones.'
+          : getAccionEstadoChangeDenialMessage(accion, uid, target, { bypassEstadoRoles }),
     }),
-    [uid, bypassEstadoRoles]
+    [uid, bypassEstadoRoles, readOnly]
   )
 }

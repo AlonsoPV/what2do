@@ -24,7 +24,7 @@ import { AccionFormSection } from './AccionFormSection'
 import { AccionDialogHeaderMeta } from './AccionDialogHeaderMeta'
 import { AccionEvidenciasSection } from './AccionEvidenciasSection'
 import { AccionComentarios } from './AccionComentarios'
-import { useCreateAccion, useDeleteAccion, useUpdateAccion } from '../hooks'
+import { useCreateAccion, useDeleteAccion, useUpdateAccion, useAccion } from '../hooks'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
 import { isAnalystByRole, isDirectionByRole, isSuperAdminByRole } from '@/features/auth/lib/permissions'
 import { usersAdminService } from '@/features/users/services/users.service'
@@ -56,6 +56,7 @@ import {
   fetchDropdownOptionsByCatalogKey,
 } from '@/features/catalogs/hooks/useDropdownOptions'
 import { areasQueryKey, fetchAreas } from '@/features/catalogs/hooks/useAreas'
+import { fetchPriorities, prioritiesQueryKey, usePriorities } from '@/features/catalogs/hooks/usePriorities'
 import { catalogKpisService } from '@/features/catalogs/services/kpis.service'
 import { kpiQueryKeys } from '@/features/kpi/kpiQueryKeys'
 import { listGaps } from '@/features/kpi/services/gaps.service'
@@ -72,6 +73,10 @@ import {
   isPreviewableDocument,
   openLocalFile,
 } from '@/lib/documentActions'
+import {
+  resolveAccionPrioridadId,
+  resolveAccionPrioridadNombre,
+} from '../utils/resolveAccionPrioridad'
 
 /** Fecha de hoy en YYYY-MM-DD (calendario CDMX, no UTC). */
 function todayISO(): string {
@@ -105,16 +110,20 @@ export function AccionFormDialog({
   const updateAccion = useUpdateAccion()
   const deleteAccion = useDeleteAccion()
   const isEdit = !!accion?.id
+  const accionFreshQuery = useAccion(accion?.id, { enabled: open && !!accion?.id })
+  const accionLive = accionFreshQuery.data ?? accion ?? null
+  const { data: priorities = [] } = usePriorities()
   const canDeleteAccion = isEdit && isSuperAdminByRole(currentUser?.rol)
   const isEditProtectedReadonly = isEdit
-  const isActionCreator = !!accion?.created_by && accion.created_by === currentUser?.id
+  const isAnalyst = isAnalystByRole(currentUser?.rol)
+  const isActionCreator = !!accionLive?.created_by && accionLive.created_by === currentUser?.id
   const canManageChecklistStructure = isActionCreator
   // La autorizacion final del checklist vive en Supabase. El cliente solo evita
   // bloquear el click por caches o ids locales desfasados tras cambios de usuario.
-  const canAttemptChecklistContribution = !!currentUser?.id
+  const canAttemptChecklistContribution = !!currentUser?.id && !isAnalyst
   const isMutating = createAccion.isPending || updateAccion.isPending || deleteAccion.isPending
   const canViewO2cImpactFields =
-    !isAnalystByRole(currentUser?.rol) && !isDirectionByRole(currentUser?.rol)
+    !isAnalyst && !isDirectionByRole(currentUser?.rol)
 
   const o2cLinksQuery = useQuery({
     queryKey: ['accion-o2c-links', accion?.id] as const,
@@ -140,6 +149,7 @@ export function AccionFormDialog({
   /** Resumen de validación bajo los botones del pie (RHF/Zod y reglas del diálogo). */
   const [submitFooterErrors, setSubmitFooterErrors] = useState<string[] | null>(null)
   const [manualEmailPending, setManualEmailPending] = useState(false)
+  const [livePrioridad, setLivePrioridad] = useState<string | undefined>()
 
   useEffect(() => {
     if (open && !isEdit) {
@@ -153,6 +163,14 @@ export function AccionFormDialog({
   }, [open, accion?.id])
 
   useEffect(() => {
+    setLivePrioridad(
+      accionLive
+        ? resolveAccionPrioridadNombre(accionLive, priorities) || accionLive.prioridad
+        : undefined
+    )
+  }, [accionLive, priorities, open])
+
+  useEffect(() => {
     if (!open) return
     const prefetches = [
       qc.prefetchQuery({
@@ -162,6 +180,10 @@ export function AccionFormDialog({
       qc.prefetchQuery({
         queryKey: areasQueryKey({ activo: true }),
         queryFn: () => fetchAreas({ activo: true }),
+      }),
+      qc.prefetchQuery({
+        queryKey: prioritiesQueryKey(),
+        queryFn: () => fetchPriorities(),
       }),
       qc.prefetchQuery({
         queryKey: [...usersQueryKey, { activo: true }],
@@ -339,7 +361,7 @@ export function AccionFormDialog({
   }
 
   const defaultValues = useMemo((): Partial<AccionFormInput> | null => {
-    if (!accion) {
+    if (!accionLive) {
       return {
         fecha: defaultFecha ?? todayISO(),
         titulo_accion: '',
@@ -359,34 +381,35 @@ export function AccionFormDialog({
       }
     }
     const merged = o2cLinksQuery.data
-    const gap_ids = merged?.gap_ids ?? (accion.gap_id ? [accion.gap_id] : [])
+    const gap_ids = merged?.gap_ids ?? (accionLive.gap_id ? [accionLive.gap_id] : [])
     const catalog_kpi_ids =
-      merged?.catalog_kpi_ids ?? (accion.catalog_kpi_id ? [accion.catalog_kpi_id] : [])
+      merged?.catalog_kpi_ids ?? (accionLive.catalog_kpi_id ? [accionLive.catalog_kpi_id] : [])
+    const prioridadResuelta = resolveAccionPrioridadNombre(accionLive, priorities)
     return {
-      fecha: accion.fecha,
-      titulo_accion: accion.titulo_accion ?? '',
+      fecha: accionLive.fecha,
+      titulo_accion: accionLive.titulo_accion ?? '',
       descripcion_modo: 'simple',
-      descripcion_simple: flattenDescripcionForForm(accion.descripcion_accion ?? ''),
+      descripcion_simple: flattenDescripcionForForm(accionLive.descripcion_accion ?? ''),
       descripcion_como: '',
       descripcion_quiero: '',
       descripcion_para_que: '',
-      responsable: accion.responsable,
-      hora_limite: accion.hora_limite?.slice(0, 5) ?? '17:00',
-      evidencia_esperada: accion.evidencia_esperada,
-      estado: accion.estado,
-      prioridad: accion.prioridad,
-      area: accion.area ?? undefined,
+      responsable: accionLive.responsable,
+      hora_limite: accionLive.hora_limite?.slice(0, 5) ?? '17:00',
+      evidencia_esperada: accionLive.evidencia_esperada,
+      estado: accionLive.estado,
+      prioridad: prioridadResuelta || accionLive.prioridad,
+      area: accionLive.area ?? undefined,
       gap_ids,
       catalog_kpi_ids,
-      tipo_accion: accion.tipo_accion ?? 'operativa',
+      tipo_accion: accionLive.tipo_accion ?? 'operativa',
       story_points:
-        typeof accion.story_points === 'number' && Number.isFinite(accion.story_points)
-          ? accion.story_points
-          : Number(accion.story_points) || 0,
-      sprint_id: accion.sprint_id ?? null,
-      responsable_bloqueo: accion.responsable_bloqueo ?? null,
+        typeof accionLive.story_points === 'number' && Number.isFinite(accionLive.story_points)
+          ? accionLive.story_points
+          : Number(accionLive.story_points) || 0,
+      sprint_id: accionLive.sprint_id ?? null,
+      responsable_bloqueo: accionLive.responsable_bloqueo ?? null,
     }
-  }, [accion, defaultFecha, o2cLinksQuery.data])
+  }, [accionLive, defaultFecha, o2cLinksQuery.data, priorities])
 
   const handleSubmit = (values: AccionCreateInput) => {
     setSubmitFooterErrors(null)
@@ -394,7 +417,7 @@ export function AccionFormDialog({
     const originalCatalogKpiIds = defaultValues?.catalog_kpi_ids ?? []
     const gapIds = isEditProtectedReadonly ? originalGapIds : (values.gap_ids ?? [])
     const catalogKpiIds = isEditProtectedReadonly ? originalCatalogKpiIds : (values.catalog_kpi_ids ?? [])
-    const fecha = isEditProtectedReadonly && accion ? accion.fecha : (values.fecha ?? todayISO())
+    const fecha = isEditProtectedReadonly && accionLive ? accionLive.fecha : (values.fecha ?? todayISO())
     if (!isEdit) {
       const futureError = validateFutureDateTimeCDMX(
         fecha,
@@ -407,15 +430,22 @@ export function AccionFormDialog({
         return
       }
     }
-    const prioridad =
-      isEditProtectedReadonly && accion
-        ? accion.prioridad
-        : (values.prioridad ?? DEFAULT_PRIORITY_NOMBRE)
+    const prioridad = (
+      values.prioridad ??
+      (accionLive ? resolveAccionPrioridadNombre(accionLive, priorities) : undefined) ??
+      accionLive?.prioridad ??
+      DEFAULT_PRIORITY_NOMBRE
+    ).trim()
+    const prioridad_id =
+      priorities.find((p) => p.nombre === prioridad)?.id ??
+      (accionLive ? resolveAccionPrioridadId(accionLive, priorities) : null)
     const estado = (values.estado ?? 'Pendiente') as ActionStatus
     const payload: Partial<AccionDiaria> =
-      isEditProtectedReadonly && accion
+      isEditProtectedReadonly && accionLive
         ? {
             descripcion_accion: values.descripcion_accion,
+            prioridad,
+            prioridad_id,
             updated_by: currentUser?.id ?? null,
           }
         : {
@@ -426,6 +456,7 @@ export function AccionFormDialog({
             hora_limite: values.hora_limite,
             evidencia_esperada: values.evidencia_esperada,
             prioridad,
+            prioridad_id,
             estado,
             area: values.area ?? null,
             tipo_accion: values.tipo_accion ?? 'operativa',
@@ -439,21 +470,21 @@ export function AccionFormDialog({
               : { created_by: currentUser?.id ?? null }),
           }
 
-    if (isEdit && accion) {
+    if (isEdit && accionLive) {
       const nuevoResponsable = payload.responsable ?? null
-      const cambiaResponsable = nuevoResponsable && nuevoResponsable !== accion.responsable
+      const cambiaResponsable = nuevoResponsable && nuevoResponsable !== accionLive.responsable
       updateAccion.mutate(
-        { id: accion.id, payload },
+        { id: accionLive.id, payload },
         {
           onSuccess: () => {
             if (cambiaResponsable && nuevoResponsable) {
-              void notifyResponsable(nuevoResponsable, accion.id, {
-                titulo_accion: payload.titulo_accion ?? accion.titulo_accion ?? '',
-                descripcion_accion: payload.descripcion_accion ?? accion.descripcion_accion ?? '',
-                creador_id: accion.created_by ?? null,
-                creador_nombre: userNameById(accion.created_by),
-                fecha: payload.fecha ?? accion.fecha,
-                hora_limite: payload.hora_limite ?? accion.hora_limite,
+              void notifyResponsable(nuevoResponsable, accionLive.id, {
+                titulo_accion: payload.titulo_accion ?? accionLive.titulo_accion ?? '',
+                descripcion_accion: payload.descripcion_accion ?? accionLive.descripcion_accion ?? '',
+                creador_id: accionLive.created_by ?? null,
+                creador_nombre: userNameById(accionLive.created_by),
+                fecha: payload.fecha ?? accionLive.fecha,
+                hora_limite: payload.hora_limite ?? accionLive.hora_limite,
               })
             }
             toast.success('Accion actualizada correctamente')
@@ -461,13 +492,13 @@ export function AccionFormDialog({
             onSuccess?.()
 
             if (!isEditProtectedReadonly) {
-              void syncAccionO2cLinks(accion.id, {
+              void syncAccionO2cLinks(accionLive.id, {
                 gapIds,
                 catalogKpiIds,
               })
                 .then(() =>
                   Promise.allSettled([
-                    qc.invalidateQueries({ queryKey: ['accion-o2c-links', accion.id] }),
+                    qc.invalidateQueries({ queryKey: ['accion-o2c-links', accionLive.id] }),
                     qc.invalidateQueries({ queryKey: kpiQueryKeys.gapAcciones, refetchType: 'active' }),
                     qc.invalidateQueries({ queryKey: kpiQueryKeys.gaps, refetchType: 'active' }),
                     qc.invalidateQueries({ queryKey: kpiQueryKeys.catalogKpiAccionImpact, refetchType: 'active' }),
@@ -659,8 +690,12 @@ export function AccionFormDialog({
                 </p>
               ) : null}
             </div>
-            {isEdit && accion ? (
-              <AccionDialogHeaderMeta accion={accion} className="w-fit sm:max-w-[60%] sm:shrink-0" />
+            {isEdit && accionLive ? (
+              <AccionDialogHeaderMeta
+                accion={accionLive}
+                prioridadNombre={livePrioridad}
+                className="w-fit sm:max-w-[60%] sm:shrink-0"
+              />
             ) : null}
           </div>
         </div>
@@ -669,7 +704,7 @@ export function AccionFormDialog({
           className="accion-form-dialog-body flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3 py-3 sm:px-5 sm:py-4 md:px-6 md:py-5"
         >
           <AccionForm
-            key={`${accion?.id ?? 'new'}-${isEdit ? (o2cLinksQuery.isFetched ? 'o2c' : 'pending') : 'create'}`}
+            key={`${accionLive?.id ?? 'new'}-${isEdit ? (o2cLinksQuery.isFetched ? 'o2c' : 'pending') : 'create'}-${defaultValues?.prioridad ?? ''}`}
             formId={formBaseId}
             defaultValues={defaultValues}
             onSubmit={handleSubmit}
@@ -678,6 +713,12 @@ export function AccionFormDialog({
             isSubmitting={isMutating}
             isEdit={isEdit}
             readonlyStrategicFields={isEditProtectedReadonly}
+            onPrioridadChange={setLivePrioridad}
+            accionPrioridadId={
+              accionLive
+                ? resolveAccionPrioridadId(accionLive, priorities) ?? accionLive.prioridad_id ?? null
+                : null
+            }
             validationExtras={
               !isEdit ? (
                 <>

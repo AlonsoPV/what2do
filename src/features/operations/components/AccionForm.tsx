@@ -34,6 +34,7 @@ import { DEFAULT_PRIORITY_NOMBRE, priorityDisplayLabel } from '../utils/priority
 import { AccionFormField } from './AccionFormSection'
 import { AccionFormBlock } from './form/AccionFormBlock'
 import { AccionPrioridadSelect, resolveDefaultPrioridadNombre } from './form/AccionPrioridadSelect'
+import { resolveAccionPrioridadNombre } from '../utils/resolveAccionPrioridad'
 import { CatalogSearchMultiSelect } from './form/CatalogSearchMultiSelect'
 import { EvidenceOptionPicker } from './form/EvidenceOptionPicker'
 import { CatalogLoadError } from './form/CatalogLoadError'
@@ -131,6 +132,8 @@ export interface AccionFormProps {
   onSubmitInvalid?: (messages: string[]) => void
   /** Checklist borrador y adjuntos opcionales (bloque 3, solo creación). */
   validationExtras?: ReactNode
+  onPrioridadChange?: (prioridad: string | undefined) => void
+  accionPrioridadId?: string | null
 }
 
 export function AccionForm({
@@ -143,6 +146,8 @@ export function AccionForm({
   formId,
   onSubmitInvalid,
   validationExtras,
+  onPrioridadChange,
+  accionPrioridadId,
 }: AccionFormProps) {
   void _onCancel
   void _isSubmitting
@@ -163,7 +168,7 @@ export function AccionForm({
   const {
     data: priorities = [],
     isLoading: prioritiesLoading,
-  } = usePriorities({ activo: true })
+  } = usePriorities()
   const { data: currentUser } = useCurrentUser()
   const isAnalyst = isAnalystByRole(currentUser?.rol)
   const canViewO2cImpactFields = !isAnalyst && !isDirectionByRole(currentUser?.rol)
@@ -281,11 +286,37 @@ export function AccionForm({
 
   useEffect(() => {
     if (prioritiesLoading || priorities.length === 0) return
+    if (isEdit) return
     const current = form.getValues('prioridad')
     if (!current || !priorityOptions.some((p) => p.nombre === current)) {
       form.setValue('prioridad', defaultPrioridadNombre, { shouldValidate: true })
     }
-  }, [prioritiesLoading, priorities.length, defaultPrioridadNombre, priorityOptions, form])
+  }, [isEdit, prioritiesLoading, priorities.length, defaultPrioridadNombre, priorityOptions, form])
+
+  useEffect(() => {
+    if (!defaultValues?.prioridad && !accionPrioridadId) return
+    if (prioritiesLoading || priorities.length === 0) return
+    const resolved = resolveAccionPrioridadNombre(
+      {
+        prioridad: defaultValues?.prioridad ?? form.getValues('prioridad') ?? '',
+        prioridad_id: accionPrioridadId,
+      },
+      priorities
+    )
+    if (resolved && resolved !== form.getValues('prioridad')) {
+      form.setValue('prioridad', resolved, { shouldValidate: true })
+    }
+  }, [
+    accionPrioridadId,
+    defaultValues?.prioridad,
+    form,
+    priorities,
+    prioritiesLoading,
+  ])
+
+  useEffect(() => {
+    onPrioridadChange?.(prioridadSeleccionada?.trim() || undefined)
+  }, [onPrioridadChange, prioridadSeleccionada])
 
   useEffect(() => {
     form.setValue('descripcion_modo', 'simple')
@@ -392,6 +423,22 @@ export function AccionForm({
           <div className="grid gap-3 sm:grid-cols-2">
             <ReadonlyValue label="Título de la acción" value={form.watch('titulo_accion')} />
             <ReadonlyValue label="Responsable de ejecutar" value={readonlyResponsableNombre} />
+            <AccionFormField
+              label="Prioridad"
+              htmlFor={fieldId('prioridad')}
+              hint="Sincronizada con el catálogo O2C."
+              hintAsIcon
+              required
+              error={form.formState.errors.prioridad?.message}
+            >
+              <AccionPrioridadSelect
+                id={fieldId('prioridad')}
+                value={form.watch('prioridad')}
+                onChange={(v) => form.setValue('prioridad', v, { shouldValidate: true })}
+                disabled={isAnalyst}
+                prioridadId={accionPrioridadId}
+              />
+            </AccionFormField>
             <ReadonlyValue
               label="Fecha y hora límite"
               value={[form.watch('fecha'), form.watch('hora_limite')].filter(Boolean).join(' · ')}

@@ -30,8 +30,9 @@ export function Header() {
   const { metrics: gamificationMetrics, isLoading: gamificationLoading } = useActionGamificationScore(profile?.id, {
     enabled: Boolean(profile?.id),
   })
-  const showPlanAccion = hasPlanAccionAccess(profile)
+  const showPlanAccion = hasPlanAccionAccess(profile) && canAccessRouteByRole(profile?.rol, ROUTES.PLAN_ACCION)
   const showNotifications = canAccessRouteByRole(profile?.rol, ROUTES.NOTIFICACIONES)
+  const showDisciplineScore = canAccessRouteByRole(profile?.rol, ROUTES.DISCIPLINA)
 
   const handleLogout = async () => {
     resetOnLogout()
@@ -72,10 +73,12 @@ export function Header() {
         ) : null}
         {profile ? (
           <div className="flex min-w-0 items-center gap-1 sm:gap-1.5">
-            <DisciplineScoreHeaderChip
-              points={gamificationMetrics.totalPoints}
-              loading={gamificationLoading}
-            />
+            {showDisciplineScore ? (
+              <DisciplineScoreHeaderChip
+                points={gamificationMetrics.totalPoints}
+                loading={gamificationLoading}
+              />
+            ) : null}
             <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="min-w-0 gap-2">

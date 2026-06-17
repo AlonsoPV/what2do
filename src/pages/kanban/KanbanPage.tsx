@@ -32,6 +32,7 @@ import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/Se
 import { useGapAccionesForGapIds } from '@/features/kpi/hooks/useGapAccionesForGapIds'
 import { useGap } from '@/features/kpi/hooks/useGaps'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
+import { isAnalystByRole } from '@/features/auth/lib/permissions'
 
 export function KanbanPage() {
   const qc = useQueryClient()
@@ -45,11 +46,15 @@ export function KanbanPage() {
   }, [qc])
 
   const { data: currentUser } = useCurrentUser()
+  const isAnalyst = isAnalystByRole(currentUser?.rol)
 
   const [filter, setFilter] = useState<AccionesFilter>(() => ({}))
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [viewMode, setViewMode] = useState<KanbanViewMode>('kanban')
-  const filterForQuery = useMemo(() => ({ ...filter }), [filter])
+  const filterForQuery = useMemo(
+    () => (isAnalyst && currentUser?.id ? { ...filter, responsable: currentUser.id } : { ...filter }),
+    [currentUser?.id, filter, isAnalyst]
+  )
   const {
     data: acciones = [],
     isLoading,
@@ -121,19 +126,20 @@ export function KanbanPage() {
     setFiltersCleared(false)
     setFilter((prev) => {
       const merged = { ...prev, ...next }
+      if (isAnalyst && currentUser?.id) merged.responsable = currentUser.id
       return merged
     })
-  }, [])
+  }, [currentUser?.id, isAnalyst])
 
   const handleClearFilters = useCallback(() => {
     setFiltersCleared(true)
-    setFilter({})
+    setFilter(isAnalyst && currentUser?.id ? { responsable: currentUser.id } : {})
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.delete('gap')
       return next
     }, { replace: true })
-  }, [setSearchParams])
+  }, [currentUser?.id, isAnalyst, setSearchParams])
 
   const clearGapFilter = useCallback(() => {
     setSearchParams((prev) => {
@@ -189,10 +195,11 @@ export function KanbanPage() {
   }, [prefetchEvidenceCatalog])
 
   const handleNewAction = useCallback(() => {
+    if (isAnalyst) return
     void prefetchEvidenceCatalog()
     setEditingAccion(null)
     setDialogOpen(true)
-  }, [prefetchEvidenceCatalog])
+  }, [isAnalyst, prefetchEvidenceCatalog])
 
   const handleDialogClose = useCallback(() => {
     setEditingAccion(null)
@@ -206,9 +213,9 @@ export function KanbanPage() {
     >
       <KanbanHeader
         filtersExpanded={filtersExpanded}
-        onToggleFilters={() => setFiltersExpanded((v) => !v)}
+        onToggleFilters={isAnalyst ? undefined : () => setFiltersExpanded((v) => !v)}
         hasActiveFilters={hasActiveFilters}
-        onNewAction={handleNewAction}
+        onNewAction={isAnalyst ? undefined : handleNewAction}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         rightOfTitle={
@@ -283,7 +290,7 @@ export function KanbanPage() {
               responsableNames={responsableNames}
               checklistProgressByAccionId={checklistProgressByAccionId}
               onSelectAccion={handleSelectAccion}
-              onNewAction={handleNewAction}
+              onNewAction={isAnalyst ? undefined : handleNewAction}
               filterEstado={filterEstadoSingle}
               narrowToOccupiedColumns={narrowKanbanToOccupiedColumns}
             />

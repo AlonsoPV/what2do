@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase/client'
 import { validateFutureDateTimeCDMX } from '@/lib/futureDateValidation'
+import { isAnalystByRole } from '@/features/auth/lib/permissions'
 import { gapActionsLogService } from '@/services/gapActionsLog.service'
 import { listGapIdsForAccion } from '@/services/accionLinks.service'
 import { usuariosService } from '@/services/usuarios.service'
@@ -17,7 +18,7 @@ import type { AccionDiaria, ActionStatus } from '@/types'
 import type { TipoAccion } from '@/features/operations/utils/tipoAccionConfig'
 
 const TABLE = 'acciones_diarias'
-const ACCION_SELECT = [
+const ACCION_COLUMNS = [
   'id',
   'fecha',
   'titulo_accion',
@@ -40,6 +41,7 @@ const ACCION_SELECT = [
   'area',
   'cliente_id',
   'prioridad',
+  'prioridad_id',
   'causa_raiz',
   'responsable_bloqueo',
   'escalado',
@@ -55,7 +57,32 @@ const ACCION_SELECT = [
   'created_at',
   'updated_at',
   'sprint_id',
-].join(',')
+] as const
+
+let prioridadIdColumnAvailable: boolean | null = null
+
+function isMissingPrioridadIdColumn(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === '42703' && (error.message?.includes('prioridad_id') ?? false)
+}
+
+function accionSelectColumns(): string {
+  if (prioridadIdColumnAvailable === false) {
+    return ACCION_COLUMNS.filter((column) => column !== 'prioridad_id').join(',')
+  }
+  return ACCION_COLUMNS.join(',')
+}
+
+function stripPrioridadIdIfUnavailable<T extends Partial<AccionDiaria>>(payload: T): T {
+  if (prioridadIdColumnAvailable !== false) return payload
+  const { prioridad_id: _omit, ...rest } = payload as T & { prioridad_id?: string | null }
+  return rest as T
+}
+
+function markPrioridadIdUnavailable(error: { code?: string; message?: string } | null): boolean {
+  if (!isMissingPrioridadIdColumn(error)) return false
+  prioridadIdColumnAvailable = false
+  return true
+}
 
 function isDoneEstado(s: ActionStatus): boolean {
   return s === 'Hecho' || s === 'Verificado'
@@ -67,6 +94,13 @@ async function resolveCurrentUsuarioId(): Promise<string | null> {
   if (!authId) return null
   const u = await usuariosService.getByAuthId(authId)
   return u?.id ?? null
+}
+
+async function resolveCurrentUsuario(): Promise<Awaited<ReturnType<typeof usuariosService.getByAuthId>> | null> {
+  const { data: auth } = await supabase.auth.getUser()
+  const authId = auth.user?.id
+  if (!authId) return null
+  return usuariosService.getByAuthId(authId)
 }
 
 /**
@@ -189,70 +223,77 @@ function escapePostgrestLikeTerm(term: string): string {
   return term.replace(/[%_]/g, (match) => `\\${match}`).replace(/[,()]/g, ' ')
 }
 
+function buildAccionesListQuery(filter: AccionesFilter = {}) {
+  let q = supabase.from(TABLE).select(accionSelectColumns())
+  if (filter.fecha_creacion) {
+    const next = new Date(filter.fecha_creacion + 'T00:00:00Z')
+    next.setUTCDate(next.getUTCDate() + 1)
+    const nextStr = next.toISOString().slice(0, 10)
+    q = q.lt('created_at', `${nextStr}T00:00:00`)
+  }
+  if (filter.calendario_creadas_hasta) {
+    q = q.lte('created_at', `${filter.calendario_creadas_hasta}T23:59:59.999Z`)
+  }
+  if (filter.fecha_min) q = q.gte('fecha', filter.fecha_min)
+  if (filter.fecha_max) q = q.lte('fecha', filter.fecha_max)
+  if (filter.fecha && !filter.fecha_min && !filter.fecha_max) q = q.eq('fecha', filter.fecha)
+  const estadoFilter = filter.estado
+    ? Array.isArray(filter.estado)
+      ? filter.estado
+      : [filter.estado]
+    : []
+  const onlyRetraso = estadoFilter.length === 1 && estadoFilter[0] === 'Retraso'
+  if (estadoFilter.length > 0 && !onlyRetraso) {
+    q = q.in('estado', estadoFilter)
+  }
+  if (filter.excluir_estados?.length) {
+    q = q.not('estado', 'in', `(${filter.excluir_estados.map((e) => `"${e}"`).join(',')})`)
+  }
+  if (filter.prioridad) {
+    const prioridades = Array.isArray(filter.prioridad) ? filter.prioridad : [filter.prioridad]
+    q = q.in('prioridad', prioridades)
+  }
+  if (filter.area != null && filter.area !== '') q = q.eq('area', filter.area)
+  if (filter.responsable) q = q.eq('responsable', filter.responsable)
+  if (filter.created_by) q = q.eq('created_by', filter.created_by)
+  if (filter.tipo_accion) {
+    const tipos = Array.isArray(filter.tipo_accion) ? filter.tipo_accion : [filter.tipo_accion]
+    q = q.in('tipo_accion', tipos)
+  }
+  if (filter.sprint_id) q = q.eq('sprint_id', filter.sprint_id)
+  if (filter.search?.trim()) {
+    const term = escapePostgrestLikeTerm(filter.search.trim())
+    q = q.or(
+      `titulo_accion.ilike.%${term}%,descripcion_accion.ilike.%${term}%,evidencia_esperada.ilike.%${term}%`
+    )
+  }
+  return { query: q.order('hora_limite', { ascending: true }), onlyRetraso }
+}
+
 export const accionesService = {
   async listByDate(fecha: string): Promise<AccionDiaria[]> {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(TABLE)
-      .select(ACCION_SELECT)
+      .select(accionSelectColumns())
       .eq('fecha', fecha)
       .order('hora_limite', { ascending: true })
+    if (markPrioridadIdUnavailable(error)) {
+      ;({ data, error } = await supabase
+        .from(TABLE)
+        .select(accionSelectColumns())
+        .eq('fecha', fecha)
+        .order('hora_limite', { ascending: true }))
+    }
     if (error) throw error
     return syncEstadosPorFechaCompromiso((data ?? []) as unknown as AccionDiaria[])
   },
 
   async list(filter: AccionesFilter = {}) {
-    let q = supabase.from(TABLE).select(ACCION_SELECT)
-    // Acciones creadas en o antes de esta fecha (visibles desde el día de creación y todos los días siguientes).
-    // Límite: medianoche UTC del día siguiente a fecha_creacion (la fecha se interpreta como día en UTC).
-    if (filter.fecha_creacion) {
-      const next = new Date(filter.fecha_creacion + 'T00:00:00Z')
-      next.setUTCDate(next.getUTCDate() + 1)
-      const nextStr = next.toISOString().slice(0, 10)
-      q = q.lt('created_at', `${nextStr}T00:00:00`)
+    const { onlyRetraso } = buildAccionesListQuery(filter)
+    let { data, error } = await buildAccionesListQuery(filter).query
+    if (markPrioridadIdUnavailable(error)) {
+      ;({ data, error } = await buildAccionesListQuery(filter).query)
     }
-    if (filter.calendario_creadas_hasta) {
-      q = q.lte('created_at', `${filter.calendario_creadas_hasta}T23:59:59.999Z`)
-    }
-    if (filter.fecha_min) q = q.gte('fecha', filter.fecha_min)
-    if (filter.fecha_max) q = q.lte('fecha', filter.fecha_max)
-    if (filter.fecha && !filter.fecha_min && !filter.fecha_max) q = q.eq('fecha', filter.fecha)
-    // Filtro por estado. Si es solo "Retraso", no filtrar por estado en BD y filtrar después por (estado Retraso o isEnRetraso) para coincidir con la columna Kanban.
-    const estadoFilter = filter.estado
-      ? Array.isArray(filter.estado)
-        ? filter.estado
-        : [filter.estado]
-      : []
-    const onlyRetraso = estadoFilter.length === 1 && estadoFilter[0] === 'Retraso'
-    if (estadoFilter.length > 0 && !onlyRetraso) {
-      q = q.in('estado', estadoFilter)
-    }
-    if (filter.excluir_estados?.length) {
-      q = q.not('estado', 'in', `(${filter.excluir_estados.map((e) => `"${e}"`).join(',')})`)
-    }
-    if (filter.prioridad) {
-      const prioridades = Array.isArray(filter.prioridad)
-        ? filter.prioridad
-        : [filter.prioridad]
-      q = q.in('prioridad', prioridades)
-    }
-    if (filter.area != null && filter.area !== '') q = q.eq('area', filter.area)
-    if (filter.responsable) q = q.eq('responsable', filter.responsable)
-    if (filter.created_by) q = q.eq('created_by', filter.created_by)
-    if (filter.tipo_accion) {
-      const tipos = Array.isArray(filter.tipo_accion)
-        ? filter.tipo_accion
-        : [filter.tipo_accion]
-      q = q.in('tipo_accion', tipos)
-    }
-    if (filter.sprint_id) q = q.eq('sprint_id', filter.sprint_id)
-    if (filter.search?.trim()) {
-      const term = escapePostgrestLikeTerm(filter.search.trim())
-      q = q.or(
-        `titulo_accion.ilike.%${term}%,descripcion_accion.ilike.%${term}%,evidencia_esperada.ilike.%${term}%`
-      )
-    }
-    q = q.order('hora_limite', { ascending: true })
-    const { data, error } = await q
     if (error) throw error
     let list = (data ?? []) as unknown as AccionDiaria[]
     if (onlyRetraso) {
@@ -262,11 +303,18 @@ export const accionesService = {
   },
 
   async getById(id: string) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(TABLE)
-      .select(ACCION_SELECT)
+      .select(accionSelectColumns())
       .eq('id', id)
       .maybeSingle()
+    if (markPrioridadIdUnavailable(error)) {
+      ;({ data, error } = await supabase
+        .from(TABLE)
+        .select(accionSelectColumns())
+        .eq('id', id)
+        .maybeSingle())
+    }
     if (error) throw error
     if (!data) {
       throw new Error('No se encontró la acción o no tienes permiso para verla.')
@@ -294,18 +342,29 @@ export const accionesService = {
    * Tras insertar, invalidar la caché de acciones para que el listado se actualice.
    */
   async create(payload: Partial<AccionDiaria>) {
-    const cleanPayload = normalizeAccionPayload(payload)
+    const currentUsuario = await resolveCurrentUsuario()
+    if (isAnalystByRole(currentUsuario?.rol)) {
+      throw new Error('El rol Analista solo puede visualizar sus acciones y no puede crear nuevas acciones.')
+    }
+    const cleanPayload = stripPrioridadIdIfUnavailable(normalizeAccionPayload(payload))
     const futureError = validateFutureDateTimeCDMX(
       cleanPayload.fecha,
       cleanPayload.hora_limite,
       'La fecha y hora limite de la accion'
     )
     if (futureError) throw new Error(futureError)
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(TABLE)
       .insert(cleanPayload)
-      .select(ACCION_SELECT)
+      .select(accionSelectColumns())
       .maybeSingle()
+    if (markPrioridadIdUnavailable(error)) {
+      ;({ data, error } = await supabase
+        .from(TABLE)
+        .insert(stripPrioridadIdIfUnavailable(cleanPayload))
+        .select(accionSelectColumns())
+        .maybeSingle())
+    }
     if (error) throw error
     if (!data) {
       throw new Error(
@@ -326,7 +385,7 @@ export const accionesService = {
     }
 
     const mergedPayload = normalizeAccionPayload(prev ? ({ ...prev, ...payload } as Partial<AccionDiaria>) : payload)
-    const cleanPayload: Partial<AccionDiaria> = { ...payload }
+    const cleanPayload: Partial<AccionDiaria> = stripPrioridadIdIfUnavailable({ ...payload })
     if (payload.tipo_accion !== undefined) cleanPayload.tipo_accion = mergedPayload.tipo_accion
     if (
       payload.sprint_id !== undefined ||
@@ -344,12 +403,20 @@ export const accionesService = {
       }
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from(TABLE)
       .update(cleanPayload)
       .eq('id', id)
-      .select(ACCION_SELECT)
+      .select(accionSelectColumns())
       .maybeSingle()
+    if (markPrioridadIdUnavailable(error)) {
+      ;({ data, error } = await supabase
+        .from(TABLE)
+        .update(stripPrioridadIdIfUnavailable(cleanPayload))
+        .eq('id', id)
+        .select(accionSelectColumns())
+        .maybeSingle())
+    }
     if (error) throw error
     if (!data) {
       throw new Error(

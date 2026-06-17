@@ -8,19 +8,39 @@ import {
   getAccionDisplayEstado,
 } from '../utils/accionEstadoDisplay'
 import { AccionPriorityBadge } from './AccionPriorityBadge'
-import { usePriorityColorMap } from '../hooks/usePriorityColorMap'
+import { usePriorities } from '@/features/catalogs/hooks/usePriorities'
+import {
+  findPriorityForAccion,
+  resolveAccionPrioridadNombre,
+} from '../utils/resolveAccionPrioridad'
 
 type AccionDialogHeaderMetaProps = {
   accion: AccionDiaria
+  /** Prioridad mostrada (p. ej. valor actual del formulario al editar). */
+  prioridadNombre?: string | null
   className?: string
 }
 
 /** ID público y estado legible para el encabezado del modal de acción. */
-export function AccionDialogHeaderMeta({ accion, className }: AccionDialogHeaderMetaProps) {
+export function AccionDialogHeaderMeta({
+  accion,
+  prioridadNombre,
+  className,
+}: AccionDialogHeaderMetaProps) {
   const displayEstado = getAccionDisplayEstado(accion)
   const estadoLabel = accionEstadoLabel(displayEstado)
-  const priorityColorMap = usePriorityColorMap()
-  const prioridad = accion.prioridad?.trim()
+  const { data: priorities = [] } = usePriorities()
+  const prioridad = resolveAccionPrioridadNombre(
+    {
+      prioridad: (prioridadNombre ?? accion.prioridad) ?? '',
+      prioridad_id: accion.prioridad_id,
+    },
+    priorities
+  ).trim()
+  const catalogColor = findPriorityForAccion(
+    { prioridad: accion.prioridad, prioridad_id: accion.prioridad_id },
+    priorities
+  )?.color
 
   return (
     <div
@@ -49,7 +69,7 @@ export function AccionDialogHeaderMeta({ accion, className }: AccionDialogHeader
           <span className="h-3 w-px shrink-0 bg-border/80" aria-hidden />
           <AccionPriorityBadge
             prioridad={prioridad}
-            catalogColor={priorityColorMap.get(prioridad)}
+            catalogColor={catalogColor}
             compact
             className="max-w-[9rem]"
           />

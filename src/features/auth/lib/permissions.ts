@@ -13,9 +13,11 @@ import type { Usuario } from '@/types'
 /** Roles que tienen privilegios de admin (spec 2.2). */
 const ADMIN_ROLES = ['DG', 'Sistemas', 'super_admin'] as const
 const OPERATIVE_ROLE = 'Operativo'
-const LEGACY_ANALYST_ROLE = 'Analista'
+const ANALYST_ROLE = 'Analista'
 const DIRECTION_ROLE = 'Direccion'
 const SUPER_ADMIN_ROLE = 'super_admin'
+
+const STRICT_ANALYST_ALLOWED_ROUTES = [ROUTES.KANBAN] as const
 
 const ANALYST_ALLOWED_ROUTES = [
   ROUTES.KANBAN,
@@ -99,17 +101,12 @@ export function isAdminByRole(rol: string | null | undefined): boolean {
 export function isOperativeByRole(rol: string | null | undefined): boolean {
   const normalized = normalizeRole(rol)
   const operative = normalizeRole(OPERATIVE_ROLE)
-  const legacyAnalyst = normalizeRole(LEGACY_ANALYST_ROLE)
-  return (
-    normalized === operative ||
-    normalized.includes(operative) ||
-    normalized === legacyAnalyst ||
-    normalized.includes(legacyAnalyst)
-  )
+  return normalized === operative || normalized.includes(operative)
 }
 
-/** Alias de compatibilidad; preferir isOperativeByRole. */
-export const isAnalystByRole = isOperativeByRole
+export function isAnalystByRole(rol: string | null | undefined): boolean {
+  return normalizeRole(rol) === normalizeRole(ANALYST_ROLE)
+}
 
 export function isDirectionByRole(rol: string | null | undefined): boolean {
   return normalizeRole(rol) === normalizeRole(DIRECTION_ROLE)
@@ -128,6 +125,10 @@ export function canManageAcademyModulesByRole(rol: string | null | undefined): b
 }
 
 export function canAccessRouteByRole(rol: string | null | undefined, pathname: string): boolean {
+  if (isAnalystByRole(rol)) {
+    return STRICT_ANALYST_ALLOWED_ROUTES.some((route) => routeMatches(pathname, route))
+  }
+
   if (isDirectionByRole(rol)) {
     return DIRECTION_ALLOWED_ROUTES.some((route) => routeMatches(pathname, route))
   }
@@ -146,6 +147,7 @@ export function canAccessRouteByRole(rol: string | null | undefined, pathname: s
 }
 
 export function getDefaultRouteByRole(rol: string | null | undefined): string {
+  if (isAnalystByRole(rol)) return ROUTES.KANBAN
   if (isOperativeByRole(rol)) return ROUTES.KANBAN
   return ROUTES.DASHBOARD
 }

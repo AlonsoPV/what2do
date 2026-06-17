@@ -49,6 +49,8 @@ export interface AccionDiaria {
   cliente_id: string | null
   /** Nombre de prioridad; conectado con priorities.nombre */
   prioridad: string
+  /** FK al catálogo priorities (fuente de verdad tras renombrar en catálogo). */
+  prioridad_id?: string | null
   causa_raiz: string | null
   responsable_bloqueo: string | null
   escalado: boolean

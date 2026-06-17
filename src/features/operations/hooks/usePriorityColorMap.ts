@@ -1,22 +1,12 @@
 import { useMemo } from 'react'
 import { usePriorities } from '@/features/catalogs/hooks/usePriorities'
-
-type PriorityWithOptionalColor = {
-  nombre: string
-  color?: string | null
-}
+import type { Priority } from '@/features/catalogs/types/catalogs.types'
 
 export function usePriorityColorMap(): Map<string, string | null> {
   const { data: priorities = [] } = usePriorities()
 
   return useMemo(
-    () =>
-      new Map(
-        (priorities as PriorityWithOptionalColor[]).map((priority) => [
-          priority.nombre,
-          priority.color ?? null,
-        ])
-      ),
+    () => new Map(priorities.map((priority: Priority) => [priority.nombre, priority.color ?? null])),
     [priorities]
   )
 }
