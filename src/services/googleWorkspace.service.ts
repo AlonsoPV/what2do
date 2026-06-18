@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase/client'
 import { GOOGLE_WORKSPACE_CALENDAR_SYNC_ENABLED } from '@/constants'
 
 export type GoogleWorkspaceSource = 'accion' | 'recordatorio' | 'minuta'
-export type GoogleWorkspaceTarget = 'calendar' | 'calendar_meet' | 'task' | 'gmail'
+export type GoogleWorkspaceTarget = 'task' | 'gmail'
 
 export interface GoogleWorkspaceSyncInput {
   source: GoogleWorkspaceSource

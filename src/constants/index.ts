@@ -43,4 +43,5 @@ export const ROUTES = {
 } as const
 
 /** Exportar minutas, acciones y recordatorios a Google Calendar / Tasks / Gmail. */
-export const GOOGLE_WORKSPACE_CALENDAR_SYNC_ENABLED = false
+export const GOOGLE_WORKSPACE_CALENDAR_SYNC_ENABLED =
+  import.meta.env.VITE_GOOGLE_WORKSPACE_CALENDAR_SYNC_ENABLED !== 'false'

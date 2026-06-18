@@ -9,12 +9,12 @@ declare global {
   }
 }
 
-type GoogleTarget = 'calendar' | 'calendar_meet' | 'task' | 'gmail'
+type GoogleTarget = 'task' | 'gmail'
 type GoogleSource = 'accion' | 'recordatorio' | 'minuta'
 
 type GoogleSyncPayload = {
   source?: GoogleSource
-  target?: GoogleTarget
+  target?: string
   title?: string
   description?: string
   date?: string
@@ -146,12 +146,6 @@ function formatGoogleTaskDue(end: Date): string {
   return `${dateOnlyCdmx(end)}T00:00:00.000Z`
 }
 
-function addDaysYmd(ymd: string, days: number): string {
-  const base = new Date(`${ymd}T12:00:00-06:00`)
-  base.setDate(base.getDate() + days)
-  return dateOnlyCdmx(base)
-}
-
 async function resolveTaskSchedule(
   adminClient: ReturnType<typeof createClient>,
   input: GoogleSyncPayload,
@@ -202,10 +196,6 @@ function formatDateTimeMx(date: Date): string {
     dateStyle: 'medium',
     timeStyle: 'short',
   })
-}
-
-function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60_000)
 }
 
 function buildWorkspaceDescription(input: {
@@ -340,7 +330,7 @@ async function linkReminderGoogleIds(
   externalId: string | null | undefined
 ): Promise<void> {
   if (!externalId || !UUID_RE.test(reminderId)) return
-  if (target !== 'calendar' && target !== 'calendar_meet' && target !== 'task') return
+  if (target !== 'task') return
 
   const { data: usuario } = await adminClient
     .from('usuarios')
@@ -350,9 +340,7 @@ async function linkReminderGoogleIds(
   if (!usuario?.id) return
 
   const patch =
-    target === 'task'
-      ? { google_task_id: externalId }
-      : { google_calendar_event_id: externalId }
+    { google_task_id: externalId }
 
   await adminClient
     .from('calendar_reminders')
@@ -377,6 +365,9 @@ Deno.serve(async (req) => {
     const source = body?.source
     const target = body?.target
     if (!source || !target) return jsonResponse({ ok: false, message: 'source y target son requeridos' }, 400)
+    if (target !== 'task' && target !== 'gmail') {
+      return jsonResponse({ ok: false, message: 'Solo se permite sincronizar como task o correo' }, 400)
+    }
 
     const title = sanitizeText(body.title, 'Elemento del tablero')
     const description = sanitizeText(body.description)
@@ -411,8 +402,6 @@ Deno.serve(async (req) => {
 
     if (target === 'task') {
       const tasklist = encodeURIComponent(optionalEnv('GOOGLE_TASKLIST_ID', '@default'))
-      const startDate = dateOnlyCdmx(start)
-      const endDate = dateOnlyCdmx(end)
       const task = await googleJson<{ id?: string; title?: string; webViewLink?: string }>(
         `https://tasks.googleapis.com/tasks/v1/lists/${tasklist}/tasks`,
         token,
@@ -422,22 +411,6 @@ Deno.serve(async (req) => {
           due: formatGoogleTaskDue(end),
         }
       )
-
-      // Tasks API solo admite due (un dia). Evento all-day en Calendar si el periodo abarca varios dias.
-      if (usesPeriod && startDate !== endDate) {
-        const calendarId = encodeURIComponent(optionalEnv('GOOGLE_CALENDAR_ID', 'primary'))
-        await googleJson(
-          `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
-          token,
-          {
-            summary: title,
-            description: details,
-            start: { date: startDate, timeZone: TIME_ZONE },
-            end: { date: addDaysYmd(endDate, 1), timeZone: TIME_ZONE },
-            transparency: 'transparent',
-          }
-        )
-      }
 
       if (source === 'recordatorio' && body.reminderId) {
         await linkReminderGoogleIds(adminClient, auth.data.user.id, body.reminderId, target, task.id)
@@ -463,45 +436,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, target, id: sent.id ?? null, recipients: to })
     }
 
-    const calendarEnd =
-      usesPeriod && end.getTime() > start.getTime()
-        ? end
-        : addMinutes(start, source === 'accion' ? 30 : 60)
-    const calendarId = encodeURIComponent(optionalEnv('GOOGLE_CALENDAR_ID', 'primary'))
-    const withMeet = target === 'calendar_meet'
-    const event = await googleJson<{ id?: string; htmlLink?: string; hangoutLink?: string }>(
-      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?sendUpdates=all${
-        withMeet ? '&conferenceDataVersion=1' : ''
-      }`,
-      token,
-      {
-        summary: title,
-        description: details,
-        start: { dateTime: start.toISOString(), timeZone: TIME_ZONE },
-        end: { dateTime: calendarEnd.toISOString(), timeZone: TIME_ZONE },
-        attendees: recipients.map((email) => ({ email })),
-        reminders: {
-          useDefault: false,
-          overrides: [
-            { method: 'email', minutes: 24 * 60 },
-            { method: 'popup', minutes: 15 },
-          ],
-        },
-        conferenceData: withMeet
-          ? { createRequest: { requestId: crypto.randomUUID().replaceAll('-', '') } }
-          : undefined,
-      }
-    )
-    if (source === 'recordatorio' && body.reminderId) {
-      await linkReminderGoogleIds(adminClient, auth.data.user.id, body.reminderId, target, event.id)
-    }
-    return jsonResponse({
-      ok: true,
-      target,
-      id: event.id ?? null,
-      url: event.htmlLink ?? null,
-      meetUrl: event.hangoutLink ?? null,
-    })
+    return jsonResponse({ ok: false, message: 'Target de Google no permitido' }, 400)
   } catch (error) {
     return jsonResponse(
       { ok: false, message: error instanceof Error ? error.message : 'No se pudo sincronizar con Google' },
