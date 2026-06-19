@@ -20,6 +20,7 @@ CREATE TRIGGER set_calendar_notes_updated_at
 
 ALTER TABLE calendar_notes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS calendar_notes_select_own ON calendar_notes;
 CREATE POLICY calendar_notes_select_own ON calendar_notes
   FOR SELECT USING (
     EXISTS (
@@ -30,6 +31,7 @@ CREATE POLICY calendar_notes_select_own ON calendar_notes
     )
   );
 
+DROP POLICY IF EXISTS calendar_notes_insert_own ON calendar_notes;
 CREATE POLICY calendar_notes_insert_own ON calendar_notes
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -40,6 +42,7 @@ CREATE POLICY calendar_notes_insert_own ON calendar_notes
     )
   );
 
+DROP POLICY IF EXISTS calendar_notes_update_own ON calendar_notes;
 CREATE POLICY calendar_notes_update_own ON calendar_notes
   FOR UPDATE USING (
     EXISTS (
@@ -57,6 +60,7 @@ CREATE POLICY calendar_notes_update_own ON calendar_notes
     )
   );
 
+DROP POLICY IF EXISTS calendar_notes_delete_own ON calendar_notes;
 CREATE POLICY calendar_notes_delete_own ON calendar_notes
   FOR DELETE USING (
     EXISTS (

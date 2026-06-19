@@ -408,6 +408,34 @@ export const accionesService = {
       }
     }
 
+    if (nextEstado === 'Hecho' && prev && nextEstado !== prev.estado) {
+      const preClosePayload = { ...cleanPayload }
+      delete preClosePayload.estado
+
+      if (Object.keys(preClosePayload).length > 0) {
+        let { error: preCloseError } = await supabase
+          .from(TABLE)
+          .update(preClosePayload)
+          .eq('id', id)
+        if (markPrioridadIdUnavailable(preCloseError)) {
+          ;({ error: preCloseError } = await supabase
+            .from(TABLE)
+            .update(stripPrioridadIdIfUnavailable(preClosePayload))
+            .eq('id', id))
+        }
+        if (preCloseError) throw preCloseError
+      }
+
+      const { error: closeError } = await supabase.rpc('try_set_accion_hecho', {
+        p_accion_id: id,
+      })
+      if (closeError) throw closeError
+
+      const updated = await this.getById(id)
+      await maybeInsertGapActionLog(prev, updated)
+      return updated
+    }
+
     let { data, error } = await supabase
       .from(TABLE)
       .update(cleanPayload)

@@ -150,20 +150,20 @@ async function resolveAcademyPdfStoragePath(pdfName: string, moduleId: number): 
     return cached
   }
 
-  const candidates = [...new Set(buildPathCandidates(pdfName, moduleId))]
-  for (const candidate of candidates) {
-    if (await probeStoragePath(candidate)) {
-      pathCache.set(key, candidate)
-      return candidate
-    }
-  }
-
   const listed = await listAcademyPdfPaths()
   const match = listed.find((p) => matchesModulePdfPath(p, pdfName, moduleId))
 
   if (match) {
     pathCache.set(key, match)
     return match
+  }
+
+  const candidates = [...new Set(buildPathCandidates(pdfName, moduleId))]
+  for (const candidate of candidates) {
+    if (await probeStoragePath(candidate)) {
+      pathCache.set(key, candidate)
+      return candidate
+    }
   }
 
   return null

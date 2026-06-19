@@ -35,6 +35,7 @@ import {
 import { usersAdminService } from '@/features/users/services/users.service'
 import { usersQueryKey } from '@/features/users/hooks/useUsers'
 import { notificacionesService, sendNotificationEmail } from '@/services/notificaciones.service'
+import { telegramIntegrationService } from '@/services/telegramIntegration.service'
 import { EVIDENCIA_ACCEPTED_FORMATS_LABEL, EVIDENCIA_REJECTED_MESSAGE } from '@/lib/evidenciaFileTypes'
 import {
   accionEvidenciasService,
@@ -49,7 +50,7 @@ import type { AccionCreateInput, AccionFormInput } from '../schemas/accion.schem
 import { flattenDescripcionForForm } from '../utils/descripcionAccionTriada'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { Download, ExternalLink, Paperclip, FileText, Image, Mail, Trash2 } from 'lucide-react'
+import { Download, ExternalLink, Paperclip, FileText, Image, Mail, Send, Trash2 } from 'lucide-react'
 import {
   AccionChecklistEditor,
   type LocalCheckpointDraft,
@@ -154,6 +155,7 @@ export function AccionFormDialog({
   /** Resumen de validación bajo los botones del pie (RHF/Zod y reglas del diálogo). */
   const [submitFooterErrors, setSubmitFooterErrors] = useState<string[] | null>(null)
   const [manualEmailPending, setManualEmailPending] = useState(false)
+  const [manualTelegramPending, setManualTelegramPending] = useState(false)
   const [livePrioridad, setLivePrioridad] = useState<string | undefined>()
 
   useEffect(() => {
@@ -341,6 +343,32 @@ export function AccionFormDialog({
       toast.error(err instanceof Error ? err.message : 'No se pudo enviar el correo')
     } finally {
       setManualEmailPending(false)
+    }
+  }
+
+  async function handleSendActionTelegram() {
+    if (!accion?.id || !accion.responsable) {
+      toast.error('La accion necesita un responsable para enviar Telegram.')
+      return
+    }
+    if (!isSuperAdminByRole(currentUser?.rol)) {
+      toast.error('Solo super_admin puede enviar acciones por Telegram.')
+      return
+    }
+
+    setManualTelegramPending(true)
+    try {
+      const result = await telegramIntegrationService.sendAction(accion.id, accion.responsable)
+      if (result.warning) {
+        toast.warning(result.warning)
+      } else {
+        toast.success('Telegram enviado al responsable')
+      }
+    } catch (err) {
+      console.error('Error al enviar Telegram de accion:', err)
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar Telegram')
+    } finally {
+      setManualTelegramPending(false)
     }
   }
 
@@ -653,7 +681,10 @@ export function AccionFormDialog({
 
   const formBaseId = `${dialogId ?? 'accion-form-dialog'}-form`
   const showEmailButton = isEdit && !!accion
-  const footerButtonCount = 2 + (showEmailButton ? 1 : 0) + (canDeleteAccion ? 1 : 0)
+  const showTelegramButton = isEdit && !!accion && isSuperAdminByRole(currentUser?.rol)
+  const isManualNotificationPending = manualEmailPending || manualTelegramPending
+  const footerButtonCount =
+    2 + (showEmailButton ? 1 : 0) + (showTelegramButton ? 1 : 0) + (canDeleteAccion ? 1 : 0)
   const footerActionsGridClass =
     footerButtonCount === 3 ? 'grid-cols-3' : footerButtonCount >= 4 ? 'grid-cols-2' : 'grid-cols-2'
 
@@ -923,7 +954,7 @@ export function AccionFormDialog({
                     variant="destructive"
                     id={`${formBaseId}-delete`}
                     className="accion-form-dialog-delete h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
-                    disabled={isMutating}
+                    disabled={isMutating || isManualNotificationPending}
                   >
                     <Trash2 className="h-4 w-4 shrink-0" />
                     <span className="truncate">Eliminar</span>
@@ -957,7 +988,7 @@ export function AccionFormDialog({
                 id={`${formBaseId}-send-email`}
                 className="accion-form-dialog-send-email h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
                 onClick={handleSendActionEmail}
-                disabled={manualEmailPending || isMutating || !accion.responsable}
+                disabled={isManualNotificationPending || isMutating || !accion.responsable}
                 title={
                   accion.responsable
                     ? `Enviar correo a ${responsableNames[accion.responsable] ?? 'responsable asignado'}`
@@ -968,13 +999,31 @@ export function AccionFormDialog({
                 <span className="truncate">{manualEmailPending ? 'Enviando…' : 'Correo'}</span>
               </Button>
             ) : null}
+            {showTelegramButton ? (
+              <Button
+                type="button"
+                variant="outline"
+                id={`${formBaseId}-send-telegram`}
+                className="accion-form-dialog-send-telegram h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
+                onClick={handleSendActionTelegram}
+                disabled={isManualNotificationPending || isMutating || !accion.responsable}
+                title={
+                  accion.responsable
+                    ? `Enviar Telegram a ${responsableNames[accion.responsable] ?? 'responsable asignado'}`
+                    : 'Asigna un responsable para enviar Telegram'
+                }
+              >
+                <Send className="h-4 w-4 shrink-0" />
+                <span className="truncate">{manualTelegramPending ? 'Enviando...' : 'Telegram'}</span>
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
               id={`${formBaseId}-cancel`}
               className="accion-form-dialog-cancel h-10 w-full px-2 text-xs sm:h-9 sm:text-sm"
               onClick={() => onOpenChange(false)}
-              disabled={isMutating || manualEmailPending}
+              disabled={isMutating || isManualNotificationPending}
             >
               Cancelar
             </Button>
@@ -984,7 +1033,7 @@ export function AccionFormDialog({
               id={`${formBaseId}-submit`}
               variant="default"
               className="accion-form-dialog-submit h-10 w-full px-2 text-xs sm:h-9 sm:text-sm"
-              disabled={isMutating || manualEmailPending}
+              disabled={isMutating || isManualNotificationPending}
             >
               {createAccion.isPending || updateAccion.isPending ? (
                 'Guardando…'

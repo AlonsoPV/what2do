@@ -5,17 +5,22 @@ import { SectionCard, SectionCardBody } from '@/components/SectionCard'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useCurrentUser, useUpdateUser } from '../hooks'
 import { EditProfileDialog } from '../components/EditProfileDialog'
+import { telegramIntegrationService } from '@/services/telegramIntegration.service'
 import {
   Building2,
   CalendarClock,
   CalendarDays,
+  Copy,
+  ExternalLink,
   Mail,
   MapPin,
+  MessageCircle,
   Pencil,
   Shield,
   ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 function formatDateLong(iso: string) {
   try {
@@ -86,6 +91,9 @@ export function ProfilePage() {
   const { data: user, isLoading, isError, error: profileError } = useCurrentUser()
   const updateUser = useUpdateUser()
   const [editOpen, setEditOpen] = useState(false)
+  const [telegramPending, setTelegramPending] = useState(false)
+  const [telegramLink, setTelegramLink] = useState<string | null>(null)
+  const [telegramStartCommand, setTelegramStartCommand] = useState<string | null>(null)
 
   const handleSaveProfile = async (input: { nombre: string; area: string | null }) => {
     if (!user) return
@@ -94,6 +102,33 @@ export function ProfilePage() {
       input: { nombre: input.nombre, area: input.area },
     })
     await refetchAuth()
+  }
+
+  const handleLinkTelegram = async () => {
+    if (!user) return
+    setTelegramPending(true)
+    try {
+      const token = await telegramIntegrationService.createLinkToken()
+      const link = telegramIntegrationService.buildStartLink(token)
+      setTelegramLink(link)
+      setTelegramStartCommand(telegramIntegrationService.buildStartCommand(token))
+      toast.success('Enlace de Telegram generado')
+      window.open(link, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo generar el enlace de Telegram.')
+    } finally {
+      setTelegramPending(false)
+    }
+  }
+
+  const handleCopyTelegramCommand = async () => {
+    if (!telegramStartCommand) return
+    try {
+      await navigator.clipboard.writeText(telegramStartCommand)
+      toast.success('Comando copiado')
+    } catch {
+      toast.error('No se pudo copiar. Selecciona el comando manualmente.')
+    }
   }
 
   if (isLoading) {
@@ -186,6 +221,53 @@ export function ProfilePage() {
                   Editar perfil
                 </button>
               </span>
+            }
+            className="sm:col-span-2"
+          />
+          <InfoTile
+            icon={MessageCircle}
+            label="Telegram"
+            value={
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-full gap-1.5 sm:w-auto"
+                    onClick={handleLinkTelegram}
+                    disabled={telegramPending}
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    {telegramPending ? 'Generando...' : 'Vincular Telegram'}
+                  </Button>
+                  {telegramLink ? (
+                    <Button asChild variant="ghost" size="sm" className="h-8 w-full gap-1.5 sm:w-auto">
+                      <a href={telegramLink} target="_blank" rel="noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Abrir bot
+                      </a>
+                    </Button>
+                  ) : null}
+                  {telegramStartCommand ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-full gap-1.5 sm:w-auto"
+                      onClick={handleCopyTelegramCommand}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copiar /start
+                    </Button>
+                  ) : null}
+                </div>
+                {telegramStartCommand ? (
+                  <code className="block max-w-full select-all overflow-x-auto rounded-md border border-border/50 bg-background px-2 py-1.5 text-xs text-muted-foreground">
+                    {telegramStartCommand}
+                  </code>
+                ) : null}
+              </div>
             }
             className="sm:col-span-2"
           />

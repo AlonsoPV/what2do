@@ -39,7 +39,7 @@ El flujo principal ya usa `AuthContext` como fuente de verdad para sesion/perfil
 - Dashboard y Kanban dejaron de precargar `evidencia_esperada` al montar; ahora se prefetchea al abrir/seleccionar accion.
 - Catalogos de roles, prioridades, estatus y dropdowns usan cache de 10 min e invalidan solo queries activas.
 - Busqueda de acciones se movio a Supabase con `ilike` en `titulo_accion`, `descripcion_accion` y `evidencia_esperada`.
-- Se agrego y aplico en Supabase PROD la migracion `20260610120000_performance_indexes_for_loading_paths.sql`.
+- Se agrego y aplico en Supabase PROD la migracion `20260610120100_performance_indexes_for_loading_paths.sql`.
 - Se agrego la RPC `calendar_action_counts_by_day` para conteos por dia visible del calendario.
 - Calendario dejo de expandir todas las acciones por dia visible en frontend; usa conteos server-side para la grilla y solo carga detalle cuando hay dia seleccionado.
 - Se agrego `manualChunks` para separar React, Supabase, TanStack Query, Radix, dnd-kit e iconos.
