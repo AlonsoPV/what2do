@@ -64,6 +64,8 @@ type ChannelIdentity = {
 
 type ActionDelivery = {
   accion_id: string
+  usuario_id?: string
+  external_chat_id?: string | null
 }
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
@@ -154,6 +156,61 @@ async function latestActionForChat(client: ReturnType<typeof createClient>, chat
   return data?.accion_id ?? null
 }
 
+async function latestDeliveryForChat(
+  client: ReturnType<typeof createClient>,
+  chatId: string,
+  accionId?: string | null
+): Promise<ActionDelivery | null> {
+  let query = client
+    .from('action_delivery_log')
+    .select('accion_id,usuario_id,external_chat_id')
+    .eq('channel', 'telegram')
+    .eq('external_chat_id', chatId)
+    .eq('delivery_status', 'sent')
+    .order('sent_at', { ascending: false })
+    .limit(1)
+
+  if (accionId) query = query.eq('accion_id', accionId)
+
+  const { data, error } = await query.maybeSingle<ActionDelivery>()
+  if (error) throw error
+  return data ?? null
+}
+
+async function actionIdFromCallbackData(
+  client: ReturnType<typeof createClient>,
+  callbackData: string
+): Promise<string | null> {
+  const [kind, id] = callbackData.split(':')
+  if (kind === 'done' && id) return id
+  if (kind !== 'chk' || !id) return null
+
+  const { data, error } = await client
+    .from('accion_checkpoints')
+    .select('accion_id')
+    .eq('id', id)
+    .maybeSingle<{ accion_id: string }>()
+  if (error) throw error
+  return data?.accion_id ?? null
+}
+
+async function resolveIdentityFromDelivery(
+  client: ReturnType<typeof createClient>,
+  chatId: string | undefined,
+  callbackData: string,
+  externalUserId: string
+): Promise<ChannelIdentity | null> {
+  if (!chatId) return null
+  const accionId = await actionIdFromCallbackData(client, callbackData)
+  const delivery = await latestDeliveryForChat(client, chatId, accionId)
+  if (!delivery?.usuario_id) return null
+  return {
+    usuario_id: delivery.usuario_id,
+    external_chat_id: delivery.external_chat_id ?? chatId,
+    external_user_id: externalUserId,
+  }
+}
+
 function actionIdFromText(value: string | undefined): string | null {
   const match = value?.match(UUID_RE)
   return match?.[0] ?? null
@@ -215,13 +272,15 @@ async function handleCallback(
   callback: TelegramCallbackQuery
 ): Promise<void> {
   const chatId = callback.message?.chat?.id != null ? String(callback.message.chat.id) : undefined
-  const identity = await resolveIdentity(client, String(callback.from.id), chatId)
+  const data = callback.data ?? ''
+  const identity =
+    await resolveIdentity(client, String(callback.from.id), chatId) ??
+    await resolveIdentityFromDelivery(client, chatId, data, String(callback.from.id))
   if (!identity) {
     await answerCallbackQuery(callback.id, 'Primero vincula tu cuenta con /start <token>.')
     return
   }
 
-  const data = callback.data ?? ''
   const [kind, id, value] = data.split(':')
 
   if (kind === 'chk' && id) {
@@ -265,7 +324,15 @@ async function handleEvidence(client: ReturnType<typeof createClient>, message: 
   const user = message.from
   if (!user) return
 
-  const identity = await resolveIdentity(client, String(user.id), String(message.chat.id))
+  let identity = await resolveIdentity(client, String(user.id), String(message.chat.id))
+  const fallbackDelivery = identity ? null : await latestDeliveryForChat(client, String(message.chat.id))
+  if (!identity && fallbackDelivery?.usuario_id) {
+    identity = {
+      usuario_id: fallbackDelivery.usuario_id,
+      external_chat_id: fallbackDelivery.external_chat_id ?? String(message.chat.id),
+      external_user_id: String(user.id),
+    }
+  }
   if (!identity) {
     await sendMessage(message.chat.id, 'Primero vincula tu cuenta con /start <token>.')
     return
