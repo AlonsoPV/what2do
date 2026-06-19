@@ -336,7 +336,16 @@ Deno.serve(async (req) => {
     if (text.startsWith('/start')) {
       const token = text.split(/\s+/)[1] ?? ''
       if (!token) {
-        await sendMessage(update.message!.chat.id, 'Abre tu liga de vinculacion desde el tablero para activar Telegram.')
+        const fromId = update.message?.from?.id != null ? String(update.message.from.id) : String(update.message!.chat.id)
+        await sendMessage(
+          update.message!.chat.id,
+          [
+            'Comparte estos datos con tu administrador para activar Telegram en el tablero:',
+            `chat_id: ${update.message!.chat.id}`,
+            `telegram_user_id: ${fromId}`,
+            update.message?.from?.username ? `username: @${update.message.from.username}` : '',
+          ].filter(Boolean).join('\n')
+        )
       } else {
         await handleStart(client, update.message!, token)
       }

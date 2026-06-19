@@ -7,29 +7,55 @@ export type TelegramSendActionResult = {
   warning?: string
 }
 
+export type TelegramIdentity = {
+  id: string
+  usuario_id: string
+  external_chat_id: string
+  external_user_id: string
+  external_username: string | null
+  display_name: string | null
+  status: string
+  verified_at: string | null
+  updated_at: string
+}
+
 export const telegramIntegrationService = {
-  getBotUsername(): string {
-    return (import.meta.env.VITE_TELEGRAM_BOT_USERNAME ?? '').trim().replace(/^@/, '')
-  },
-
-  buildStartLink(token: string): string {
-    const username = this.getBotUsername()
-    if (!username) {
-      throw new Error('Falta configurar VITE_TELEGRAM_BOT_USERNAME para vincular Telegram.')
-    }
-    return `https://t.me/${encodeURIComponent(username)}?start=${encodeURIComponent(token)}`
-  },
-
-  buildStartCommand(token: string): string {
-    return `/start ${token}`
-  },
-
   async createLinkToken(usuarioId?: string): Promise<string> {
     const { data, error } = await supabase.rpc('create_telegram_link_token', {
       p_usuario_id: usuarioId ?? null,
     })
     if (error) throw error
     if (typeof data !== 'string') throw new Error('No se pudo crear token de Telegram.')
+    return data
+  },
+
+  async getIdentity(usuarioId: string): Promise<TelegramIdentity | null> {
+    const { data, error } = await supabase
+      .from('user_channel_identities')
+      .select('id,usuario_id,external_chat_id,external_user_id,external_username,display_name,status,verified_at,updated_at')
+      .eq('usuario_id', usuarioId)
+      .eq('channel', 'telegram')
+      .maybeSingle()
+    if (error) throw error
+    return data as TelegramIdentity | null
+  },
+
+  async adminUpsertIdentity(input: {
+    usuarioId: string
+    externalChatId: string
+    externalUserId?: string
+    externalUsername?: string
+    displayName?: string
+  }): Promise<string> {
+    const { data, error } = await supabase.rpc('admin_upsert_telegram_identity', {
+      p_usuario_id: input.usuarioId,
+      p_external_chat_id: input.externalChatId,
+      p_external_user_id: input.externalUserId?.trim() || null,
+      p_external_username: input.externalUsername?.trim() || null,
+      p_display_name: input.displayName?.trim() || null,
+    })
+    if (error) throw error
+    if (typeof data !== 'string') throw new Error('No se pudo activar Telegram para el usuario.')
     return data
   },
 

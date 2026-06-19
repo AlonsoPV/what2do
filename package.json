@@ -12,6 +12,8 @@
     "preview": "vite preview",
     "supabase:deploy": "npx supabase@latest functions deploy calculate-distance",
     "supabase:deploy:all": "npx supabase@latest functions deploy calculate-distance && npx supabase@latest functions deploy invite-user && npx supabase@latest functions deploy academy-generate-quiz && npx supabase@latest functions deploy send-notification-email && npx supabase@latest functions deploy google-workspace-sync && npx supabase@latest functions deploy google-reminder-complete && npx supabase@latest functions deploy telegram-webhook && npx supabase@latest functions deploy telegram-send-action",
+    "supabase:db:push:dev": "npx supabase db push --project-ref tgiuevzlyptzlfgxsfhj",
+    "supabase:deploy:telegram:dev": "npx supabase functions deploy telegram-webhook telegram-send-action --project-ref tgiuevzlyptzlfgxsfhj --no-verify-jwt --use-api",
     "academy:generate-pdfs": "node scripts/generate-academy-module-pdfs.mjs",
     "academy:audit-storage": "node scripts/audit-academy-storage.mjs",
     "test:kpi-smoke": "node --experimental-strip-types scripts/kpi-calculation-smoke.mts",

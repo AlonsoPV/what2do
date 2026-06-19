@@ -27,34 +27,48 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
   -d '{"url":"https://<PROJECT_REF>.supabase.co/functions/v1/telegram-webhook","secret_token":"<TELEGRAM_WEBHOOK_SECRET>","allowed_updates":["message","callback_query"]}'
 ```
 
+Para el ambiente dev de este repo:
+
+```powershell
+npm run supabase:db:push:dev
+npm run supabase:deploy:telegram:dev
+
+curl.exe -k -X POST "https://api.telegram.org/bot<TU_TELEGRAM_BOT_TOKEN>/setWebhook" `
+  -H "Content-Type: application/json" `
+  -d "{""url"":""https://tgiuevzlyptzlfgxsfhj.supabase.co/functions/v1/telegram-webhook"",""secret_token"":""TU_TELEGRAM_WEBHOOK_SECRET"",""allowed_updates"":[""message"",""callback_query""]}"
+
+curl.exe -k "https://api.telegram.org/bot<TU_TELEGRAM_BOT_TOKEN>/getWebhookInfo"
+```
+
 ## Vinculacion de usuario
 
-Cada usuario puede vincular su propio Telegram desde **Mi perfil**. La app genera un token temporal y abre:
+La activacion la hace `super_admin` desde **Configuracion > Usuarios > Detalle del usuario > Telegram**.
+
+Campos:
+
+- `chat_id` requerido: identificador del chat privado de Telegram.
+- `telegram_user_id` opcional: si no se captura, se usa el mismo `chat_id`.
+- `username` opcional: referencia visual, no se usa para enviar.
+
+El usuario no entra al tablero ni genera token. Solo debe haber abierto el bot al menos una vez para que Telegram permita que el bot le envie mensajes. El administrador captura el `chat_id` y presiona **Activar Telegram**.
+
+Para obtener los datos, el usuario puede enviar `/start` al bot. El bot respondera:
 
 ```text
-https://t.me/<VITE_TELEGRAM_BOT_USERNAME>?start=<token>
+chat_id: 123456789
+telegram_user_id: 123456789
+username: @usuario
 ```
 
-`super_admin` tambien puede generar tokens para otros usuarios desde servicios internos:
+Activacion interna:
 
 ```ts
-const token = await telegramIntegrationService.createLinkToken(usuarioId)
-```
-
-El usuario abre el bot con:
-
-```text
-/start <token>
-```
-
-Si Telegram Web abre el chat pero envia solo `/start`, copiar desde el perfil el comando completo `/start <token>` y pegarlo en el bot.
-
-El token dura 15 minutos y queda consumido al vincularse.
-
-El frontend necesita configurar el username publico del bot:
-
-```bash
-VITE_TELEGRAM_BOT_USERNAME=tu_bot
+await telegramIntegrationService.adminUpsertIdentity({
+  usuarioId,
+  externalChatId,
+  externalUserId,
+  externalUsername,
+})
 ```
 
 ## Envio de accion
