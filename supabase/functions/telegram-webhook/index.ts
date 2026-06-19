@@ -121,13 +121,20 @@ async function answerCallbackQuery(callbackQueryId: string, text: string): Promi
   })
 }
 
-async function resolveIdentity(client: ReturnType<typeof createClient>, userId: string) {
+async function resolveIdentity(
+  client: ReturnType<typeof createClient>,
+  userId: string,
+  chatId?: string
+) {
+  const orFilters = [`external_user_id.eq.${userId}`]
+  if (chatId) orFilters.push(`external_chat_id.eq.${chatId}`)
+
   const { data, error } = await client
     .from('user_channel_identities')
     .select('usuario_id,external_chat_id,external_user_id')
     .eq('channel', 'telegram')
-    .eq('external_user_id', userId)
     .eq('status', 'active')
+    .or(orFilters.join(','))
     .maybeSingle<ChannelIdentity>()
   if (error) throw error
   return data
@@ -207,7 +214,8 @@ async function handleCallback(
   client: ReturnType<typeof createClient>,
   callback: TelegramCallbackQuery
 ): Promise<void> {
-  const identity = await resolveIdentity(client, String(callback.from.id))
+  const chatId = callback.message?.chat?.id != null ? String(callback.message.chat.id) : undefined
+  const identity = await resolveIdentity(client, String(callback.from.id), chatId)
   if (!identity) {
     await answerCallbackQuery(callback.id, 'Primero vincula tu cuenta con /start <token>.')
     return
@@ -257,7 +265,7 @@ async function handleEvidence(client: ReturnType<typeof createClient>, message: 
   const user = message.from
   if (!user) return
 
-  const identity = await resolveIdentity(client, String(user.id))
+  const identity = await resolveIdentity(client, String(user.id), String(message.chat.id))
   if (!identity) {
     await sendMessage(message.chat.id, 'Primero vincula tu cuenta con /start <token>.')
     return
