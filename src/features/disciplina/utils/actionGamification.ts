@@ -7,7 +7,6 @@ const DONE_STATES = new Set(['Hecho', 'Verificado'])
 
 export const ACTION_GAMIFICATION_POINTS = {
   onTimeClosed: 10,
-  academyModulesCompleted: 10,
   overdue: -8,
   commentsMade: 2,
   created: 3,
@@ -20,7 +19,6 @@ export type ActionGamificationTone = 'positive' | 'neutral' | 'warning' | 'negat
 export interface ActionGamificationRule {
   key:
     | 'onTimeClosed'
-    | 'academyModulesCompleted'
     | 'overdue'
     | 'commentsMade'
     | 'created'
@@ -41,7 +39,6 @@ export interface ActionGamificationMetrics {
   closedUserActions: number
   closeRate: number
   onTimeClosed: number
-  academyModulesCompleted: number
   onTimeRate: number
   overdue: number
   created: number
@@ -62,8 +59,7 @@ export function buildActionGamificationMetrics(
   userId: string | undefined,
   actions: AccionDiaria[],
   comments: AccionComentario[],
-  today: string,
-  academyModulesCompleted = 0
+  today: string
 ): ActionGamificationMetrics {
   if (!userId) return emptyMetrics()
 
@@ -94,15 +90,6 @@ export function buildActionGamificationMetrics(
       points: calculateRulePoints(onTimeClosed.length, ACTION_GAMIFICATION_POINTS.onTimeClosed),
       helper: 'Cierres antes de la fecha y hora limite.',
       tone: 'positive',
-    },
-    {
-      key: 'academyModulesCompleted',
-      label: 'Módulos de Academia completados',
-      count: academyModulesCompleted,
-      pointsPerUnit: ACTION_GAMIFICATION_POINTS.academyModulesCompleted,
-      points: calculateRulePoints(academyModulesCompleted, ACTION_GAMIFICATION_POINTS.academyModulesCompleted),
-      helper: 'Módulos terminados en Academia O2C.',
-      tone: academyModulesCompleted > 0 ? 'positive' : 'neutral',
     },
     {
       key: 'overdue',
@@ -162,7 +149,6 @@ export function buildActionGamificationMetrics(
     closedUserActions: closedUserActions.length,
     closeRate: percentage(closedUserActions.length, userActions.length),
     onTimeClosed: onTimeClosed.length,
-    academyModulesCompleted,
     onTimeRate: percentage(onTimeClosed.length, closedUserActions.length),
     overdue: overdue.length,
     created: created.length,
@@ -216,7 +202,6 @@ function emptyMetrics(): ActionGamificationMetrics {
     closedUserActions: 0,
     closeRate: 0,
     onTimeClosed: 0,
-    academyModulesCompleted: 0,
     onTimeRate: 0,
     overdue: 0,
     created: 0,

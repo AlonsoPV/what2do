@@ -14,7 +14,7 @@ export function PlanAccionRoute() {
   }
 
   if (!hasPlanAccionAccess(profile)) {
-    return <Navigate to={ROUTES.DASHBOARD} replace />
+    return <Navigate to={ROUTES.KANBAN} replace />
   }
 
   return <PlanAccionPage />

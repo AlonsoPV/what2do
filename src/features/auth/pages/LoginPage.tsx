@@ -7,14 +7,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle, LayoutDashboard, ShieldCheck } from 'lucide-react'
+import { getDefaultRouteByRole } from '@/features/auth/lib/permissions'
 import { APP_NAME, ROUTES } from '@/constants'
 import { authService } from '@/services/auth.service'
-import { useAuth } from '../hooks/useAuth'
 import { LoginForm } from '../components/LoginForm'
 import { AuthLoader } from '../components/AuthLoader'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { LoginFormValues } from '../schemas/login.schema'
+import { useAuth } from '../hooks/useAuth'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -39,8 +40,8 @@ export function LoginPage() {
     const hash = typeof from?.hash === 'string' ? from.hash : ''
     return pathname.startsWith('/') && pathname !== ROUTES.LOGIN
       ? `${pathname}${search}${hash}`
-      : ROUTES.DASHBOARD
-  }, [location.state])
+      : getDefaultRouteByRole(profile?.rol)
+  }, [location.state, profile?.rol])
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && isReady && profile?.activo) {

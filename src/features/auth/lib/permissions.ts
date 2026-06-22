@@ -19,11 +19,20 @@ const SUPER_ADMIN_ROLE = 'super_admin'
 
 const STRICT_ANALYST_ALLOWED_ROUTES = [ROUTES.KANBAN] as const
 
+/** Rutas ocultas globalmente: sin acceso directo ni enlaces en navegación. */
+export const HIDDEN_APP_ROUTES = [
+  ROUTES.DASHBOARD,
+  ROUTES.DASHBOARD_KPIS,
+  ROUTES.DASHBOARD_GAPS,
+  ROUTES.DASHBOARD_IMPACTO,
+  ROUTES.TICKETS,
+  ROUTES.SPRINTS,
+  ROUTES.DISCIPLINA,
+  ROUTES.REPORTES,
+] as const
+
 const ANALYST_ALLOWED_ROUTES = [
   ROUTES.KANBAN,
-  ROUTES.TICKETS,
-  ROUTES.ACADEMIA,
-  ROUTES.DISCIPLINA,
   ROUTES.CALENDARIO,
   ROUTES.NOTIFICACIONES,
   ROUTES.MANUAL,
@@ -32,7 +41,6 @@ const ANALYST_ALLOWED_ROUTES = [
 ] as const
 
 const DIRECTION_ALLOWED_ROUTES = [
-  ROUTES.DASHBOARD,
   ...ANALYST_ALLOWED_ROUTES,
   ROUTES.SETTINGS_USERS,
   ROUTES.SETTINGS_USERS_DETAIL,
@@ -45,13 +53,10 @@ const DIRECTION_ALLOWED_ROUTES = [
   ROUTES.SETTINGS_CATALOGS_DROPDOWNS_OPTIONS,
   ROUTES.SETTINGS_CATALOGS_KPIS,
   ROUTES.SETTINGS_CATALOGS_GAPS,
-  ROUTES.SETTINGS_ACADEMY_MODULES,
 ] as const
 
 /** Rutas del bloque «Por Liberar» y módulos no disponibles para Operativo. */
 const ANALYST_DENIED_ROUTES = [
-  ROUTES.ESTRATEGIA,
-  ROUTES.AI_ASSIST,
   ROUTES.DASHBOARD_KPIS,
   ROUTES.DASHBOARD_GAPS,
   ROUTES.DASHBOARD_IMPACTO,
@@ -120,11 +125,15 @@ export function isSuperAdminByRole(rol: string | null | undefined): boolean {
   return normalizeRole(rol) === normalizeRole(SUPER_ADMIN_ROLE)
 }
 
-export function canManageAcademyModulesByRole(rol: string | null | undefined): boolean {
-  return isSuperAdminByRole(rol) || isDirectionByRole(rol)
+export function isHiddenAppRoute(pathname: string): boolean {
+  return HIDDEN_APP_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  )
 }
 
 export function canAccessRouteByRole(rol: string | null | undefined, pathname: string): boolean {
+  if (isHiddenAppRoute(pathname)) return false
+
   if (isAnalystByRole(rol)) {
     return STRICT_ANALYST_ALLOWED_ROUTES.some((route) => routeMatches(pathname, route))
   }
@@ -146,10 +155,8 @@ export function canAccessRouteByRole(rol: string | null | undefined, pathname: s
   return ANALYST_ALLOWED_ROUTES.some((route) => routeMatches(pathname, route))
 }
 
-export function getDefaultRouteByRole(rol: string | null | undefined): string {
-  if (isAnalystByRole(rol)) return ROUTES.KANBAN
-  if (isOperativeByRole(rol)) return ROUTES.KANBAN
-  return ROUTES.DASHBOARD
+export function getDefaultRouteByRole(_rol: string | null | undefined): string {
+  return ROUTES.KANBAN
 }
 
 /**

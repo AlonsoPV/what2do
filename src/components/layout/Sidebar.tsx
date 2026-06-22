@@ -1,23 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  Map,
-  Columns3,
-  LifeBuoy,
-  TimerReset,
-  Target,
-  Calendar,
-  FileBarChart,
-  BookOpen,
-  GraduationCap,
-  Sparkles,
-  LineChart,
-  FolderKanban,
-  BarChart3,
-  X,
-  type LucideIcon,
-} from 'lucide-react'
+import { Columns3, Calendar, BookOpen, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ROUTES, APP_NAME } from '@/constants'
 import { useAppStore } from '@/store'
@@ -31,37 +14,11 @@ type NavItem = {
   icon: LucideIcon
 }
 
-type NavGroup = {
-  label?: string
-  items: NavItem[]
-}
-
-/** Navegación por módulos (spec §5). */
-const navGroups: NavGroup[] = [
-  {
-    label: 'Secciones',
-    items: [
-      { to: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
-      { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
-      { to: ROUTES.DISCIPLINA, label: 'Disciplina', icon: Target },
-      { to: ROUTES.CALENDARIO, label: 'Calendario', icon: Calendar },
-      { to: ROUTES.ACADEMIA, label: 'Academia O2C', icon: GraduationCap },
-      { to: ROUTES.TICKETS, label: 'Tickets', icon: LifeBuoy },
-      { to: ROUTES.MANUAL, label: 'Manual', icon: BookOpen },
-      { to: ROUTES.SPRINTS, label: 'Sprint Center', icon: TimerReset },
-      { to: ROUTES.REPORTES, label: 'Reportes', icon: FileBarChart },
-    ],
-  },
-  {
-    label: 'Por Liberar',
-    items: [
-      { to: ROUTES.ESTRATEGIA, label: 'Alineación estratégica', icon: Map },
-      { to: ROUTES.AI_ASSIST, label: 'IA O2C', icon: Sparkles },
-      { to: ROUTES.DASHBOARD_KPIS, label: 'KPIs O2C', icon: LineChart },
-      { to: ROUTES.DASHBOARD_GAPS, label: 'Gaps O2C', icon: FolderKanban },
-      { to: ROUTES.DASHBOARD_IMPACTO, label: 'Matriz de Impacto', icon: BarChart3 },
-    ],
-  },
+/** Navegación visible en el tablero (módulos ocultos se controlan en permissions). */
+const navItems: NavItem[] = [
+  { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
+  { to: ROUTES.CALENDARIO, label: 'Calendario', icon: Calendar },
+  { to: ROUTES.MANUAL, label: 'Manual', icon: BookOpen },
 ]
 
 const MOBILE_MQ = '(max-width: 1023px)'
@@ -76,21 +33,14 @@ export function Sidebar() {
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const { data: currentUser } = useCurrentUser()
-  const visibleNavGroups = navGroups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => canAccessRouteByRole(currentUser?.rol, item.to)),
-    }))
-    .filter((group) => group.items.length > 0)
+  const visibleNavItems = navItems.filter((item) => canAccessRouteByRole(currentUser?.rol, item.to))
 
-  /** Antes del primer pintado en móvil: menú cerrado para evitar flash del overlay a pantalla completa. */
   useLayoutEffect(() => {
     if (isMobileViewport()) {
       setSidebarOpen(false)
     }
   }, [setSidebarOpen])
 
-  /** Cerrar offcanvas con Escape solo en móvil. */
   useEffect(() => {
     if (!sidebarOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -102,7 +52,6 @@ export function Sidebar() {
     return () => window.removeEventListener('keydown', onKey)
   }, [sidebarOpen, setSidebarOpen])
 
-  /** Foco en el botón cerrar al abrir el panel móvil (accesibilidad). */
   useEffect(() => {
     if (!sidebarOpen || !isMobileViewport()) return
     const id = window.requestAnimationFrame(() => closeBtnRef.current?.focus())
@@ -141,40 +90,8 @@ export function Sidebar() {
     )
   }
 
-  const renderNavGroups = (opts: { showLabels: boolean; mobile?: boolean; onActivate?: () => void }) => {
-    const { showLabels, mobile, onActivate } = opts
-    return visibleNavGroups.map((group, groupIndex) => (
-      <div
-        key={group.label ?? `nav-group-${groupIndex}`}
-        className={cn(groupIndex > 0 && 'mt-2', group.label && groupIndex > 0 && showLabels && 'pt-1')}
-      >
-        {group.label ? (
-          showLabels ? (
-            <p
-              className={cn(
-                'px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45',
-                groupIndex > 0 ? 'pt-2' : 'pt-0.5'
-              )}
-            >
-              {group.label}
-            </p>
-          ) : groupIndex > 0 ? (
-            <div
-              className="mx-2 mb-1.5 border-t border-sidebar-accent/60"
-              aria-hidden
-            />
-          ) : null
-        ) : null}
-        <div className="flex flex-col gap-1">
-          {group.items.map((item) => renderNavLink(item, { showLabels, mobile, onActivate }))}
-        </div>
-      </div>
-    ))
-  }
-
   return (
     <>
-      {/* Escritorio: barra lateral colapsable */}
       <aside
         className={cn(
           'hidden flex-col border-r border-sidebar-accent/50 bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-in-out lg:flex',
@@ -182,11 +99,10 @@ export function Sidebar() {
         )}
       >
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto overscroll-contain p-2" aria-label="Navegación principal">
-          {renderNavGroups({ showLabels: sidebarOpen })}
+          {visibleNavItems.map((item) => renderNavLink(item, { showLabels: sidebarOpen }))}
         </nav>
       </aside>
 
-      {/* Móvil / tablet: menú a pantalla completa — sin contenido de la app visible detrás */}
       {sidebarOpen ? (
         <div
           className={cn(
@@ -222,7 +138,7 @@ export function Sidebar() {
             className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain p-3 pb-8"
             aria-label="Enlaces de la aplicación"
           >
-            {renderNavGroups({ showLabels: true, mobile: true, onActivate: closeMobileMenu })}
+            {visibleNavItems.map((item) => renderNavLink(item, { showLabels: true, mobile: true, onActivate: closeMobileMenu }))}
           </nav>
         </div>
       ) : null}

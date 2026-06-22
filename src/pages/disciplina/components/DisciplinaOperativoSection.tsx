@@ -1,19 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, Columns3, GraduationCap, type LucideIcon } from 'lucide-react'
+import { CalendarDays, Columns3, type LucideIcon } from 'lucide-react'
 import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
 import { Button } from '@/components/ui/button'
 import { ROUTES } from '@/constants'
-import { ACADEMY_MODULES, ACADEMY_TOTAL_MODULES, useAcademyProgress } from '@/features/academy'
-import { countAcademyModuleBuckets } from '@/features/academy/utils/academyProgress'
 import { cn } from '@/lib/utils'
 import type { CalendarNote } from '@/services/calendarNotes.service'
 import type { CalendarReminder } from '@/services/calendarReminders.service'
 import { DisciplinaAccionesCard } from './DisciplinaAccionesCard'
-import { DisciplinaAcademyRegistro } from './DisciplinaAcademyRegistro'
 import { DisciplinaCalendarioSection } from './DisciplinaCalendarioSection'
 
-type OperativoTab = 'acciones' | 'academia' | 'calendario'
+type OperativoTab = 'acciones' | 'calendario'
 
 type TabConfig = {
   id: OperativoTab
@@ -32,14 +29,6 @@ const TABS: TabConfig[] = [
     icon: Columns3,
     actionLabel: 'Abrir Kanban',
     actionTo: ROUTES.KANBAN,
-  },
-  {
-    id: 'academia',
-    label: 'Academia',
-    hint: 'Formación y módulos pendientes.',
-    icon: GraduationCap,
-    actionLabel: 'Ver Academia',
-    actionTo: ROUTES.ACADEMIA,
   },
   {
     id: 'calendario',
@@ -98,21 +87,12 @@ export function DisciplinaOperativoSection({
   notesError,
 }: DisciplinaOperativoSectionProps) {
   const [activeTab, setActiveTab] = useState<OperativoTab>('acciones')
-  const { completedCount, progress, isModuleUnlocked } = useAcademyProgress()
-  const academyBuckets = useMemo(
-    () => countAcademyModuleBuckets(progress, ACADEMY_MODULES, isModuleUnlocked),
-    [progress, isModuleUnlocked]
-  )
   const calendarioCount = reminders.length + notes.length
 
   const tabBadges: Record<OperativoTab, { value: number | string; tone?: 'default' | 'alert' | 'muted' }> = {
     acciones: {
       value: accionesCount,
       tone: accionesBloqueadas > 0 ? 'alert' : accionesCount > 0 ? 'default' : 'muted',
-    },
-    academia: {
-      value: academyBuckets.pendientes > 0 ? academyBuckets.pendientes : `${completedCount}/${ACADEMY_TOTAL_MODULES}`,
-      tone: academyBuckets.pendientes > 0 ? 'default' : 'muted',
     },
     calendario: {
       value: calendarioCount,
@@ -132,12 +112,12 @@ export function DisciplinaOperativoSection({
           titleId="disciplina-operativo-heading"
           eyebrow="Tu día"
           title="Tu día operativo"
-          subtitle="Acciones, formación y calendario en un solo lugar."
+          subtitle="Acciones y calendario en un solo lugar."
           icon={Columns3}
         />
         <SectionCardBody className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-4 md:p-6">
           <div
-            className="grid grid-cols-3 gap-1 rounded-xl border border-border/60 bg-muted/25 p-1"
+            className="grid grid-cols-2 gap-1 rounded-xl border border-border/60 bg-muted/25 p-1"
             role="tablist"
             aria-label="Secciones del día operativo"
           >
@@ -195,7 +175,6 @@ export function DisciplinaOperativoSection({
             {activeTab === 'acciones' ? (
               <DisciplinaAccionesCard fecha={fecha} usuarioId={usuarioId} embedded />
             ) : null}
-            {activeTab === 'academia' ? <DisciplinaAcademyRegistro embedded /> : null}
             {activeTab === 'calendario' ? (
               <DisciplinaCalendarioSection
                 embedded

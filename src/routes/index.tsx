@@ -53,13 +53,6 @@ const router = createBrowserRouter([
             },
           },
           {
-            path: ROUTES.ESTRATEGIA,
-            lazy: async () => {
-              const { StrategicMapPage } = await importWithReload(() => import('@/pages/estrategia/StrategicMapPage'))
-              return { Component: StrategicMapPage }
-            },
-          },
-          {
             path: ROUTES.DASHBOARD_KPIS,
             lazy: async () => {
               const { KpisDashboardPage } = await importWithReload(() => import('@/features/kpi/pages/KpisDashboardPage'))
@@ -141,20 +134,6 @@ const router = createBrowserRouter([
             lazy: async () => {
               const { DistanceDashboardPage } = await importWithReload(() => import('@/features/distance'))
               return { Component: DistanceDashboardPage }
-            },
-          },
-          {
-            path: ROUTES.ACADEMIA,
-            lazy: async () => {
-              const { AcademyPage } = await importWithReload(() => import('@/features/academy'))
-              return { Component: AcademyPage }
-            },
-          },
-          {
-            path: ROUTES.AI_ASSIST,
-            lazy: async () => {
-              const { AiAssistPage } = await importWithReload(() => import('@/features/ai-support'))
-              return { Component: AiAssistPage }
             },
           },
           {
@@ -261,20 +240,13 @@ const router = createBrowserRouter([
                   return { Component: GapsPage }
                 },
               },
-              {
-                path: 'academy/modules',
-                lazy: async () => {
-                  const { AcademyModulesAdminPage } = await importWithReload(() => import('@/features/academy'))
-                  return { Component: AcademyModulesAdminPage }
-                },
-              },
             ],
           },
         ],
       },
     ],
   },
-  { path: '*', element: <Navigate to={ROUTES.DASHBOARD} replace /> },
+  { path: '*', element: <Navigate to={ROUTES.KANBAN} replace /> },
     ],
   },
 ])

@@ -4,7 +4,6 @@
  */
 
 import { useMemo } from 'react'
-import { AcademyTrackingCard } from '@/features/academy'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import { HistoricalReports } from '@/features/reports'
 
@@ -25,8 +24,6 @@ export function ReportesPage() {
           Filtra por rango de fechas y responsable (admin). Métricas, detalle y exportación CSV o impresión.
         </p>
       </header>
-
-      <AcademyTrackingCard />
 
       <HistoricalReports responsableNames={responsableNames} />
     </div>

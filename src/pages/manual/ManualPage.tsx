@@ -8,16 +8,13 @@ import {
   ClipboardCheck,
   Columns3,
   FileBarChart,
-  GraduationCap,
   HelpCircle,
   Layers3,
   Lightbulb,
   LineChart,
-  Map,
   Route,
   Settings,
   ShieldCheck,
-  Sparkles,
   Target,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -106,23 +103,6 @@ const manualSections: ManualSection[] = [
     ],
   },
   {
-    title: 'Alineacion estrategica',
-    route: ROUTES.ESTRATEGIA,
-    icon: Map,
-    value: 'Conecta vision, factores criticos, procesos, gaps y acciones.',
-    content:
-      'Presenta el mapa estrategico del programa. Ayuda a que el usuario no vea el tablero como una lista de tareas aisladas, sino como una cadena causa-efecto: norte estrategico, capacidades criticas, brechas, KPIs y ejecucion.',
-    useCases: [
-      'Explicar por que existe cada iniciativa o brecha.',
-      'Alinear conversaciones entre direccion, lideres de area y equipos operativos.',
-      'Validar que las acciones del dia apunten a resultados relevantes.',
-    ],
-    tips: [
-      'Usa esta vista al inicio de comites para recordar el objetivo comun.',
-      'Si una accion no se conecta a un gap o KPI, revisa si realmente pertenece al plan.',
-    ],
-  },
-  {
     title: 'Matriz de Impacto',
     route: ROUTES.DASHBOARD_IMPACTO,
     icon: Target,
@@ -137,40 +117,6 @@ const manualSections: ManualSection[] = [
     tips: [
       'Prioriza lo que mueve KPIs criticos y desbloquea gaps relevantes.',
       'Evita saturar al equipo con acciones de bajo impacto solo porque son faciles.',
-    ],
-  },
-  {
-    title: 'Academia O2C',
-    route: ROUTES.ACADEMIA,
-    icon: GraduationCap,
-    value: 'Estandariza conocimiento y disciplina de adopcion.',
-    content:
-      'Contiene modulos de aprendizaje, materiales e instructivos para reforzar conceptos O2C, metodologia agil, KPIs, gaps y ejecucion. Su valor esta en crear un lenguaje comun para operar el tablero.',
-    useCases: [
-      'Onboarding de nuevos usuarios o responsables.',
-      'Reforzar conceptos antes de sesiones de trabajo.',
-      'Dar seguimiento al progreso de aprendizaje.',
-    ],
-    tips: [
-      'Usala como referencia antes de levantar dudas recurrentes en comite.',
-      'Combina aprendizaje con practica: cada modulo debe aterrizarse en acciones reales.',
-    ],
-  },
-  {
-    title: 'IA O2C',
-    route: ROUTES.AI_ASSIST,
-    icon: Sparkles,
-    value: 'Acelera analisis y redaccion con contexto del programa.',
-    content:
-      'Sirve como apoyo para sintetizar hallazgos, preparar reportes, interpretar informacion operativa y estructurar recomendaciones. No reemplaza el criterio del responsable, pero reduce trabajo manual de analisis.',
-    useCases: [
-      'Preparar resumenes ejecutivos de seguimiento.',
-      'Convertir datos operativos en hallazgos accionables.',
-      'Generar borradores para reportes, comites o planes de accion.',
-    ],
-    tips: [
-      'Pide respuestas con formato concreto: hallazgos, riesgos, decisiones y siguientes pasos.',
-      'Valida cifras y conclusiones sensibles antes de compartirlas fuera del equipo.',
     ],
   },
   {
@@ -336,15 +282,7 @@ export function ManualPage() {
   const visibleSections = manualSections.filter((section) =>
     canAccessRouteByRole(currentUser?.rol, section.route)
   )
-  const flowSteps = operatingFlow.map((step, index) => {
-    if (index !== 3 || canAccessRouteByRole(currentUser?.rol, ROUTES.DASHBOARD_IMPACTO)) {
-      return step
-    }
-    return {
-      ...step,
-      text: 'Usa Alineacion estrategica y Reportes para enfocar decisiones y explicar avances.',
-    }
-  })
+  const flowSteps = operatingFlow
 
   return (
     <div id="manual-page" className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-3 py-5 sm:px-6 sm:py-6">

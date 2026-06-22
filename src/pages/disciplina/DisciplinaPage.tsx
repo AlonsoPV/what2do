@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Flame,
   Gauge,
-  GraduationCap,
   MessageSquare,
   PenLine,
   RefreshCw,
@@ -32,7 +31,6 @@ import {
   type ActionGamificationTone,
 } from '@/features/disciplina/utils/actionGamification'
 import { DisciplinaOperativoSection } from './components/DisciplinaOperativoSection'
-import { useAcademyProgress } from '@/features/academy'
 
 const RECENT_CALENDAR_ITEMS_LIMIT = 6
 type MetricTone = 'neutral' | 'good' | 'warn' | 'risk'
@@ -89,11 +87,9 @@ export function DisciplinaPage() {
     enabled: Boolean(currentUser?.id),
     staleTime: 30_000,
   })
-  const { completedCount: academyModulesCompleted } = useAcademyProgress()
-
   const personalMetrics = useMemo(
-    () => buildPersonalMetrics(currentUser?.id, personalActions, personalComments, today, academyModulesCompleted),
-    [academyModulesCompleted, currentUser?.id, personalActions, personalComments, today]
+    () => buildPersonalMetrics(currentUser?.id, personalActions, personalComments, today),
+    [currentUser?.id, personalActions, personalComments, today]
   )
   const positiveRules = useMemo(
     () => personalMetrics.rules.filter((rule) => rule.pointsPerUnit > 0),
@@ -550,7 +546,6 @@ function ActivityScoreRow({
 function activityDoneText(rule: ActionGamificationRule) {
   if (rule.count === 0) return 'sin registro en el periodo'
   if (rule.key === 'onTimeClosed') return `${rule.count} cierre${rule.count === 1 ? '' : 's'} en tiempo`
-  if (rule.key === 'academyModulesCompleted') return `${rule.count} modulo${rule.count === 1 ? '' : 's'} completado${rule.count === 1 ? '' : 's'}`
   if (rule.key === 'overdue') return `${rule.count} accion${rule.count === 1 ? '' : 'es'} directa${rule.count === 1 ? '' : 's'} en retraso`
   if (rule.key === 'commentsMade') return `${rule.count} comentario${rule.count === 1 ? '' : 's'} de seguimiento`
   if (rule.key === 'created') return `${rule.count} accion${rule.count === 1 ? '' : 'es'} creada${rule.count === 1 ? '' : 's'}`
@@ -737,7 +732,6 @@ function formatSignedPoints(value: number) {
 
 function ruleIcon(key: ActionGamificationRule['key']) {
   if (key === 'onTimeClosed') return CheckCircle2
-  if (key === 'academyModulesCompleted') return GraduationCap
   if (key === 'overdue') return AlertTriangle
   if (key === 'commentsMade') return MessageSquare
   if (key === 'created') return PenLine

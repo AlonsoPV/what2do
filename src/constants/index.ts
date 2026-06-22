@@ -6,8 +6,6 @@ export const ROUTES = {
   FORGOT_PASSWORD: '/forgot-password',
   RESET_PASSWORD: '/reset-password',
   DASHBOARD: '/dashboard',
-  /** Cadena causa–efecto: BHAG, FCE, procesos O2C, ejecución. */
-  ESTRATEGIA: '/estrategia',
   DASHBOARD_KPIS: '/dashboard/kpis',
   DASHBOARD_GAPS: '/dashboard/gaps',
   DASHBOARD_IMPACTO: '/dashboard/impacto',
@@ -20,10 +18,7 @@ export const ROUTES = {
   REPORTES: '/reportes',
   NOTIFICACIONES: '/notificaciones',
   DISTANCIAS: '/distancias',
-  ACADEMIA: '/academia',
   MANUAL: '/manual',
-  /** Asistente IA O2C (proxy Edge Functions → Lovable). */
-  AI_ASSIST: '/asistente-ia',
   /** Plan de acción Scrum Master — acceso restringido por usuario. */
   PLAN_ACCION: '/plan-accion',
   SETTINGS: '/settings',
@@ -39,7 +34,6 @@ export const ROUTES = {
   SETTINGS_CATALOGS_DROPDOWNS_OPTIONS: '/settings/catalogs/dropdowns/:catalogId',
   SETTINGS_CATALOGS_KPIS: '/settings/catalogs/kpis',
   SETTINGS_CATALOGS_GAPS: '/settings/catalogs/gaps',
-  SETTINGS_ACADEMY_MODULES: '/settings/academy/modules',
 } as const
 
 /** Exportar minutas, acciones y recordatorios a Google Calendar / Tasks / Gmail. */

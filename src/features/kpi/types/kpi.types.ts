@@ -18,30 +18,6 @@ export interface Gap {
   updated_at: string
 }
 
-/** Nivel 1 — norte estratégico (`strategic_north`). */
-export interface StrategicNorthRow {
-  id: string
-  mision: string
-  vision: string
-  valores: string | null
-  bhag: string
-  bhag_anio: number
-  updated_at: string
-}
-
-/** Nivel 2 — FCE (`fce`). */
-export interface FceRow {
-  id: string
-  codigo: string
-  nombre: string
-  descripcion: string | null
-  icono: string | null
-  orden: number
-  activo: boolean
-  created_at: string
-  updated_at: string
-}
-
 /** Dirección O2C; coincide con `catalog_kpi_direction`. */
 export type CatalogKpiDirectionDb = 'maximize' | 'minimize'
 
