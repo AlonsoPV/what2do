@@ -103,6 +103,19 @@ function fitTelegramMessage(text: string): string {
   return truncateText(text, TELEGRAM_MAX_MESSAGE_LENGTH - TELEGRAM_SAFETY_MARGIN)
 }
 
+function normalizeDescriptionForTelegram(text: string): string {
+  const normalized = text
+    .replace(/\r\n/g, '\n')
+    .replace(/^\s*(c.{1,2}mo|quiero|para qu.{1,2}|cuando):\s*/gim, '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line, index, lines) => lines.indexOf(line) === index)
+    .join('\n\n')
+    .trim()
+  return normalized || 'Sin descripcion.'
+}
+
 function buildMessage(accion: Accion, responsable: Usuario | null, checkpoints: Checkpoint[]): string {
   const title = accion.titulo_accion?.trim() || accion.descripcion_accion.slice(0, 72)
   const visibleCheckpoints = checkpoints.slice(0, TELEGRAM_MAX_INLINE_BUTTONS)
@@ -114,25 +127,27 @@ function buildMessage(accion: Accion, responsable: Usuario | null, checkpoints: 
       ].filter(Boolean).join('\n')
     : 'Sin checklist configurado.'
   const link = actionUrl(accion.id)
+  const description = truncateText(normalizeDescriptionForTelegram(accion.descripcion_accion), 1200)
 
   return fitTelegramMessage([
-    `Accion: ${title}`,
-    `ID: ${accion.id}`,
-    responsable?.nombre ? `Responsable: ${responsable.nombre}` : '',
-    `Fecha limite: ${accion.fecha} ${accion.hora_limite}`,
+    title,
+    '',
+    'Datos',
+    responsable?.nombre ? `Responsable: ${responsable.nombre}` : 'Responsable: sin asignar',
+    `Fecha limite: ${accion.fecha} ${accion.hora_limite?.slice(0, 5)}`,
     accion.prioridad ? `Prioridad: ${accion.prioridad}` : '',
+    `ID: ${accion.id}`,
     '',
     'Descripcion:',
-    accion.descripcion_accion.slice(0, 900),
-    '',
-    'Evidencia esperada:',
-    accion.evidencia_esperada,
+    description,
     '',
     'Checklist:',
     checklistText,
     '',
-    'Para enviar evidencia, responde a este chat con el archivo. Si tienes varias acciones abiertas, incluye el ID de la accion en el caption.',
-    link ? `Abrir tablero: ${link}` : '',
+    'Acciones disponibles:',
+    '- Marca puntos con los botones.',
+    '- Puedes adjuntar evidencia respondiendo con un archivo o foto.',
+    link ? `- Abrir tablero: ${link}` : '',
   ].filter(Boolean).join('\n'))
 }
 
