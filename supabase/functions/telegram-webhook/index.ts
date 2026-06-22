@@ -123,6 +123,15 @@ async function answerCallbackQuery(callbackQueryId: string, text: string): Promi
   })
 }
 
+async function safeAnswerCallbackQuery(callbackQueryId: string | undefined, text: string): Promise<void> {
+  if (!callbackQueryId) return
+  try {
+    await answerCallbackQuery(callbackQueryId, text)
+  } catch (error) {
+    console.error('No se pudo responder callback de Telegram:', error)
+  }
+}
+
 async function resolveIdentity(
   client: ReturnType<typeof createClient>,
   userId: string,
@@ -403,10 +412,14 @@ Deno.serve(async (req) => {
   if (!update?.update_id) return jsonResponse({ ok: false, message: 'Update invalido' }, 400)
 
   const client = adminClient()
-  const shouldProcess = await logInbound(client, update)
-  if (!shouldProcess) return jsonResponse({ ok: true, duplicate: true })
 
   try {
+    const shouldProcess = await logInbound(client, update)
+    if (!shouldProcess) {
+      await safeAnswerCallbackQuery(update.callback_query?.id, 'Solicitud ya procesada.')
+      return jsonResponse({ ok: true, duplicate: true })
+    }
+
     const text = update.message?.text?.trim() ?? ''
     if (text.startsWith('/start')) {
       const token = text.split(/\s+/)[1] ?? ''
@@ -439,6 +452,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: true })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'No se pudo procesar Telegram'
+    await safeAnswerCallbackQuery(update.callback_query?.id, message)
     await client
       .from('external_inbound_messages')
       .update({ processed_at: new Date().toISOString(), error_message: message })
