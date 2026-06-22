@@ -43,11 +43,11 @@ BEGIN
     SELECT *
     FROM (
       VALUES
-        (gen_random_uuid(), 'Sergio',  'sergio@whatwedo.com'),
-        (gen_random_uuid(), 'Valeria', 'valeria@whatwedo.com'),
-        (gen_random_uuid(), 'Bruno',   'bruno@whatwedo.com'),
-        (gen_random_uuid(), 'Maria',   'maria@whatwedo.com')
-    ) AS t(uid_tabla, usuario, correo)
+        ('Sergio',  'sergio@whatwedo.com'),
+        ('Valeria', 'valeria@whatwedo.com'),
+        ('Bruno',   'bruno@whatwedo.com'),
+        ('Maria',   'maria@whatwedo.com')
+    ) AS t(usuario, correo)
   LOOP
     v_email := lower(trim(rec.correo));
     v_meta := jsonb_build_object(

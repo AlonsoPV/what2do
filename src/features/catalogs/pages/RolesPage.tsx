@@ -98,7 +98,7 @@ export function RolesPage() {
     <div className="space-y-6">
       <CatalogPageHeader
         title="Roles"
-        description="Catálogo de roles visibles del sistema. Preparado para permisos por rol."
+        description="Define los roles disponibles al crear o editar usuarios. Cada rol controla qué puede ver y hacer en el tablero."
         onAdd={handleCreate}
         addLabel="Crear rol"
       />

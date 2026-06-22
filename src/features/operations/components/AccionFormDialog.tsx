@@ -347,18 +347,15 @@ export function AccionFormDialog({
   }
 
   async function handleSendActionTelegram() {
-    if (!accion?.id || !accion.responsable) {
+    const targetAccion = accionLive ?? accion
+    if (!targetAccion?.id || !targetAccion.responsable) {
       toast.error('La accion necesita un responsable para enviar Telegram.')
-      return
-    }
-    if (!isSuperAdminByRole(currentUser?.rol)) {
-      toast.error('Solo super_admin puede enviar acciones por Telegram.')
       return
     }
 
     setManualTelegramPending(true)
     try {
-      const result = await telegramIntegrationService.sendAction(accion.id, accion.responsable)
+      const result = await telegramIntegrationService.sendAction(targetAccion.id, targetAccion.responsable)
       if (result.warning) {
         toast.warning(result.warning)
       } else {
@@ -681,7 +678,8 @@ export function AccionFormDialog({
 
   const formBaseId = `${dialogId ?? 'accion-form-dialog'}-form`
   const showEmailButton = isEdit && !!accion
-  const showTelegramButton = isEdit && !!accion && isSuperAdminByRole(currentUser?.rol)
+  const telegramAction = accionLive ?? accion
+  const showTelegramButton = isEdit && !!telegramAction
   const isManualNotificationPending = manualEmailPending || manualTelegramPending
   const footerButtonCount =
     2 + (showEmailButton ? 1 : 0) + (showTelegramButton ? 1 : 0) + (canDeleteAccion ? 1 : 0)
@@ -1006,10 +1004,10 @@ export function AccionFormDialog({
                 id={`${formBaseId}-send-telegram`}
                 className="accion-form-dialog-send-telegram h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
                 onClick={handleSendActionTelegram}
-                disabled={isManualNotificationPending || isMutating || !accion.responsable}
+                disabled={isManualNotificationPending || isMutating || !telegramAction?.responsable}
                 title={
-                  accion.responsable
-                    ? `Enviar Telegram a ${responsableNames[accion.responsable] ?? 'responsable asignado'}`
+                  telegramAction?.responsable
+                    ? `Enviar Telegram a ${responsableNames[telegramAction.responsable] ?? 'responsable asignado'}`
                     : 'Asigna un responsable para enviar Telegram'
                 }
               >

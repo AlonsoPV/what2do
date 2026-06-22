@@ -15,6 +15,7 @@
     "supabase:link:dev": "npx supabase link --project-ref tgiuevzlyptzlfgxsfhj",
     "supabase:db:push:dev": "npx supabase db push --linked",
     "supabase:deploy:telegram:dev": "npx supabase functions deploy telegram-webhook telegram-send-action --project-ref tgiuevzlyptzlfgxsfhj --no-verify-jwt --use-api",
+    "supabase:deploy:integrations:what2do": "npx supabase functions deploy send-notification-email telegram-send-action telegram-webhook --project-ref rapjjninxoqvymdmjoyg --no-verify-jwt --use-api",
     "test:kpi-smoke": "node --experimental-strip-types scripts/kpi-calculation-smoke.mts",
     "auth:password": "node scripts/set-user-password.mjs",
     "auth:password-batch": "node scripts/set-users-password-batch.mjs",

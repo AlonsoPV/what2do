@@ -11,72 +11,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Users,
-  FolderOpen,
-  Shield,
-  MapPin,
-  Flag,
-  ArrowUpCircle,
-  List,
-  Target,
-  UserCircle,
-  AlertTriangle,
-  type LucideIcon,
-} from 'lucide-react'
+import { Users, Shield, UserCircle, type LucideIcon } from 'lucide-react'
 
 const SETTINGS_LINKS = [
   { to: ROUTES.SETTINGS_PROFILE, label: 'Mi perfil', icon: UserCircle },
   { to: ROUTES.SETTINGS_USERS, label: 'Usuarios', icon: Users },
-  { to: ROUTES.SETTINGS_CATALOGS, label: 'Catálogos', icon: FolderOpen },
-] as const
-
-const CATALOG_LINKS = [
-  { to: ROUTES.SETTINGS_CATALOGS, label: 'Inicio catálogos', icon: FolderOpen },
   { to: ROUTES.SETTINGS_CATALOGS_ROLES, label: 'Roles', icon: Shield },
-  { to: ROUTES.SETTINGS_CATALOGS_AREAS, label: 'Áreas', icon: MapPin },
-  { to: ROUTES.SETTINGS_CATALOGS_STATUSES, label: 'Estatus', icon: Flag },
-  { to: ROUTES.SETTINGS_CATALOGS_PRIORITIES, label: 'Prioridades', icon: ArrowUpCircle },
-  { to: ROUTES.SETTINGS_CATALOGS_DROPDOWNS, label: 'Listas desplegables', icon: List },
-  { to: ROUTES.SETTINGS_CATALOGS_KPIS, label: 'KPIs', icon: Target },
-  { to: ROUTES.SETTINGS_CATALOGS_GAPS, label: 'Brechas O2C', icon: AlertTriangle },
 ] as const
 
 type NavLink = { to: string; label: string; icon: LucideIcon }
 
 function resolveSettingsValue(pathname: string, links: readonly NavLink[]): string {
   if (pathname.startsWith('/settings/catalogs')) {
-    return ROUTES.SETTINGS_CATALOGS
+    return ROUTES.SETTINGS_CATALOGS_ROLES
   }
   const match = links.find(
-    (link) =>
-      link.to !== ROUTES.SETTINGS_CATALOGS &&
-      (pathname === link.to || pathname.startsWith(`${link.to}/`))
+    (link) => pathname === link.to || pathname.startsWith(`${link.to}/`)
   )
   return match?.to ?? links[0]?.to ?? ROUTES.SETTINGS_PROFILE
-}
-
-function resolveCatalogValue(pathname: string, links: readonly NavLink[]): string | undefined {
-  if (!pathname.startsWith('/settings/catalogs')) return undefined
-
-  const exact = links.find((link) => pathname === link.to)
-  if (exact) return exact.to
-
-  if (
-    pathname.startsWith(`${ROUTES.SETTINGS_CATALOGS_DROPDOWNS}/`) &&
-    pathname !== ROUTES.SETTINGS_CATALOGS_DROPDOWNS
-  ) {
-    return ROUTES.SETTINGS_CATALOGS_DROPDOWNS
-  }
-
-  const nested = links.find(
-    (link) =>
-      link.to !== ROUTES.SETTINGS_CATALOGS &&
-      (pathname.startsWith(`${link.to}/`) || pathname === link.to)
-  )
-  if (nested) return nested.to
-
-  return ROUTES.SETTINGS_CATALOGS
 }
 
 function NavSelect({
@@ -128,15 +80,12 @@ export function SettingsLayout() {
   const visibleSettingsLinks = SETTINGS_LINKS.filter((link) =>
     canAccessRouteByRole(profile?.rol, link.to)
   )
-  const visibleCatalogLinks = CATALOG_LINKS.filter((link) => canAccessRouteByRole(profile?.rol, link.to))
-  const showCatalogNav = visibleCatalogLinks.length > 0
 
   if (isAnalystByRole(profile?.rol) && location.pathname !== ROUTES.SETTINGS_PROFILE) {
     return <Navigate to={ROUTES.SETTINGS_PROFILE} replace />
   }
 
   const settingsValue = resolveSettingsValue(location.pathname, visibleSettingsLinks)
-  const catalogValue = resolveCatalogValue(location.pathname, visibleCatalogLinks)
 
   return (
     <div className="min-w-0 space-y-4 lg:flex lg:flex-row lg:items-start lg:gap-6 lg:space-y-0 xl:gap-8">
@@ -154,17 +103,6 @@ export function SettingsLayout() {
             links={visibleSettingsLinks}
             onNavigate={(to) => navigate(to)}
           />
-
-          {showCatalogNav ? (
-            <NavSelect
-              id="settings-nav-catalogos"
-              label="Catálogos"
-              value={catalogValue}
-              placeholder="Ir a un catálogo…"
-              links={visibleCatalogLinks}
-              onNavigate={(to) => navigate(to)}
-            />
-          ) : null}
         </div>
       </aside>
 

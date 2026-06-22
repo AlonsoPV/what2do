@@ -127,8 +127,9 @@ export function UsersPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Usuarios</h2>
-          <p className="text-muted-foreground">
-            Invita personas por correo y gestiona su ficha en el tablero.
+          <p className="max-w-2xl text-muted-foreground">
+            Gestiona acceso al tablero: correo, nombre, rol, área y estado. Para Telegram y envío de
+            acciones, abre el detalle de cada usuario.
           </p>
         </div>
         <Button onClick={handleCreate}>

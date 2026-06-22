@@ -46,6 +46,10 @@ const DIRECTION_ALLOWED_ROUTES = [
   ROUTES.SETTINGS_USERS_DETAIL,
   ROUTES.SETTINGS_CATALOGS,
   ROUTES.SETTINGS_CATALOGS_ROLES,
+] as const
+
+/** Catálogos deshabilitados en la UI; solo quedan activos Usuarios y Roles. */
+export const HIDDEN_CATALOG_ROUTES = [
   ROUTES.SETTINGS_CATALOGS_AREAS,
   ROUTES.SETTINGS_CATALOGS_STATUSES,
   ROUTES.SETTINGS_CATALOGS_PRIORITIES,
@@ -125,14 +129,24 @@ export function isSuperAdminByRole(rol: string | null | undefined): boolean {
   return normalizeRole(rol) === normalizeRole(SUPER_ADMIN_ROLE)
 }
 
+/** Cualquier usuario con perfil puede vincular y enviar por Telegram. */
+export function canManageUserTelegram(rol: string | null | undefined): boolean {
+  return (rol ?? '').trim().length > 0
+}
+
 export function isHiddenAppRoute(pathname: string): boolean {
   return HIDDEN_APP_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   )
 }
 
+export function isHiddenCatalogRoute(pathname: string): boolean {
+  return HIDDEN_CATALOG_ROUTES.some((route) => routeMatches(pathname, route))
+}
+
 export function canAccessRouteByRole(rol: string | null | undefined, pathname: string): boolean {
   if (isHiddenAppRoute(pathname)) return false
+  if (isHiddenCatalogRoute(pathname)) return false
 
   if (isAnalystByRole(rol)) {
     return STRICT_ANALYST_ALLOWED_ROUTES.some((route) => routeMatches(pathname, route))

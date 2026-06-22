@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { ROUTES } from '@/constants'
 import {
   canAccessRouteByRole,
+  canManageUserTelegram,
   getDefaultRouteByRole,
   isDirectionByRole,
   usesOperationalDashboardByRole,
 } from './permissions'
 
 describe('role route permissions', () => {
-  it('allows Direccion to use analyst views plus users and catalogs', () => {
+  it('allows Direccion to use analyst views plus users and roles only', () => {
     const role = 'Direccion'
 
     expect(isDirectionByRole(role)).toBe(true)
@@ -19,7 +20,9 @@ describe('role route permissions', () => {
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_USERS)).toBe(true)
     expect(canAccessRouteByRole(role, '/settings/users/example-id')).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS)).toBe(true)
-    expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_KPIS)).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_ROLES)).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_KPIS)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_AREAS)).toBe(false)
     expect(usesOperationalDashboardByRole(role)).toBe(true)
   })
 
@@ -75,6 +78,14 @@ describe('role route permissions', () => {
       expect(canAccessRouteByRole(role, ROUTES.TICKETS)).toBe(false)
       expect(canAccessRouteByRole(role, ROUTES.DISCIPLINA)).toBe(false)
     }
+  })
+
+  it('allows user telegram management for every business role', () => {
+    for (const role of ['DG', 'Sistemas', 'super_admin', 'Direccion', 'Operativo', 'Analista'] as const) {
+      expect(canManageUserTelegram(role)).toBe(true)
+    }
+    expect(canManageUserTelegram(null)).toBe(false)
+    expect(canManageUserTelegram('')).toBe(false)
   })
 
   it('sends every role to Kanban after login', () => {

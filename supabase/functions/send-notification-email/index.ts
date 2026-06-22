@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { handleCorsPreflight, jsonResponse } from '../_shared/cors.ts'
+import { jsonResponse, serveWithCors } from '../_shared/cors.ts'
 import { requireAuthUser } from '../_shared/requireUser.ts'
 
 /** Stubs para el checker de TypeScript del repo (runtime = Deno en Supabase Edge). */
@@ -360,10 +360,7 @@ async function sendWithResend(input: {
   return { provider: 'resend', id: result?.id ?? null }
 }
 
-Deno.serve(async (req) => {
-  const preflight = handleCorsPreflight(req)
-  if (preflight) return preflight
-
+serveWithCors(async (req) => {
   if (req.method !== 'POST') {
     return jsonResponse({ ok: false, message: 'Metodo no permitido' }, 405)
   }

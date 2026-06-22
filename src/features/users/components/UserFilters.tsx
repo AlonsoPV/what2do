@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/select'
 import type { UsersFilter } from '../types/user.types'
 import { useRoles } from '@/features/catalogs/hooks/useRoles'
-import { useAreas } from '@/features/catalogs/hooks/useAreas'
 import { Search, X } from 'lucide-react'
 
 interface UserFiltersProps {
@@ -27,28 +26,27 @@ const ACTIVO_OPTIONS = [
 
 export function UserFilters({ filter, onFilterChange, onClear }: UserFiltersProps) {
   const { data: roles = [] } = useRoles({ activo: true })
-  const { data: areas = [] } = useAreas({ activo: true })
 
   const hasActiveFilters =
     !!filter.search?.trim() ||
     filter.rol != null ||
-    filter.area != null ||
     filter.activo !== undefined
 
   return (
     <div className="flex flex-wrap items-end gap-4 rounded-lg border bg-card p-4">
       <div className="flex-1 min-w-[200px] space-y-2">
-        <Label htmlFor="search">Buscar por nombre, correo o área</Label>
+        <Label htmlFor="search">Buscar</Label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="search"
-            placeholder="Nombre, correo o área..."
+            placeholder="Nombre, correo o área…"
             value={filter.search ?? ''}
             onChange={(e) => onFilterChange({ ...filter, search: e.target.value || undefined })}
             className="pl-9"
           />
         </div>
+        <p className="text-xs text-muted-foreground">Filtra por nombre, correo o área.</p>
       </div>
       <div className="w-[180px] space-y-2">
         <Label>Rol</Label>
@@ -66,27 +64,6 @@ export function UserFilters({ filter, onFilterChange, onClear }: UserFiltersProp
             {roles.map((r) => (
               <SelectItem key={r.id} value={r.nombre}>
                 {r.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="w-[180px] space-y-2">
-        <Label>Área</Label>
-        <Select
-          value={filter.area ?? 'all'}
-          onValueChange={(v) =>
-            onFilterChange({ ...filter, area: v === 'all' ? undefined : v })
-          }
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Todas las áreas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las áreas</SelectItem>
-            {areas.map((a) => (
-              <SelectItem key={a.id} value={a.nombre}>
-                {a.nombre}
               </SelectItem>
             ))}
           </SelectContent>
