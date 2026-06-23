@@ -12,7 +12,19 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      fontFamily: {
+        body: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Instrument Serif"', 'Georgia', 'serif'],
+      },
       colors: {
+        pf: {
+          bg: 'hsl(var(--pf-bg))',
+          surface: 'hsl(var(--pf-surface))',
+          text: 'hsl(var(--pf-text))',
+          muted: 'hsl(var(--pf-muted))',
+          stroke: 'hsl(var(--pf-stroke))',
+          accent: 'hsl(var(--pf-accent))',
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

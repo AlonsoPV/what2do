@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ListChecks, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { ListChecks, Plus, Trash2, ChevronUp, ChevronDown, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTimeCDMX } from '@/lib/dateUtils'
 import type { AccionCheckpoint } from '@/types'
@@ -58,6 +58,8 @@ export interface AccionChecklistManageProps {
   canToggle?: boolean
   /** Nombres para mostrar auditoría de `checked_by` (mismo mapa que responsables del diálogo). */
   responsableNames?: Record<string, string>
+  onSendTelegramFollowup?: (checkpoint: AccionCheckpoint) => Promise<void> | void
+  telegramFollowupPendingId?: string | null
 }
 
 export function AccionChecklistManage({
@@ -69,6 +71,8 @@ export function AccionChecklistManage({
   canAddPoint,
   canToggle,
   responsableNames = {},
+  onSendTelegramFollowup,
+  telegramFollowupPendingId = null,
 }: AccionChecklistManageProps) {
   const { data: checkpoints = [], isLoading } = useAccionCheckpoints(accionId)
   const insertCp = useInsertAccionCheckpoint()
@@ -268,6 +272,7 @@ export function AccionChecklistManage({
                 {sorted.map((c, index) => {
                   const audit = auditSummary(c, responsableNames)
                   const showStructureActions = !c.completado && mayEditStructure
+                  const followupPending = telegramFollowupPendingId === c.id
                   return (
                     <li
                       key={c.id}
@@ -322,8 +327,24 @@ export function AccionChecklistManage({
                           ) : null}
                         </div>
                       </div>
-                      {showStructureActions ? (
+                      {showStructureActions || onSendTelegramFollowup ? (
                         <div className="col-span-2 flex shrink-0 items-center justify-end gap-0 sm:col-span-1 sm:justify-start">
+                          {onSendTelegramFollowup ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              aria-label="Enviar seguimiento por Telegram"
+                              title="Enviar seguimiento por Telegram"
+                              disabled={disabled || !!telegramFollowupPendingId}
+                              onClick={() => void onSendTelegramFollowup(c)}
+                            >
+                              <Send className={cn('h-3.5 w-3.5', followupPending && 'animate-pulse')} />
+                            </Button>
+                          ) : null}
+                          {showStructureActions ? (
+                            <>
                           <Button
                             type="button"
                             variant="ghost"
@@ -357,6 +378,8 @@ export function AccionChecklistManage({
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
+                            </>
+                          ) : null}
                         </div>
                       ) : null}
                     </li>

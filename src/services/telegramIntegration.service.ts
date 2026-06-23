@@ -7,6 +7,8 @@ export type TelegramSendActionResult = {
   warning?: string
 }
 
+export type TelegramSendActionMessageType = 'initial' | 'checkpoint_followup' | 'commitment_close'
+
 export type TelegramIdentity = {
   id: string
   usuario_id: string
@@ -87,11 +89,20 @@ export const telegramIntegrationService = {
     return data
   },
 
-  async sendAction(accionId: string, usuarioId?: string): Promise<TelegramSendActionResult> {
+  async sendAction(
+    accionId: string,
+    usuarioId?: string,
+    options?: {
+      messageType?: TelegramSendActionMessageType
+      checkpointId?: string
+    }
+  ): Promise<TelegramSendActionResult> {
     const { data, error } = await supabase.functions.invoke('telegram-send-action', {
       body: {
         accion_id: accionId,
         usuario_id: usuarioId ?? undefined,
+        message_type: options?.messageType ?? 'initial',
+        checkpoint_id: options?.checkpointId ?? undefined,
       },
     })
     if (error) {

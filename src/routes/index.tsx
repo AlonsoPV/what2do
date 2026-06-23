@@ -35,6 +35,13 @@ const router = createBrowserRouter([
     element: <ResetPasswordPage />,
   },
   {
+    path: ROUTES.WEBTEST,
+    lazy: async () => {
+      const { WebtestPage } = await importWithReload(() => import('@/pages/webtest/WebtestPage'))
+      return { Component: WebtestPage }
+    },
+  },
+  {
     path: '/',
     element: <ProtectedRoute />,
     hydrateFallbackElement: <PageLoadingFallback />,

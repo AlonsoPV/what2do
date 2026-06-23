@@ -68,7 +68,15 @@ type ActionDelivery = {
   external_chat_id?: string | null
 }
 
+type Checkpoint = {
+  id: string
+  texto: string
+  orden: number
+  completado: boolean
+}
+
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+const TELEGRAM_MAX_INLINE_BUTTONS = 95
 
 function env(name: string): string {
   const value = Deno.env.get(name)?.trim()
@@ -129,6 +137,48 @@ async function safeAnswerCallbackQuery(callbackQueryId: string | undefined, text
     await answerCallbackQuery(callbackQueryId, text)
   } catch (error) {
     console.error('No se pudo responder callback de Telegram:', error)
+  }
+}
+
+function buildReplyMarkup(accionId: string, checkpoints: Checkpoint[]): Record<string, unknown> {
+  const rows = checkpoints.slice(0, TELEGRAM_MAX_INLINE_BUTTONS).map((checkpoint, index) => ([{
+    text: checkpoint.completado ? `Marcada ${index + 1}` : `Marcar ${index + 1}`,
+    callback_data: `chk:${checkpoint.id}:${checkpoint.completado ? '0' : '1'}`,
+  }]))
+  rows.push([{ text: 'Marcar accion como Hecha', callback_data: `done:${accionId}` }])
+  return { inline_keyboard: rows }
+}
+
+async function actionReplyMarkup(
+  client: ReturnType<typeof createClient>,
+  accionId: string
+): Promise<Record<string, unknown>> {
+  const { data, error } = await client
+    .from('accion_checkpoints')
+    .select('id,texto,orden,completado')
+    .eq('accion_id', accionId)
+    .eq('activo', true)
+    .order('orden', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return buildReplyMarkup(accionId, (data ?? []) as Checkpoint[])
+}
+
+async function refreshCallbackMessageMarkup(
+  client: ReturnType<typeof createClient>,
+  callback: TelegramCallbackQuery,
+  accionId: string
+): Promise<void> {
+  const message = callback.message
+  if (!message) return
+  try {
+    await telegramApi('editMessageReplyMarkup', {
+      chat_id: message.chat.id,
+      message_id: message.message_id,
+      reply_markup: await actionReplyMarkup(client, accionId),
+    })
+  } catch (error) {
+    console.error('No se pudo actualizar teclado de Telegram:', error)
   }
 }
 
@@ -302,7 +352,12 @@ async function handleCallback(
       await answerCallbackQuery(callback.id, error.message)
       return
     }
-    const needsEvidence = Boolean((result as { needs_evidence?: boolean } | null)?.needs_evidence)
+    const resultPayload = result as { accion_id?: string; needs_evidence?: boolean } | null
+    const accionId = resultPayload?.accion_id ?? await actionIdFromCallbackData(client, data)
+    if (accionId) {
+      await refreshCallbackMessageMarkup(client, callback, accionId)
+    }
+    const needsEvidence = Boolean(resultPayload?.needs_evidence)
     await answerCallbackQuery(callback.id, needsEvidence ? 'Checklist completo. Falta evidencia.' : 'Checklist actualizado.')
     return
   }

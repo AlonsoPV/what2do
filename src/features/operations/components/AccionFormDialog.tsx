@@ -44,7 +44,7 @@ import {
 } from '@/services/accionEvidencias.service'
 import { accionesService } from '@/services/acciones.service'
 import { accionCheckpointsService } from '@/services/accionCheckpoints.service'
-import type { AccionDiaria, ActionStatus } from '@/types'
+import type { AccionCheckpoint, AccionDiaria, ActionStatus } from '@/types'
 import { DEFAULT_PRIORITY_NOMBRE } from '../utils/priorityLabels'
 import type { AccionCreateInput, AccionFormInput } from '../schemas/accion.schema'
 import { flattenDescripcionForForm } from '../utils/descripcionAccionTriada'
@@ -156,6 +156,7 @@ export function AccionFormDialog({
   const [submitFooterErrors, setSubmitFooterErrors] = useState<string[] | null>(null)
   const [manualEmailPending, setManualEmailPending] = useState(false)
   const [manualTelegramPending, setManualTelegramPending] = useState(false)
+  const [telegramFollowupPendingId, setTelegramFollowupPendingId] = useState<string | null>(null)
   const [livePrioridad, setLivePrioridad] = useState<string | undefined>()
 
   useEffect(() => {
@@ -369,6 +370,49 @@ export function AccionFormDialog({
     }
   }
 
+  async function handleSendCommitmentTelegram() {
+    const targetAccion = accionLive ?? accion
+    if (!targetAccion?.id || !targetAccion.responsable) {
+      toast.error('La accion necesita un responsable para enviar Telegram.')
+      return
+    }
+
+    setManualTelegramPending(true)
+    try {
+      await telegramIntegrationService.sendAction(targetAccion.id, targetAccion.responsable, {
+        messageType: 'commitment_close',
+      })
+      toast.success('Mensaje de cierre enviado por Telegram')
+    } catch (err) {
+      console.error('Error al enviar cierre Telegram:', err)
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar Telegram')
+    } finally {
+      setManualTelegramPending(false)
+    }
+  }
+
+  async function handleSendCheckpointTelegram(checkpoint: AccionCheckpoint) {
+    const targetAccion = accionLive ?? accion
+    if (!targetAccion?.id || !targetAccion.responsable) {
+      toast.error('La accion necesita un responsable para enviar Telegram.')
+      return
+    }
+
+    setTelegramFollowupPendingId(checkpoint.id)
+    try {
+      await telegramIntegrationService.sendAction(targetAccion.id, targetAccion.responsable, {
+        messageType: 'checkpoint_followup',
+        checkpointId: checkpoint.id,
+      })
+      toast.success('Seguimiento enviado por Telegram')
+    } catch (err) {
+      console.error('Error al enviar seguimiento Telegram:', err)
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar Telegram')
+    } finally {
+      setTelegramFollowupPendingId(null)
+    }
+  }
+
   function refreshActionViews() {
     qc.invalidateQueries({ queryKey: ['acciones'], refetchType: 'active' })
     qc.invalidateQueries({ queryKey: ACCION_CHECKPOINTS_KEY, refetchType: 'active' })
@@ -571,6 +615,7 @@ export function AccionFormDialog({
           qc.invalidateQueries({ queryKey: ACCION_CHECKPOINTS_KEY, refetchType: 'active' })
 
           const deferredOps: Promise<unknown>[] = []
+          let checklistSync: Promise<unknown> = Promise.resolve()
 
           deferredOps.push(
             (async () => {
@@ -592,8 +637,7 @@ export function AccionFormDialog({
           )
 
           if (checklistDrafts.length > 0) {
-            deferredOps.push(
-              accionCheckpointsService.insertMany(
+            checklistSync = accionCheckpointsService.insertMany(
                 createdId,
                 checklistDrafts.map((d, i) => ({
                   texto: d.texto.trim(),
@@ -601,8 +645,8 @@ export function AccionFormDialog({
                   obligatorio: d.obligatorio,
                 })),
                 currentUser?.id ?? null
-              )
             )
+            deferredOps.push(checklistSync)
           }
 
           if (responsable) {
@@ -616,6 +660,16 @@ export function AccionFormDialog({
                 hora_limite: payload.hora_limite ?? null,
                 checklist: checklistDrafts.map((item) => item.texto),
               })
+            )
+            deferredOps.push(
+              (async () => {
+                await checklistSync
+                try {
+                  await telegramIntegrationService.sendAction(createdId, responsable, { messageType: 'initial' })
+                } catch (err) {
+                  toast.warning(err instanceof Error ? err.message : 'La accion se creo, pero no se pudo enviar Telegram.')
+                }
+              })()
             )
           }
 
@@ -682,7 +736,7 @@ export function AccionFormDialog({
   const showTelegramButton = isEdit && !!telegramAction
   const isManualNotificationPending = manualEmailPending || manualTelegramPending
   const footerButtonCount =
-    2 + (showEmailButton ? 1 : 0) + (showTelegramButton ? 1 : 0) + (canDeleteAccion ? 1 : 0)
+    2 + (showEmailButton ? 1 : 0) + (showTelegramButton ? 2 : 0) + (canDeleteAccion ? 1 : 0)
   const footerActionsGridClass =
     footerButtonCount === 3 ? 'grid-cols-3' : footerButtonCount >= 4 ? 'grid-cols-2' : 'grid-cols-2'
 
@@ -892,6 +946,8 @@ export function AccionFormDialog({
                 canAddPoint={canAttemptChecklistContribution}
                 canToggle={canAttemptChecklistContribution}
                 responsableNames={responsableNames}
+                onSendTelegramFollowup={handleSendCheckpointTelegram}
+                telegramFollowupPendingId={telegramFollowupPendingId}
               />
             </div>
             <div
@@ -1004,7 +1060,7 @@ export function AccionFormDialog({
                 id={`${formBaseId}-send-telegram`}
                 className="accion-form-dialog-send-telegram h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
                 onClick={handleSendActionTelegram}
-                disabled={isManualNotificationPending || isMutating || !telegramAction?.responsable}
+                disabled={isManualNotificationPending || isMutating || !!telegramFollowupPendingId || !telegramAction?.responsable}
                 title={
                   telegramAction?.responsable
                     ? `Enviar Telegram a ${responsableNames[telegramAction.responsable] ?? 'responsable asignado'}`
@@ -1013,6 +1069,24 @@ export function AccionFormDialog({
               >
                 <Send className="h-4 w-4 shrink-0" />
                 <span className="truncate">{manualTelegramPending ? 'Enviando...' : 'Telegram'}</span>
+              </Button>
+            ) : null}
+            {showTelegramButton ? (
+              <Button
+                type="button"
+                variant="outline"
+                id={`${formBaseId}-send-telegram-close`}
+                className="accion-form-dialog-send-telegram-close h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
+                onClick={handleSendCommitmentTelegram}
+                disabled={isManualNotificationPending || isMutating || !!telegramFollowupPendingId || !telegramAction?.responsable}
+                title={
+                  telegramAction?.responsable
+                    ? `Enviar cierre compromiso a ${responsableNames[telegramAction.responsable] ?? 'responsable asignado'}`
+                    : 'Asigna un responsable para enviar Telegram'
+                }
+              >
+                <Send className="h-4 w-4 shrink-0" />
+                <span className="truncate">{manualTelegramPending ? 'Enviando...' : 'Cierre'}</span>
               </Button>
             ) : null}
             <Button

@@ -12,6 +12,8 @@ declare global {
 type SendActionPayload = {
   accion_id?: string
   usuario_id?: string
+  message_type?: 'initial' | 'checkpoint_followup' | 'commitment_close'
+  checkpoint_id?: string
 }
 
 type Usuario = {
@@ -28,6 +30,7 @@ type Accion = {
   descripcion_accion: string
   responsable: string
   created_by: string | null
+  created_at: string
   fecha: string
   hora_limite: string
   prioridad: string | null
@@ -116,48 +119,80 @@ function normalizeDescriptionForTelegram(text: string): string {
   return normalized || 'Sin descripcion.'
 }
 
-function buildMessage(accion: Accion, responsable: Usuario | null, checkpoints: Checkpoint[]): string {
-  const title = accion.titulo_accion?.trim() || accion.descripcion_accion.slice(0, 72)
+function actionTitle(accion: Accion): string {
+  return accion.titulo_accion?.trim() || accion.descripcion_accion.slice(0, 72)
+}
+
+function checkpointListText(checkpoints: Checkpoint[]): string {
   const visibleCheckpoints = checkpoints.slice(0, TELEGRAM_MAX_INLINE_BUTTONS)
   const hiddenCheckpoints = Math.max(0, checkpoints.length - visibleCheckpoints.length)
-  const checklistText = visibleCheckpoints.length
+  return visibleCheckpoints.length
     ? [
         ...visibleCheckpoints.map((c, i) => `${c.completado ? '[x]' : '[ ]'} ${i + 1}. ${c.texto}`),
         hiddenCheckpoints > 0 ? `... ${hiddenCheckpoints} puntos mas en el tablero.` : '',
       ].filter(Boolean).join('\n')
     : 'Sin checklist configurado.'
+}
+
+function buildInitialMessage(accion: Accion, responsable: Usuario | null, checkpoints: Checkpoint[]): string {
+  const title = actionTitle(accion)
   const link = actionUrl(accion.id)
   const description = truncateText(normalizeDescriptionForTelegram(accion.descripcion_accion), 1200)
 
   return fitTelegramMessage([
+    'Nueva accion asignada',
+    '',
     title,
     '',
     'Datos',
-    responsable?.nombre ? `Responsable: ${responsable.nombre}` : 'Responsable: sin asignar',
-    `Fecha limite: ${accion.fecha} ${accion.hora_limite?.slice(0, 5)}`,
+    `Fecha de creacion: ${accion.created_at?.slice(0, 16).replace('T', ' ')}`,
+    `Fecha compromiso: ${accion.fecha} ${accion.hora_limite?.slice(0, 5)}`,
     accion.prioridad ? `Prioridad: ${accion.prioridad}` : '',
+    responsable?.nombre ? `Responsable: ${responsable.nombre}` : 'Responsable: sin asignar',
     `ID: ${accion.id}`,
     '',
     'Descripcion:',
     description,
     '',
-    'Checklist:',
-    checklistText,
+    'Actividades/checks:',
+    checkpointListText(checkpoints),
     '',
-    'Acciones disponibles:',
-    '- Marca puntos con los botones.',
-    '- Puedes adjuntar evidencia respondiendo con un archivo o foto.',
-    link ? `- Abrir tablero: ${link}` : '',
+    link ? `Tablero: ${link}` : '',
   ].filter(Boolean).join('\n'))
 }
 
-function buildReplyMarkup(accion: Accion, checkpoints: Checkpoint[]): Record<string, unknown> {
-  const rows = checkpoints.slice(0, TELEGRAM_MAX_INLINE_BUTTONS).map((checkpoint, index) => ([{
-    text: `${checkpoint.completado ? 'Desmarcar' : 'Marcar'} ${index + 1}`,
-    callback_data: `chk:${checkpoint.id}:${checkpoint.completado ? '0' : '1'}`,
-  }]))
-  rows.push([{ text: 'Marcar accion como Hecha', callback_data: `done:${accion.id}` }])
-  return { inline_keyboard: rows }
+function buildCheckpointFollowupMessage(accion: Accion, checkpoint: Checkpoint): string {
+  return fitTelegramMessage([
+    'Seguimiento de actividad',
+    '',
+    `Accion: ${actionTitle(accion)}`,
+    `Fecha compromiso: ${accion.fecha} ${accion.hora_limite?.slice(0, 5)}`,
+    '',
+    `Como te fue con esta actividad?`,
+    checkpoint.texto,
+    '',
+    `ID accion: ${accion.id}`,
+  ].join('\n'))
+}
+
+function buildCommitmentCloseMessage(accion: Accion, responsable: Usuario | null, checkpoints: Checkpoint[]): string {
+  const completed = checkpoints.filter((c) => c.completado).length
+  const total = checkpoints.length
+
+  return fitTelegramMessage([
+    'Fecha compromiso',
+    '',
+    `Accion: ${actionTitle(accion)}`,
+    responsable?.nombre ? `Responsable: ${responsable.nombre}` : '',
+    `Compromiso: ${accion.fecha} ${accion.hora_limite?.slice(0, 5)}`,
+    total > 0 ? `Avance de actividades: ${completed}/${total}` : 'Sin checklist configurado.',
+    '',
+    'Pudiste cerrar todas las actividades?',
+    '',
+    checkpointListText(checkpoints),
+    '',
+    `ID accion: ${accion.id}`,
+  ].filter(Boolean).join('\n'))
 }
 
 serveWithCors(async (req) => {
@@ -169,6 +204,10 @@ serveWithCors(async (req) => {
   const body = (await req.json().catch(() => null)) as SendActionPayload | null
   const accionId = body?.accion_id?.trim() ?? ''
   if (!UUID_RE.test(accionId)) return jsonResponse({ ok: false, message: 'accion_id invalido' }, 400)
+  const messageType = body?.message_type ?? 'initial'
+  if (!['initial', 'checkpoint_followup', 'commitment_close'].includes(messageType)) {
+    return jsonResponse({ ok: false, message: 'message_type invalido' }, 400)
+  }
 
   const client = adminClient()
 
@@ -184,7 +223,7 @@ serveWithCors(async (req) => {
 
   const { data: accion, error: accionError } = await client
     .from('acciones_diarias')
-    .select('id,titulo_accion,descripcion_accion,responsable,created_by,fecha,hora_limite,prioridad,evidencia_esperada,estado')
+    .select('id,titulo_accion,descripcion_accion,responsable,created_by,created_at,fecha,hora_limite,prioridad,evidencia_esperada,estado')
     .eq('id', accionId)
     .maybeSingle<Accion>()
   if (accionError) return jsonResponse({ ok: false, message: 'No se pudo leer la accion' }, 500)
@@ -224,14 +263,23 @@ serveWithCors(async (req) => {
   if (checkpointsError) return jsonResponse({ ok: false, message: 'No se pudo leer checklist' }, 500)
 
   const checkpointRows = (checkpoints ?? []) as Checkpoint[]
-  const text = buildMessage(accion, targetUser ?? null, checkpointRows)
+  const checkpointId = body?.checkpoint_id?.trim() ?? ''
+  const checkpoint = checkpointId ? checkpointRows.find((row) => row.id === checkpointId) : null
+  if (messageType === 'checkpoint_followup' && !checkpoint) {
+    return jsonResponse({ ok: false, message: 'checkpoint_id invalido o no pertenece a la accion' }, 400)
+  }
+  const text =
+    messageType === 'checkpoint_followup'
+      ? buildCheckpointFollowupMessage(accion, checkpoint!)
+      : messageType === 'commitment_close'
+        ? buildCommitmentCloseMessage(accion, targetUser ?? null, checkpointRows)
+        : buildInitialMessage(accion, targetUser ?? null, checkpointRows)
   let telegramResult: Record<string, unknown>
   try {
     telegramResult = await telegramApi('sendMessage', {
       chat_id: identity.external_chat_id,
       text,
       disable_web_page_preview: true,
-      reply_markup: buildReplyMarkup(accion, checkpointRows),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Telegram rechazo el envio'
@@ -242,7 +290,7 @@ serveWithCors(async (req) => {
       external_chat_id: identity.external_chat_id,
       delivery_status: 'failed',
       error_message: message,
-      payload: { sent_by: currentUser.id },
+      payload: { sent_by: currentUser.id, message_type: messageType, checkpoint_id: checkpoint?.id ?? null },
     })
     return jsonResponse({ ok: false, message }, 502)
   }
@@ -255,7 +303,7 @@ serveWithCors(async (req) => {
     external_chat_id: identity.external_chat_id,
     external_message_id: messageId != null ? String(messageId) : null,
     delivery_status: 'sent',
-    payload: { sent_by: currentUser.id },
+    payload: { sent_by: currentUser.id, message_type: messageType, checkpoint_id: checkpoint?.id ?? null },
     sent_at: new Date().toISOString(),
   })
   if (logError) {

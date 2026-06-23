@@ -34,6 +34,7 @@ export const ROUTES = {
   SETTINGS_CATALOGS_DROPDOWNS_OPTIONS: '/settings/catalogs/dropdowns/:catalogId',
   SETTINGS_CATALOGS_KPIS: '/settings/catalogs/kpis',
   SETTINGS_CATALOGS_GAPS: '/settings/catalogs/gaps',
+  WEBTEST: '/webtest',
 } as const
 
 /** Exportar minutas, acciones y recordatorios a Google Calendar / Tasks / Gmail. */
