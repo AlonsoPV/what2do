@@ -20,12 +20,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { UserDetailCard } from '../components/UserDetailCard'
 import { UserForm } from '../components/UserForm'
-import { UserTelegramSection, telegramSummary } from '../components/UserTelegramCard'
+import { UserWhatsAppSection } from '../components/UserWhatsAppCard'
 import { useCurrentUser, useUser, useUserAuthEmail, useUpdateUser, useToggleUserStatus } from '../hooks'
 import type { UserFormValues } from '../schemas/user.schema'
 import type { UpdateUserInput } from '../types/user.types'
 import { canManageUserTelegram } from '@/features/auth/lib/permissions'
-import { telegramIntegrationService } from '@/services/telegramIntegration.service'
+import { whatsappIntegrationService, whatsappSummary } from '@/services/whatsappIntegration.service'
 import { toast } from 'sonner'
 import { ArrowLeft } from 'lucide-react'
 
@@ -42,11 +42,11 @@ export function UserDetailPage() {
   const { data: email } = useUserAuthEmail(user?.user_id)
   const updateUser = useUpdateUser()
   const toggleStatus = useToggleUserStatus()
-  const canManageTelegram = canManageUserTelegram(currentUser?.rol)
-  const { data: telegramIdentity } = useQuery({
-    queryKey: ['telegram-identity', id],
-    queryFn: () => telegramIntegrationService.getIdentity(id as string),
-    enabled: !!id && canManageTelegram,
+  const canManageWhatsApp = canManageUserTelegram(currentUser?.rol)
+  const { data: whatsappIdentity } = useQuery({
+    queryKey: ['whatsapp-identity', id],
+    queryFn: () => whatsappIntegrationService.getIdentity(id as string),
+    enabled: !!id && canManageWhatsApp,
   })
 
   const handleFormSubmit = (values: UserFormValues) => {
@@ -113,13 +113,13 @@ export function UserDetailPage() {
       <UserDetailCard
         user={user}
         email={email ?? null}
-        telegramSummary={canManageTelegram ? telegramSummary(telegramIdentity) : null}
-        telegramSection={
-          canManageTelegram ? (
-            <UserTelegramSection
+        whatsappSummary={canManageWhatsApp ? whatsappSummary(whatsappIdentity) : null}
+        whatsappSection={
+          canManageWhatsApp ? (
+            <UserWhatsAppSection
               usuarioId={user.id}
               displayName={user.nombre}
-              canManage={canManageTelegram}
+              canManage={canManageWhatsApp}
             />
           ) : null
         }

@@ -128,7 +128,7 @@ export function UsersPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Usuarios</h2>
           <p className="max-w-2xl text-muted-foreground">
-            Gestiona acceso al tablero: correo, nombre, rol, área y estado. Para Telegram y envío de
+            Gestiona acceso al tablero: correo, nombre, rol, área y estado. Para WhatsApp y envío de
             acciones, abre el detalle de cada usuario.
           </p>
         </div>

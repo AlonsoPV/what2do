@@ -58,8 +58,8 @@ export interface AccionChecklistManageProps {
   canToggle?: boolean
   /** Nombres para mostrar auditoría de `checked_by` (mismo mapa que responsables del diálogo). */
   responsableNames?: Record<string, string>
-  onSendTelegramFollowup?: (checkpoint: AccionCheckpoint) => Promise<void> | void
-  telegramFollowupPendingId?: string | null
+  onSendWhatsAppFollowup?: (checkpoint: AccionCheckpoint) => Promise<void> | void
+  whatsAppFollowupPendingId?: string | null
 }
 
 export function AccionChecklistManage({
@@ -71,8 +71,8 @@ export function AccionChecklistManage({
   canAddPoint,
   canToggle,
   responsableNames = {},
-  onSendTelegramFollowup,
-  telegramFollowupPendingId = null,
+  onSendWhatsAppFollowup,
+  whatsAppFollowupPendingId = null,
 }: AccionChecklistManageProps) {
   const { data: checkpoints = [], isLoading } = useAccionCheckpoints(accionId)
   const insertCp = useInsertAccionCheckpoint()
@@ -272,7 +272,7 @@ export function AccionChecklistManage({
                 {sorted.map((c, index) => {
                   const audit = auditSummary(c, responsableNames)
                   const showStructureActions = !c.completado && mayEditStructure
-                  const followupPending = telegramFollowupPendingId === c.id
+                  const followupPending = whatsAppFollowupPendingId === c.id
                   return (
                     <li
                       key={c.id}
@@ -327,18 +327,18 @@ export function AccionChecklistManage({
                           ) : null}
                         </div>
                       </div>
-                      {showStructureActions || onSendTelegramFollowup ? (
+                      {showStructureActions || onSendWhatsAppFollowup ? (
                         <div className="col-span-2 flex shrink-0 items-center justify-end gap-0 sm:col-span-1 sm:justify-start">
-                          {onSendTelegramFollowup ? (
+                          {onSendWhatsAppFollowup ? (
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                              aria-label="Enviar seguimiento por Telegram"
-                              title="Enviar seguimiento por Telegram"
-                              disabled={disabled || !!telegramFollowupPendingId}
-                              onClick={() => void onSendTelegramFollowup(c)}
+                              aria-label="Enviar seguimiento por WhatsApp"
+                              title="Enviar seguimiento por WhatsApp"
+                              disabled={disabled || !!whatsAppFollowupPendingId}
+                              onClick={() => void onSendWhatsAppFollowup(c)}
                             >
                               <Send className={cn('h-3.5 w-3.5', followupPending && 'animate-pulse')} />
                             </Button>

@@ -22,8 +22,8 @@ function formatDate(iso: string) {
 interface UserDetailCardProps {
   user: UserProfile
   email?: string | null
-  telegramSummary?: string | null
-  telegramSection?: ReactNode
+  whatsappSummary?: string | null
+  whatsappSection?: ReactNode
   onEdit: () => void
   onToggleStatus: () => void
   isToggling?: boolean
@@ -32,8 +32,8 @@ interface UserDetailCardProps {
 export function UserDetailCard({
   user,
   email,
-  telegramSummary,
-  telegramSection,
+  whatsappSummary,
+  whatsappSection,
   onEdit,
   onToggleStatus,
   isToggling = false,
@@ -52,9 +52,9 @@ export function UserDetailCard({
             <Badge variant={user.activo ? 'success' : 'muted'}>
               {user.activo ? 'Activo' : 'Inactivo'}
             </Badge>
-            {telegramSummary != null ? (
-              <Badge variant={telegramSummary === 'Sin vincular' ? 'secondary' : 'outline'}>
-                Telegram: {telegramSummary}
+            {whatsappSummary != null ? (
+              <Badge variant={whatsappSummary === 'Sin vincular' ? 'secondary' : 'outline'}>
+                WhatsApp: {whatsappSummary}
               </Badge>
             ) : null}
           </div>
@@ -109,7 +109,7 @@ export function UserDetailCard({
           </div>
         </dl>
 
-        {telegramSection}
+        {whatsappSection}
 
         <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2 text-sm text-muted-foreground">

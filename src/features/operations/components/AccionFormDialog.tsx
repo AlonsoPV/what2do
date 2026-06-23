@@ -35,7 +35,7 @@ import {
 import { usersAdminService } from '@/features/users/services/users.service'
 import { usersQueryKey } from '@/features/users/hooks/useUsers'
 import { notificacionesService, sendNotificationEmail } from '@/services/notificaciones.service'
-import { telegramIntegrationService } from '@/services/telegramIntegration.service'
+import { whatsappIntegrationService } from '@/services/whatsappIntegration.service'
 import { EVIDENCIA_ACCEPTED_FORMATS_LABEL, EVIDENCIA_REJECTED_MESSAGE } from '@/lib/evidenciaFileTypes'
 import {
   accionEvidenciasService,
@@ -155,8 +155,8 @@ export function AccionFormDialog({
   /** Resumen de validación bajo los botones del pie (RHF/Zod y reglas del diálogo). */
   const [submitFooterErrors, setSubmitFooterErrors] = useState<string[] | null>(null)
   const [manualEmailPending, setManualEmailPending] = useState(false)
-  const [manualTelegramPending, setManualTelegramPending] = useState(false)
-  const [telegramFollowupPendingId, setTelegramFollowupPendingId] = useState<string | null>(null)
+  const [manualWhatsAppPending, setManualWhatsAppPending] = useState(false)
+  const [whatsAppFollowupPendingId, setWhatsAppFollowupPendingId] = useState<string | null>(null)
   const [livePrioridad, setLivePrioridad] = useState<string | undefined>()
 
   useEffect(() => {
@@ -347,69 +347,69 @@ export function AccionFormDialog({
     }
   }
 
-  async function handleSendActionTelegram() {
+  async function handleSendActionWhatsApp() {
     const targetAccion = accionLive ?? accion
     if (!targetAccion?.id || !targetAccion.responsable) {
-      toast.error('La accion necesita un responsable para enviar Telegram.')
+      toast.error('La accion necesita un responsable para enviar WhatsApp.')
       return
     }
 
-    setManualTelegramPending(true)
+    setManualWhatsAppPending(true)
     try {
-      const result = await telegramIntegrationService.sendAction(targetAccion.id, targetAccion.responsable)
+      const result = await whatsappIntegrationService.sendAction(targetAccion.id, targetAccion.responsable)
       if (result.warning) {
         toast.warning(result.warning)
       } else {
-        toast.success('Telegram enviado al responsable')
+        toast.success('WhatsApp enviado al responsable')
       }
     } catch (err) {
-      console.error('Error al enviar Telegram de accion:', err)
-      toast.error(err instanceof Error ? err.message : 'No se pudo enviar Telegram')
+      console.error('Error al enviar WhatsApp de accion:', err)
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar WhatsApp')
     } finally {
-      setManualTelegramPending(false)
+      setManualWhatsAppPending(false)
     }
   }
 
-  async function handleSendCommitmentTelegram() {
+  async function handleSendCommitmentWhatsApp() {
     const targetAccion = accionLive ?? accion
     if (!targetAccion?.id || !targetAccion.responsable) {
-      toast.error('La accion necesita un responsable para enviar Telegram.')
+      toast.error('La accion necesita un responsable para enviar WhatsApp.')
       return
     }
 
-    setManualTelegramPending(true)
+    setManualWhatsAppPending(true)
     try {
-      await telegramIntegrationService.sendAction(targetAccion.id, targetAccion.responsable, {
+      await whatsappIntegrationService.sendAction(targetAccion.id, targetAccion.responsable, {
         messageType: 'commitment_close',
       })
-      toast.success('Mensaje de cierre enviado por Telegram')
+      toast.success('Mensaje de cierre enviado por WhatsApp')
     } catch (err) {
-      console.error('Error al enviar cierre Telegram:', err)
-      toast.error(err instanceof Error ? err.message : 'No se pudo enviar Telegram')
+      console.error('Error al enviar cierre WhatsApp:', err)
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar WhatsApp')
     } finally {
-      setManualTelegramPending(false)
+      setManualWhatsAppPending(false)
     }
   }
 
-  async function handleSendCheckpointTelegram(checkpoint: AccionCheckpoint) {
+  async function handleSendCheckpointWhatsApp(checkpoint: AccionCheckpoint) {
     const targetAccion = accionLive ?? accion
     if (!targetAccion?.id || !targetAccion.responsable) {
-      toast.error('La accion necesita un responsable para enviar Telegram.')
+      toast.error('La accion necesita un responsable para enviar WhatsApp.')
       return
     }
 
-    setTelegramFollowupPendingId(checkpoint.id)
+    setWhatsAppFollowupPendingId(checkpoint.id)
     try {
-      await telegramIntegrationService.sendAction(targetAccion.id, targetAccion.responsable, {
+      await whatsappIntegrationService.sendAction(targetAccion.id, targetAccion.responsable, {
         messageType: 'checkpoint_followup',
         checkpointId: checkpoint.id,
       })
-      toast.success('Seguimiento enviado por Telegram')
+      toast.success('Seguimiento enviado por WhatsApp')
     } catch (err) {
-      console.error('Error al enviar seguimiento Telegram:', err)
-      toast.error(err instanceof Error ? err.message : 'No se pudo enviar Telegram')
+      console.error('Error al enviar seguimiento WhatsApp:', err)
+      toast.error(err instanceof Error ? err.message : 'No se pudo enviar WhatsApp')
     } finally {
-      setTelegramFollowupPendingId(null)
+      setWhatsAppFollowupPendingId(null)
     }
   }
 
@@ -665,9 +665,9 @@ export function AccionFormDialog({
               (async () => {
                 await checklistSync
                 try {
-                  await telegramIntegrationService.sendAction(createdId, responsable, { messageType: 'initial' })
+                  await whatsappIntegrationService.sendAction(createdId, responsable, { messageType: 'initial' })
                 } catch (err) {
-                  toast.warning(err instanceof Error ? err.message : 'La accion se creo, pero no se pudo enviar Telegram.')
+                  toast.warning(err instanceof Error ? err.message : 'La accion se creo, pero no se pudo enviar WhatsApp.')
                 }
               })()
             )
@@ -732,11 +732,11 @@ export function AccionFormDialog({
 
   const formBaseId = `${dialogId ?? 'accion-form-dialog'}-form`
   const showEmailButton = isEdit && !!accion
-  const telegramAction = accionLive ?? accion
-  const showTelegramButton = isEdit && !!telegramAction
-  const isManualNotificationPending = manualEmailPending || manualTelegramPending
+  const whatsAppAction = accionLive ?? accion
+  const showWhatsAppButton = isEdit && !!whatsAppAction
+  const isManualNotificationPending = manualEmailPending || manualWhatsAppPending
   const footerButtonCount =
-    2 + (showEmailButton ? 1 : 0) + (showTelegramButton ? 2 : 0) + (canDeleteAccion ? 1 : 0)
+    2 + (showEmailButton ? 1 : 0) + (showWhatsAppButton ? 2 : 0) + (canDeleteAccion ? 1 : 0)
   const footerActionsGridClass =
     footerButtonCount === 3 ? 'grid-cols-3' : footerButtonCount >= 4 ? 'grid-cols-2' : 'grid-cols-2'
 
@@ -946,8 +946,8 @@ export function AccionFormDialog({
                 canAddPoint={canAttemptChecklistContribution}
                 canToggle={canAttemptChecklistContribution}
                 responsableNames={responsableNames}
-                onSendTelegramFollowup={handleSendCheckpointTelegram}
-                telegramFollowupPendingId={telegramFollowupPendingId}
+                onSendWhatsAppFollowup={handleSendCheckpointWhatsApp}
+                whatsAppFollowupPendingId={whatsAppFollowupPendingId}
               />
             </div>
             <div
@@ -1053,40 +1053,40 @@ export function AccionFormDialog({
                 <span className="truncate">{manualEmailPending ? 'Enviando…' : 'Correo'}</span>
               </Button>
             ) : null}
-            {showTelegramButton ? (
+            {showWhatsAppButton ? (
               <Button
                 type="button"
                 variant="outline"
-                id={`${formBaseId}-send-telegram`}
-                className="accion-form-dialog-send-telegram h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
-                onClick={handleSendActionTelegram}
-                disabled={isManualNotificationPending || isMutating || !!telegramFollowupPendingId || !telegramAction?.responsable}
+                id={`${formBaseId}-send-whatsapp`}
+                className="accion-form-dialog-send-whatsapp h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
+                onClick={handleSendActionWhatsApp}
+                disabled={isManualNotificationPending || isMutating || !!whatsAppFollowupPendingId || !whatsAppAction?.responsable}
                 title={
-                  telegramAction?.responsable
-                    ? `Enviar Telegram a ${responsableNames[telegramAction.responsable] ?? 'responsable asignado'}`
-                    : 'Asigna un responsable para enviar Telegram'
+                  whatsAppAction?.responsable
+                    ? `Enviar WhatsApp a ${responsableNames[whatsAppAction.responsable] ?? 'responsable asignado'}`
+                    : 'Asigna un responsable para enviar WhatsApp'
                 }
               >
                 <Send className="h-4 w-4 shrink-0" />
-                <span className="truncate">{manualTelegramPending ? 'Enviando...' : 'Telegram'}</span>
+                <span className="truncate">{manualWhatsAppPending ? 'Enviando...' : 'WhatsApp'}</span>
               </Button>
             ) : null}
-            {showTelegramButton ? (
+            {showWhatsAppButton ? (
               <Button
                 type="button"
                 variant="outline"
-                id={`${formBaseId}-send-telegram-close`}
-                className="accion-form-dialog-send-telegram-close h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
-                onClick={handleSendCommitmentTelegram}
-                disabled={isManualNotificationPending || isMutating || !!telegramFollowupPendingId || !telegramAction?.responsable}
+                id={`${formBaseId}-send-whatsapp-close`}
+                className="accion-form-dialog-send-whatsapp-close h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
+                onClick={handleSendCommitmentWhatsApp}
+                disabled={isManualNotificationPending || isMutating || !!whatsAppFollowupPendingId || !whatsAppAction?.responsable}
                 title={
-                  telegramAction?.responsable
-                    ? `Enviar cierre compromiso a ${responsableNames[telegramAction.responsable] ?? 'responsable asignado'}`
-                    : 'Asigna un responsable para enviar Telegram'
+                  whatsAppAction?.responsable
+                    ? `Enviar cierre compromiso a ${responsableNames[whatsAppAction.responsable] ?? 'responsable asignado'}`
+                    : 'Asigna un responsable para enviar WhatsApp'
                 }
               >
                 <Send className="h-4 w-4 shrink-0" />
-                <span className="truncate">{manualTelegramPending ? 'Enviando...' : 'Cierre'}</span>
+                <span className="truncate">{manualWhatsAppPending ? 'Enviando...' : 'Cierre'}</span>
               </Button>
             ) : null}
             <Button
