@@ -347,6 +347,13 @@ async function handleCheckpointReply(
 
   const [, checkpointId, response] = match
   const usuarioId = await resolveUsuarioId(client, message.from ?? '')
+  console.log('Respuesta interactiva WhatsApp recibida', {
+    from: message.from,
+    buttonId,
+    checkpointId,
+    response,
+    usuarioId,
+  })
 
   const { data: checkpoint, error: checkpointError } = await client
     .from('accion_checkpoints')
@@ -379,7 +386,7 @@ async function handleCheckpointReply(
       })
       .eq('id', checkpoint.id)
     if (updateCheckpointError) console.error('No se pudo marcar checkpoint por WhatsApp:', updateCheckpointError)
-    await client.from('whatsapp_result_requests').insert({
+    const { error: resultRequestError } = await client.from('whatsapp_result_requests').insert({
       accion_id: checkpoint.accion_id,
       checkpoint_id: checkpoint.id,
       usuario_id: usuarioId,
@@ -389,9 +396,8 @@ async function handleCheckpointReply(
         source_message_id: message.id ?? null,
         checkpoint_text: checkpoint.texto ?? null,
       },
-    }).then(({ error }) => {
-      if (error) console.error('No se pudo abrir solicitud de resultado WhatsApp:', error)
     })
+    if (resultRequestError) console.error('No se pudo abrir solicitud de resultado WhatsApp:', resultRequestError)
     if (message.from) await sendResultPrompt(message.from, checkpoint.texto ?? 'Actividad')
   }
 
