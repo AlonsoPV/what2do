@@ -72,6 +72,16 @@ type ResultRequest = {
   usuario_id: string | null
 }
 
+type CheckpointResponse = 'done' | 'progress' | 'support'
+
+type DeliveryLogFollowup = {
+  accion_id: string
+  usuario_id: string | null
+  payload: {
+    checkpoint_id?: string | null
+  } | null
+}
+
 function optionalEnv(name: string): string {
   return Deno.env.get(name)?.trim() ?? ''
 }
@@ -343,9 +353,88 @@ async function handleCheckpointReply(
 ): Promise<void> {
   const buttonId = message.interactive?.button_reply?.id ?? ''
   const match = /^chk:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(done|progress|support)$/i.exec(buttonId)
-  if (!match) return
+  if (!match) {
+    if (message.type === 'interactive') {
+      console.warn('Respuesta interactiva WhatsApp no reconocida', {
+        from: message.from,
+        buttonId,
+        title: message.interactive?.button_reply?.title ?? null,
+      })
+    }
+    return
+  }
 
   const [, checkpointId, response] = match
+  await applyCheckpointResponse(client, message, checkpointId, response as CheckpointResponse, buttonId)
+}
+
+function normalizeReplyText(value: string): CheckpointResponse | null {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+
+  if (['realizada', 'realizado', 'hecho', 'lista', 'listo', 'done'].includes(normalized)) return 'done'
+  if (['en proceso', 'proceso', 'avance', 'avanzando', 'progress'].includes(normalized)) return 'progress'
+  if (['requiero apoyo', 'necesito apoyo', 'necesito ayuda', 'ayuda', 'apoyo', 'support'].includes(normalized)) {
+    return 'support'
+  }
+  return null
+}
+
+async function findLatestFollowupCheckpoint(
+  client: ReturnType<typeof createClient>,
+  waId: string
+): Promise<string | null> {
+  if (!waId) return null
+  const { data, error } = await client
+    .from('action_delivery_log')
+    .select('accion_id,usuario_id,payload')
+    .eq('channel', 'whatsapp')
+    .eq('delivery_status', 'sent')
+    .eq('external_chat_id', waId)
+    .filter('payload->>message_type', 'eq', 'checkpoint_followup')
+    .not('payload->>checkpoint_id', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<DeliveryLogFollowup>()
+
+  if (error) {
+    console.error('No se pudo buscar ultimo seguimiento WhatsApp:', error)
+    return null
+  }
+  return data?.payload?.checkpoint_id ?? null
+}
+
+async function handleTextCheckpointReply(
+  client: ReturnType<typeof createClient>,
+  message: WhatsAppMessage
+): Promise<boolean> {
+  if (message.type !== 'text') return false
+  const response = normalizeReplyText(message.text?.body ?? '')
+  if (!response) return false
+
+  const checkpointId = await findLatestFollowupCheckpoint(client, message.from ?? '')
+  if (!checkpointId) {
+    console.warn('Texto WhatsApp de seguimiento sin checkpoint reciente', {
+      from: message.from,
+      text: message.text?.body ?? null,
+    })
+    return false
+  }
+
+  await applyCheckpointResponse(client, message, checkpointId, response, `text:${response}`)
+  return true
+}
+
+async function applyCheckpointResponse(
+  client: ReturnType<typeof createClient>,
+  message: WhatsAppMessage,
+  checkpointId: string,
+  response: CheckpointResponse,
+  buttonId: string
+): Promise<void> {
   const usuarioId = await resolveUsuarioId(client, message.from ?? '')
   console.log('Respuesta interactiva WhatsApp recibida', {
     from: message.from,
@@ -452,14 +541,48 @@ async function handleCheckpointReply(
   })
 }
 
+async function recordRawInboundMessage(
+  client: ReturnType<typeof createClient>,
+  message: WhatsAppMessage
+): Promise<void> {
+  const buttonReply = message.interactive?.button_reply
+  const text = textFromMessage(message)
+  const { error } = await client.from('external_inbound_messages').insert({
+    channel: 'whatsapp',
+    external_update_id: message.id ? `${message.id}:raw` : `whatsapp:raw:${crypto.randomUUID()}`,
+    external_message_id: message.id ?? null,
+    external_chat_id: message.from ?? null,
+    external_user_id: message.from ?? null,
+    message_type: message.type ?? 'unknown',
+    processed_at: new Date().toISOString(),
+    payload: {
+      kind: 'raw_message',
+      from: message.from ?? null,
+      type: message.type ?? null,
+      text: text || null,
+      interactive_type: message.interactive?.type ?? null,
+      button_id: buttonReply?.id ?? null,
+      button_title: buttonReply?.title ?? null,
+      has_media: Boolean(mediaFromMessage(message)),
+    },
+  })
+  if (error && error.code !== '23505') {
+    console.error('No se pudo guardar inbound raw WhatsApp:', error)
+  }
+}
+
 async function handleWebhookPayload(payload: WhatsAppWebhookPayload): Promise<void> {
   const client = adminClient()
   const messages = (payload.entry ?? [])
     .flatMap((entry) => entry.changes ?? [])
     .flatMap((change) => change.value?.messages ?? [])
   await Promise.all(messages.map(async (message) => {
+    await recordRawInboundMessage(client, message)
     const handledResult = await handleResultMessage(client, message)
-    if (!handledResult) await handleCheckpointReply(client, message)
+    if (!handledResult) {
+      await handleCheckpointReply(client, message)
+      await handleTextCheckpointReply(client, message)
+    }
   }))
 }
 
