@@ -34,7 +34,7 @@ import {
 } from '@/features/auth/lib/permissions'
 import { usersAdminService } from '@/features/users/services/users.service'
 import { usersQueryKey } from '@/features/users/hooks/useUsers'
-import { notificacionesService, sendNotificationEmail } from '@/services/notificaciones.service'
+import { notificacionesService } from '@/services/notificaciones.service'
 import { whatsappIntegrationService } from '@/services/whatsappIntegration.service'
 import { EVIDENCIA_ACCEPTED_FORMATS_LABEL, EVIDENCIA_REJECTED_MESSAGE } from '@/lib/evidenciaFileTypes'
 import {
@@ -50,7 +50,7 @@ import type { AccionCreateInput, AccionFormInput } from '../schemas/accion.schem
 import { flattenDescripcionForForm } from '../utils/descripcionAccionTriada'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { Download, ExternalLink, Paperclip, FileText, Image, Mail, Send, Trash2 } from 'lucide-react'
+import { Download, ExternalLink, Paperclip, FileText, Image, Send, Trash2 } from 'lucide-react'
 import {
   AccionChecklistEditor,
   type LocalCheckpointDraft,
@@ -154,7 +154,6 @@ export function AccionFormDialog({
   const [checklistDrafts, setChecklistDrafts] = useState<LocalCheckpointDraft[]>([])
   /** Resumen de validación bajo los botones del pie (RHF/Zod y reglas del diálogo). */
   const [submitFooterErrors, setSubmitFooterErrors] = useState<string[] | null>(null)
-  const [manualEmailPending, setManualEmailPending] = useState(false)
   const [manualWhatsAppPending, setManualWhatsAppPending] = useState(false)
   const [whatsAppFollowupPendingId, setWhatsAppFollowupPendingId] = useState<string | null>(null)
   const [livePrioridad, setLivePrioridad] = useState<string | undefined>()
@@ -307,46 +306,6 @@ export function AccionFormDialog({
     }
   }
 
-  async function handleSendActionEmail() {
-    if (!accion?.id || !accion.responsable) {
-      toast.error('La accion necesita un responsable para enviar el correo.')
-      return
-    }
-
-    setManualEmailPending(true)
-    try {
-      const checkpoints = await accionCheckpointsService
-        .listByAccionId(accion.id)
-        .then((items) => items.map((item) => item.texto))
-        .catch(() => [] as string[])
-      await sendNotificationEmail({
-        usuario_id: accion.responsable,
-        tipo: 'responsable',
-        payload: {
-          ...accionEmailPayload({
-            accionId: accion.id,
-            tituloAccion: accion.titulo_accion ?? '',
-            descripcionAccion: accion.descripcion_accion ?? '',
-            responsableId: accion.responsable,
-            fecha: accion.fecha,
-            horaLimite: accion.hora_limite,
-            creadorId: accion.created_by ?? null,
-            creadorNombre: userNameById(accion.created_by),
-            checklist: checkpoints,
-            titulo: 'Te compartieron una accion',
-          }),
-          fecha_envio_manual: new Date().toISOString(),
-        },
-      })
-      toast.success('Correo enviado al responsable')
-    } catch (err) {
-      console.error('Error al enviar correo de accion:', err)
-      toast.error(err instanceof Error ? err.message : 'No se pudo enviar el correo')
-    } finally {
-      setManualEmailPending(false)
-    }
-  }
-
   async function handleSendActionWhatsApp() {
     const targetAccion = accionLive ?? accion
     if (!targetAccion?.id || !targetAccion.responsable) {
@@ -364,27 +323,6 @@ export function AccionFormDialog({
       }
     } catch (err) {
       console.error('Error al enviar WhatsApp de accion:', err)
-      toast.error(err instanceof Error ? err.message : 'No se pudo enviar WhatsApp')
-    } finally {
-      setManualWhatsAppPending(false)
-    }
-  }
-
-  async function handleSendCommitmentWhatsApp() {
-    const targetAccion = accionLive ?? accion
-    if (!targetAccion?.id || !targetAccion.responsable) {
-      toast.error('La accion necesita un responsable para enviar WhatsApp.')
-      return
-    }
-
-    setManualWhatsAppPending(true)
-    try {
-      await whatsappIntegrationService.sendAction(targetAccion.id, targetAccion.responsable, {
-        messageType: 'commitment_close',
-      })
-      toast.success('Mensaje de cierre enviado por WhatsApp')
-    } catch (err) {
-      console.error('Error al enviar cierre WhatsApp:', err)
       toast.error(err instanceof Error ? err.message : 'No se pudo enviar WhatsApp')
     } finally {
       setManualWhatsAppPending(false)
@@ -661,16 +599,6 @@ export function AccionFormDialog({
                 checklist: checklistDrafts.map((item) => item.texto),
               })
             )
-            deferredOps.push(
-              (async () => {
-                await checklistSync
-                try {
-                  await whatsappIntegrationService.sendAction(createdId, responsable, { messageType: 'initial' })
-                } catch (err) {
-                  toast.warning(err instanceof Error ? err.message : 'La accion se creo, pero no se pudo enviar WhatsApp.')
-                }
-              })()
-            )
           }
 
           if (filesToUpload.length > 0) {
@@ -731,14 +659,17 @@ export function AccionFormDialog({
   }
 
   const formBaseId = `${dialogId ?? 'accion-form-dialog'}-form`
-  const showEmailButton = isEdit && !!accion
   const whatsAppAction = accionLive ?? accion
   const showWhatsAppButton = isEdit && !!whatsAppAction
-  const isManualNotificationPending = manualEmailPending || manualWhatsAppPending
+  const isManualNotificationPending = manualWhatsAppPending
   const footerButtonCount =
-    2 + (showEmailButton ? 1 : 0) + (showWhatsAppButton ? 2 : 0) + (canDeleteAccion ? 1 : 0)
+    2 + (showWhatsAppButton ? 1 : 0) + (canDeleteAccion ? 1 : 0)
   const footerActionsGridClass =
-    footerButtonCount === 3 ? 'grid-cols-3' : footerButtonCount >= 4 ? 'grid-cols-2' : 'grid-cols-2'
+    footerButtonCount === 4
+      ? 'grid-cols-2 sm:grid-cols-[auto_minmax(8rem,1fr)_minmax(7rem,0.8fr)_minmax(8rem,1fr)]'
+      : footerButtonCount === 3
+        ? 'grid-cols-3'
+        : 'grid-cols-2'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1035,7 +966,7 @@ export function AccionFormDialog({
                 </AlertDialogContent>
               </AlertDialog>
             ) : null}
-            {showEmailButton ? (
+            {/*
               <Button
                 type="button"
                 variant="outline"
@@ -1052,13 +983,13 @@ export function AccionFormDialog({
                 <Mail className="h-4 w-4 shrink-0" />
                 <span className="truncate">{manualEmailPending ? 'Enviando…' : 'Correo'}</span>
               </Button>
-            ) : null}
+            */}
             {showWhatsAppButton ? (
               <Button
                 type="button"
                 variant="outline"
                 id={`${formBaseId}-send-whatsapp`}
-                className="accion-form-dialog-send-whatsapp h-10 w-full gap-1.5 px-2 text-xs sm:h-9 sm:text-sm"
+                className="accion-form-dialog-send-whatsapp h-10 w-full gap-1.5 border-emerald-500/45 px-2 text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 sm:h-9 sm:text-sm dark:text-emerald-300 dark:hover:bg-emerald-950/30"
                 onClick={handleSendActionWhatsApp}
                 disabled={isManualNotificationPending || isMutating || !!whatsAppFollowupPendingId || !whatsAppAction?.responsable}
                 title={
@@ -1071,7 +1002,7 @@ export function AccionFormDialog({
                 <span className="truncate">{manualWhatsAppPending ? 'Enviando...' : 'WhatsApp'}</span>
               </Button>
             ) : null}
-            {showWhatsAppButton ? (
+            {/*
               <Button
                 type="button"
                 variant="outline"
@@ -1088,7 +1019,7 @@ export function AccionFormDialog({
                 <Send className="h-4 w-4 shrink-0" />
                 <span className="truncate">{manualWhatsAppPending ? 'Enviando...' : 'Cierre'}</span>
               </Button>
-            ) : null}
+            */}
             <Button
               type="button"
               variant="outline"

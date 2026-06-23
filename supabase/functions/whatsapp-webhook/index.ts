@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js'
 import { corsHeaders, jsonResponse } from '../_shared/cors.ts'
 
 declare global {
@@ -23,15 +24,55 @@ type WhatsAppWebhookPayload = {
           wa_id?: string
           profile?: { name?: string }
         }>
-        messages?: Array<Record<string, unknown>>
+        messages?: Array<WhatsAppMessage>
         statuses?: Array<Record<string, unknown>>
       }
     }>
   }>
 }
 
+type WhatsAppMessage = {
+  id?: string
+  from?: string
+  timestamp?: string
+  type?: string
+  interactive?: {
+    type?: string
+    button_reply?: {
+      id?: string
+      title?: string
+    }
+  }
+}
+
+type CheckpointRow = {
+  id: string
+  accion_id: string
+}
+
+type AccionRow = {
+  id: string
+  estado: string
+}
+
 function optionalEnv(name: string): string {
   return Deno.env.get(name)?.trim() ?? ''
+}
+
+function env(name: string): string {
+  const value = Deno.env.get(name)?.trim()
+  if (!value) throw new Error(`Falta secreto ${name}`)
+  return value
+}
+
+function adminClient() {
+  return createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  })
 }
 
 function textResponse(body: string, status = 200): Response {
@@ -77,6 +118,111 @@ function summarizePayload(payload: WhatsAppWebhookPayload) {
   )
 }
 
+async function resolveUsuarioId(client: ReturnType<typeof createClient>, waId: string): Promise<string | null> {
+  if (!waId) return null
+  const { data, error } = await client
+    .from('user_channel_identities')
+    .select('usuario_id')
+    .eq('channel', 'whatsapp')
+    .eq('status', 'active')
+    .or(`external_user_id.eq.${waId},external_chat_id.eq.${waId}`)
+    .maybeSingle<{ usuario_id: string }>()
+  if (error) {
+    console.error('No se pudo resolver identidad WhatsApp:', error)
+    return null
+  }
+  return data?.usuario_id ?? null
+}
+
+async function handleCheckpointReply(
+  client: ReturnType<typeof createClient>,
+  message: WhatsAppMessage
+): Promise<void> {
+  const buttonId = message.interactive?.button_reply?.id ?? ''
+  const match = /^chk:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(done|progress|support)$/i.exec(buttonId)
+  if (!match) return
+
+  const [, checkpointId, response] = match
+  const usuarioId = await resolveUsuarioId(client, message.from ?? '')
+
+  const { data: checkpoint, error: checkpointError } = await client
+    .from('accion_checkpoints')
+    .select('id,accion_id')
+    .eq('id', checkpointId)
+    .eq('activo', true)
+    .maybeSingle<CheckpointRow>()
+  if (checkpointError || !checkpoint) {
+    console.error('Checkpoint WhatsApp no encontrado:', checkpointError ?? checkpointId)
+    return
+  }
+
+  const { data: accion, error: accionError } = await client
+    .from('acciones_diarias')
+    .select('id,estado')
+    .eq('id', checkpoint.accion_id)
+    .maybeSingle<AccionRow>()
+  if (accionError || !accion) {
+    console.error('Accion WhatsApp no encontrada:', accionError ?? checkpoint.accion_id)
+    return
+  }
+
+  if (response === 'done') {
+    const { error: updateCheckpointError } = await client
+      .from('accion_checkpoints')
+      .update({
+        completado: true,
+        checked_at: new Date().toISOString(),
+        checked_by: usuarioId,
+      })
+      .eq('id', checkpoint.id)
+    if (updateCheckpointError) console.error('No se pudo marcar checkpoint por WhatsApp:', updateCheckpointError)
+  }
+
+  const nextEstado =
+    response === 'support'
+      ? 'Bloqueado'
+      : response === 'progress' && accion.estado === 'Bloqueado'
+        ? 'Bloqueado'
+        : 'En_Ejecucion'
+
+  if (accion.estado !== nextEstado) {
+    const { error: updateAccionError } = await client
+      .from('acciones_diarias')
+      .update({ estado: nextEstado })
+      .eq('id', accion.id)
+    if (updateAccionError) console.error('No se pudo actualizar estado por WhatsApp:', updateAccionError)
+  }
+
+  await client.from('external_inbound_messages').insert({
+    channel: 'whatsapp',
+    external_update_id: message.id ?? `${checkpoint.id}:${response}:${Date.now()}`,
+    external_chat_id: message.from ?? null,
+    external_user_id: message.from ?? null,
+    usuario_id: usuarioId,
+    accion_id: accion.id,
+    checkpoint_id: checkpoint.id,
+    message_type: 'interactive_button_reply',
+    processed_at: new Date().toISOString(),
+    payload: {
+      kind: 'checkpoint_reply',
+      checkpoint_id: checkpoint.id,
+      accion_id: accion.id,
+      response,
+      next_estado: nextEstado,
+    },
+  }).then(({ error }) => {
+    if (error) console.error('No se pudo guardar inbound WhatsApp:', error)
+  })
+}
+
+async function handleWebhookPayload(payload: WhatsAppWebhookPayload): Promise<void> {
+  const client = adminClient()
+  const messages = (payload.entry ?? [])
+    .flatMap((entry) => entry.changes ?? [])
+    .flatMap((change) => change.value?.messages ?? [])
+  await Promise.all(messages.map((message) => handleCheckpointReply(client, message)))
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { status: 200, headers: corsHeaders })
@@ -96,5 +242,6 @@ Deno.serve(async (req) => {
   }
 
   console.log('Webhook WhatsApp recibido', summarizePayload(payload))
+  await handleWebhookPayload(payload)
   return jsonResponse({ ok: true })
 })

@@ -12,6 +12,13 @@ ALTER TABLE public.action_delivery_log
   ADD CONSTRAINT action_delivery_log_channel_chk
   CHECK (channel IN ('telegram', 'whatsapp'));
 
+ALTER TABLE public.external_inbound_messages
+  DROP CONSTRAINT IF EXISTS external_inbound_messages_channel_chk;
+
+ALTER TABLE public.external_inbound_messages
+  ADD CONSTRAINT external_inbound_messages_channel_chk
+  CHECK (channel IN ('telegram', 'whatsapp'));
+
 CREATE OR REPLACE FUNCTION public.admin_upsert_whatsapp_identity(
   p_usuario_id uuid,
   p_phone text,

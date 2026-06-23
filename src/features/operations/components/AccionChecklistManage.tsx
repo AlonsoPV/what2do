@@ -7,7 +7,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ListChecks, Plus, Trash2, ChevronUp, ChevronDown, Send } from 'lucide-react'
+import { ListChecks, Plus, Trash2, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTimeCDMX } from '@/lib/dateUtils'
 import type { AccionCheckpoint } from '@/types'
@@ -334,13 +334,13 @@ export function AccionChecklistManage({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              className="h-7 w-7 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
                               aria-label="Enviar seguimiento por WhatsApp"
                               title="Enviar seguimiento por WhatsApp"
                               disabled={disabled || !!whatsAppFollowupPendingId}
                               onClick={() => void onSendWhatsAppFollowup(c)}
                             >
-                              <Send className={cn('h-3.5 w-3.5', followupPending && 'animate-pulse')} />
+                              <MessageCircle className={cn('h-3.5 w-3.5', followupPending && 'animate-pulse')} />
                             </Button>
                           ) : null}
                           {showStructureActions ? (

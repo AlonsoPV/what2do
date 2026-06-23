@@ -41,6 +41,7 @@ type Accion = {
 
 type Checkpoint = {
   id: string
+  accion_id?: string
   texto: string
   orden: number
   completado: boolean
@@ -83,15 +84,6 @@ function adminClient() {
   })
 }
 
-function appBaseUrl(): string {
-  return (optionalEnv('APP_BASE_URL') || optionalEnv('PUBLIC_APP_URL') || optionalEnv('SITE_URL') || '').replace(/\/+$/, '')
-}
-
-function actionUrl(accionId: string): string {
-  const base = appBaseUrl()
-  return base ? `${base}/kanban?accion=${encodeURIComponent(accionId)}` : ''
-}
-
 function normalizeWhatsAppTo(value: string): string {
   return value.replace(/[^\d]/g, '')
 }
@@ -125,19 +117,6 @@ function fitWhatsAppMessage(text: string): string {
   return truncateText(text, WHATSAPP_MAX_MESSAGE_LENGTH - WHATSAPP_SAFETY_MARGIN)
 }
 
-function normalizeDescriptionForWhatsApp(text: string): string {
-  const normalized = text
-    .replace(/\r\n/g, '\n')
-    .replace(/^\s*(c.{1,2}mo|quiero|para qu.{1,2}|cuando):\s*/gim, '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .filter((line, index, lines) => lines.indexOf(line) === index)
-    .join('\n\n')
-    .trim()
-  return normalized || 'Sin descripcion.'
-}
-
 function actionTitle(accion: Accion): string {
   return accion.titulo_accion?.trim() || accion.descripcion_accion.slice(0, 72)
 }
@@ -154,43 +133,142 @@ function checkpointListText(checkpoints: Checkpoint[]): string {
 }
 
 function buildInitialMessage(accion: Accion, responsable: Usuario | null, checkpoints: Checkpoint[]): string {
-  const link = actionUrl(accion.id)
-  const description = truncateText(normalizeDescriptionForWhatsApp(accion.descripcion_accion), 1200)
+  const createdAt = accion.created_at?.slice(0, 16).replace('T', ' ') || 'sin fecha'
+  const commitmentDate = [accion.fecha, accion.hora_limite?.slice(0, 5)].filter(Boolean).join(' ')
+  const responsableName = responsable?.nombre?.trim() || 'responsable'
 
   return fitWhatsAppMessage([
-    'Nueva accion asignada',
+    `*Actividades ${createdAt}*`,
     '',
-    actionTitle(accion),
+    `Hola ${responsableName}, estas son tus actividades para ${commitmentDate}.`,
     '',
-    'Datos',
-    `Fecha de creacion: ${accion.created_at?.slice(0, 16).replace('T', ' ')}`,
-    `Fecha compromiso: ${accion.fecha} ${accion.hora_limite?.slice(0, 5)}`,
-    accion.prioridad ? `Prioridad: ${accion.prioridad}` : '',
-    responsable?.nombre ? `Responsable: ${responsable.nombre}` : 'Responsable: sin asignar',
-    `ID: ${accion.id}`,
-    '',
-    'Descripcion:',
-    description,
-    '',
-    'Actividades/checks:',
+    '*Checklists*',
     checkpointListText(checkpoints),
-    '',
-    link ? `Tablero: ${link}` : '',
   ].filter(Boolean).join('\n'))
 }
 
-function buildCheckpointFollowupMessage(accion: Accion, checkpoint: Checkpoint): string {
+function buildCheckpointFollowupMessage(checkpoint: Checkpoint): string {
   return fitWhatsAppMessage([
-    'Seguimiento de actividad',
-    '',
-    `Accion: ${actionTitle(accion)}`,
-    `Fecha compromiso: ${accion.fecha} ${accion.hora_limite?.slice(0, 5)}`,
-    '',
-    'Como te fue con esta actividad?',
-    checkpoint.texto,
-    '',
-    `ID accion: ${accion.id}`,
+    '*Seguimiento de actividades:*',
+    `Por favor actualizame, ¿cómo va tu actividad "${checkpoint.texto}"?`,
   ].join('\n'))
+}
+
+function buildCheckpointFollowupPayload(to: string, checkpoint: Checkpoint): Record<string, unknown> {
+  const body = buildCheckpointFollowupMessage(checkpoint)
+  return {
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: body },
+      action: {
+        buttons: [
+          {
+            type: 'reply',
+            reply: { id: `chk:${checkpoint.id}:done`, title: 'Realizada' },
+          },
+          {
+            type: 'reply',
+            reply: { id: `chk:${checkpoint.id}:progress`, title: 'En proceso' },
+          },
+          {
+            type: 'reply',
+            reply: { id: `chk:${checkpoint.id}:support`, title: 'Requiero apoyo' },
+          },
+        ],
+      },
+    },
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function waitUntil(promise: Promise<unknown>): void {
+  const runtime = globalThis as typeof globalThis & {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void }
+  }
+  if (typeof runtime.EdgeRuntime?.waitUntil === 'function') {
+    runtime.EdgeRuntime.waitUntil(promise)
+    return
+  }
+  void promise
+}
+
+async function sendCheckpointReminderBatch(input: {
+  client: ReturnType<typeof createClient>
+  accionId: string
+  usuarioId: string
+  whatsappTo: string
+  sentBy: string
+  reminderStage: 'immediate' | 'five_minute'
+}): Promise<void> {
+  const { data, error } = await input.client
+    .from('accion_checkpoints')
+    .select('id,accion_id,texto,orden,completado')
+    .eq('accion_id', input.accionId)
+    .eq('activo', true)
+    .eq('completado', false)
+    .order('orden', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) {
+    console.error('No se pudieron leer checkpoints para recordatorio WhatsApp:', error)
+    return
+  }
+
+  const pendingCheckpoints = (data ?? []) as Checkpoint[]
+  for (const checkpoint of pendingCheckpoints) {
+    try {
+      const result = await whatsAppApi(buildCheckpointFollowupPayload(input.whatsappTo, checkpoint))
+      await input.client.from('action_delivery_log').insert({
+        accion_id: input.accionId,
+        usuario_id: input.usuarioId,
+        channel: 'whatsapp',
+        external_chat_id: result.contacts?.[0]?.wa_id ?? input.whatsappTo,
+        external_message_id: result.messages?.[0]?.id ?? null,
+        delivery_status: 'sent',
+        payload: {
+          sent_by: input.sentBy,
+          message_type: 'checkpoint_followup',
+          checkpoint_id: checkpoint.id,
+          to: input.whatsappTo,
+          reminder_stage: input.reminderStage,
+        },
+        sent_at: new Date().toISOString(),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'WhatsApp rechazo el recordatorio'
+      await input.client.from('action_delivery_log').insert({
+        accion_id: input.accionId,
+        usuario_id: input.usuarioId,
+        channel: 'whatsapp',
+        external_chat_id: input.whatsappTo,
+        delivery_status: 'failed',
+        error_message: message,
+        payload: {
+          sent_by: input.sentBy,
+          message_type: 'checkpoint_followup',
+          checkpoint_id: checkpoint.id,
+          to: input.whatsappTo,
+          reminder_stage: input.reminderStage,
+        },
+      })
+    }
+  }
+}
+
+async function scheduleCheckpointReminders(input: {
+  client: ReturnType<typeof createClient>
+  accionId: string
+  usuarioId: string
+  whatsappTo: string
+  sentBy: string
+}): Promise<void> {
+  await sendCheckpointReminderBatch({ ...input, reminderStage: 'immediate' })
+  await sleep(5 * 60 * 1000)
+  await sendCheckpointReminderBatch({ ...input, reminderStage: 'five_minute' })
 }
 
 function buildCommitmentCloseMessage(accion: Accion, responsable: Usuario | null, checkpoints: Checkpoint[]): string {
@@ -296,22 +374,24 @@ serveWithCors(async (req) => {
   }
 
   const text =
+    messageType === 'commitment_close'
+      ? buildCommitmentCloseMessage(accion, targetUser ?? null, checkpointRows)
+      : buildInitialMessage(accion, targetUser ?? null, checkpointRows)
+  const messagePayload =
     messageType === 'checkpoint_followup'
-      ? buildCheckpointFollowupMessage(accion, checkpoint!)
-      : messageType === 'commitment_close'
-        ? buildCommitmentCloseMessage(accion, targetUser ?? null, checkpointRows)
-        : buildInitialMessage(accion, targetUser ?? null, checkpointRows)
+      ? buildCheckpointFollowupPayload(whatsappTo, checkpoint!)
+      : {
+          to: whatsappTo,
+          type: 'text',
+          text: {
+            preview_url: false,
+            body: text,
+          },
+        }
 
   let whatsAppResult: WhatsAppSendResult
   try {
-    whatsAppResult = await whatsAppApi({
-      to: whatsappTo,
-      type: 'text',
-      text: {
-        preview_url: false,
-        body: text,
-      },
-    })
+    whatsAppResult = await whatsAppApi(messagePayload)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'WhatsApp rechazo el envio'
     await client.from('action_delivery_log').insert({
@@ -335,11 +415,27 @@ serveWithCors(async (req) => {
     external_chat_id: waId ?? whatsappTo,
     external_message_id: messageId,
     delivery_status: 'sent',
-    payload: { sent_by: currentUser.id, message_type: messageType, checkpoint_id: checkpoint?.id ?? null, to: whatsappTo },
+    payload: {
+      sent_by: currentUser.id,
+      message_type: messageType,
+      checkpoint_id: checkpoint?.id ?? null,
+      to: whatsappTo,
+      interactive_response_actions: 'none',
+    },
     sent_at: new Date().toISOString(),
   })
   if (logError) {
     return jsonResponse({ ok: true, warning: 'Mensaje enviado, pero no se pudo guardar log', whatsapp_message_id: messageId })
+  }
+
+  if (messageType === 'initial') {
+    waitUntil(scheduleCheckpointReminders({
+      client,
+      accionId: accion.id,
+      usuarioId: targetUsuarioId,
+      whatsappTo,
+      sentBy: currentUser.id,
+    }))
   }
 
   return jsonResponse({ ok: true, whatsapp_message_id: messageId, wa_id: waId })
