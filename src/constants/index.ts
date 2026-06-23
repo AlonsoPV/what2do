@@ -25,6 +25,7 @@ export const ROUTES = {
   SETTINGS_PROFILE: '/settings/profile',
   SETTINGS_USERS: '/settings/users',
   SETTINGS_USERS_DETAIL: '/settings/users/:id',
+  SETTINGS_WHATSAPP: '/settings/whatsapp',
   SETTINGS_CATALOGS: '/settings/catalogs',
   SETTINGS_CATALOGS_ROLES: '/settings/catalogs/roles',
   SETTINGS_CATALOGS_AREAS: '/settings/catalogs/areas',

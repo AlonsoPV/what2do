@@ -184,6 +184,13 @@ const router = createBrowserRouter([
                 },
               },
               {
+                path: 'whatsapp',
+                lazy: async () => {
+                  const { WhatsAppSettingsPage } = await importWithReload(() => import('@/pages/settings/WhatsAppSettingsPage'))
+                  return { Component: WhatsAppSettingsPage }
+                },
+              },
+              {
                 path: 'catalogs',
                 lazy: async () => {
                   const { CatalogsHomePage } = await importWithReload(() => import('@/features/catalogs/pages/CatalogsHomePage'))

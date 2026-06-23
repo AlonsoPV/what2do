@@ -11,11 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Users, Shield, UserCircle, type LucideIcon } from 'lucide-react'
+import { MessageCircle, Users, Shield, UserCircle, type LucideIcon } from 'lucide-react'
 
 const SETTINGS_LINKS = [
   { to: ROUTES.SETTINGS_PROFILE, label: 'Mi perfil', icon: UserCircle },
   { to: ROUTES.SETTINGS_USERS, label: 'Usuarios', icon: Users },
+  { to: ROUTES.SETTINGS_WHATSAPP, label: 'WhatsApp', icon: MessageCircle },
   { to: ROUTES.SETTINGS_CATALOGS_ROLES, label: 'Roles', icon: Shield },
 ] as const
 

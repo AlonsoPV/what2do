@@ -59,10 +59,19 @@ type WhatsAppSendResult = {
   error?: { message?: string; type?: string; code?: number }
 }
 
+type WhatsAppFollowupSettings = {
+  followup_delay_minutes: number
+  followups_per_day: number
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const WHATSAPP_MAX_MESSAGE_LENGTH = 4096
 const WHATSAPP_SAFETY_MARGIN = 128
 const MAX_VISIBLE_CHECKPOINTS = 95
+const DEFAULT_FOLLOWUP_SETTINGS: WhatsAppFollowupSettings = {
+  followup_delay_minutes: 5,
+  followups_per_day: 1,
+}
 
 function env(name: string): string {
   const value = Deno.env.get(name)?.trim()
@@ -186,6 +195,35 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function normalizeFollowupSettings(value: unknown): WhatsAppFollowupSettings {
+  const source = typeof value === 'object' && value !== null
+    ? value as Partial<WhatsAppFollowupSettings>
+    : {}
+  return {
+    followup_delay_minutes: Math.min(
+      240,
+      Math.max(1, Number(source.followup_delay_minutes ?? DEFAULT_FOLLOWUP_SETTINGS.followup_delay_minutes))
+    ),
+    followups_per_day: Math.min(
+      12,
+      Math.max(0, Number(source.followups_per_day ?? DEFAULT_FOLLOWUP_SETTINGS.followups_per_day))
+    ),
+  }
+}
+
+async function loadFollowupSettings(client: ReturnType<typeof createClient>): Promise<WhatsAppFollowupSettings> {
+  const { data, error } = await client
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'whatsapp_followup')
+    .maybeSingle<{ value: unknown }>()
+  if (error) {
+    console.warn('No se pudo leer configuracion WhatsApp; usando defaults:', error)
+    return DEFAULT_FOLLOWUP_SETTINGS
+  }
+  return normalizeFollowupSettings(data?.value)
+}
+
 function waitUntil(promise: Promise<unknown>): void {
   const runtime = globalThis as typeof globalThis & {
     EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void }
@@ -266,9 +304,14 @@ async function scheduleCheckpointReminders(input: {
   whatsappTo: string
   sentBy: string
 }): Promise<void> {
-  await sendCheckpointReminderBatch({ ...input, reminderStage: 'immediate' })
-  await sleep(5 * 60 * 1000)
-  await sendCheckpointReminderBatch({ ...input, reminderStage: 'five_minute' })
+  const settings = await loadFollowupSettings(input.client)
+  for (let index = 0; index < settings.followups_per_day; index += 1) {
+    await sleep(settings.followup_delay_minutes * 60 * 1000)
+    await sendCheckpointReminderBatch({
+      ...input,
+      reminderStage: index === 0 ? 'immediate' : 'five_minute',
+    })
+  }
 }
 
 function buildCommitmentCloseMessage(accion: Accion, responsable: Usuario | null, checkpoints: Checkpoint[]): string {

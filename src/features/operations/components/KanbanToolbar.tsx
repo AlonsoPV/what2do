@@ -110,8 +110,8 @@ const DEFAULT_FILTER_SELECT_CLASS =
 const KANBAN_FILTER_SELECT_CONTENT_CLASS =
   'z-[200] max-h-[min(18rem,72dvh)] min-w-[var(--radix-select-trigger-width)] [&>*:nth-child(2)]:!h-auto [&>*:nth-child(2)]:max-h-[min(17rem,68dvh)]'
 
-export function createKanbanDefaultFilter(userId?: string): AccionesFilter {
-  return userId ? { responsable: userId } : {}
+export function createKanbanDefaultFilter(): AccionesFilter {
+  return {}
 }
 
 export function hasKanbanActiveFilters(filter: AccionesFilter): boolean {

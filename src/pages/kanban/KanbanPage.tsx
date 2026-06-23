@@ -88,15 +88,6 @@ export function KanbanPage() {
   const fechaFromUrl = searchParams.get('fecha')
   const { data: accionFromUrl } = useAccion(accionIdFromUrl)
 
-  const [filtersCleared, setFiltersCleared] = useState(false)
-
-  useEffect(() => {
-    if (!currentUser?.id || filtersCleared) return
-    setFilter((prev) =>
-      prev.responsable === undefined ? { ...prev, responsable: currentUser.id } : prev
-    )
-  }, [currentUser?.id, filtersCleared])
-
   useEffect(() => {
     if (fechaFromUrl && /^\d{4}-\d{2}-\d{2}$/.test(fechaFromUrl)) {
       setFilter((f) => ({ ...f, fecha_min: fechaFromUrl, fecha_max: fechaFromUrl }))
@@ -123,23 +114,17 @@ export function KanbanPage() {
   }, [accionFromUrl, accionIdFromUrl, setSearchParams])
 
   const handleFilterChange = useCallback((next: AccionesFilter | Partial<AccionesFilter>) => {
-    setFiltersCleared(false)
-    setFilter((prev) => {
-      const merged = { ...prev, ...next }
-      if (isAnalyst && currentUser?.id) merged.responsable = currentUser.id
-      return merged
-    })
-  }, [currentUser?.id, isAnalyst])
+    setFilter((prev) => ({ ...prev, ...next }))
+  }, [])
 
   const handleClearFilters = useCallback(() => {
-    setFiltersCleared(true)
-    setFilter(isAnalyst && currentUser?.id ? { responsable: currentUser.id } : {})
+    setFilter({})
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.delete('gap')
       return next
     }, { replace: true })
-  }, [currentUser?.id, isAnalyst, setSearchParams])
+  }, [setSearchParams])
 
   const clearGapFilter = useCallback(() => {
     setSearchParams((prev) => {
