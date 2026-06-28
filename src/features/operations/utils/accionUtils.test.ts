@@ -21,7 +21,7 @@ function baseAccion(overrides: Partial<AccionDiaria> = {}): AccionDiaria {
     evidencia_esperada: 'Evidencia',
     evidencia_cargada: false,
     evidencia_adjunta: null,
-    estado: 'Pendiente',
+    estado: 'En_Pausa',
     kpi_afectado: null,
     tipo_accion: 'operativa',
     story_points: 0,
@@ -68,51 +68,45 @@ describe('accionUtils fecha compromiso CDMX', () => {
   it('marca retraso si la fecha compromiso ya paso o si hoy supero la hora limite', () => {
     expect(isEnRetraso(baseAccion({ fecha: '2026-06-04' }))).toBe(true)
     expect(isEnRetraso(baseAccion({ fecha: '2026-06-05', hora_limite: '17:00' }))).toBe(true)
-    expect(isEnRetraso(baseAccion({ estado: 'Hecho', fecha: '2026-06-04' }))).toBe(false)
+    expect(isEnRetraso(baseAccion({ estado: 'Completada', fecha: '2026-06-04' }))).toBe(false)
   })
 
   it('no marca retraso el mismo dia antes de la hora limite', () => {
     vi.setSystemTime(new Date('2026-06-05T10:00:00-06:00'))
     expect(isEnRetraso(baseAccion({ fecha: '2026-06-05', hora_limite: '17:00' }))).toBe(false)
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'Pendiente' }))).toBe('Hoy')
-    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-05', hora_limite: '17:00' }))).toBe('Hoy')
+    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'En_Pausa' }))).toBeNull()
+    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-05', hora_limite: '17:00' }))).toBe('En_Pausa')
   })
 
-  it('promueve a Retraso el mismo dia cuando la hora limite ya paso', () => {
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'Pendiente' }))).toBe('Retraso')
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'Hoy' }))).toBe('Retraso')
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'En_Ejecucion' }))).toBe('Retraso')
+  it('promueve a Retrasa el mismo dia cuando la hora limite ya paso', () => {
+    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'En_Pausa' }))).toBe('Retrasa')
+    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'En_Proceso' }))).toBe('Retrasa')
   })
 
-  it('promueve a Retraso si la fecha compromiso es anterior', () => {
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ fecha: '2026-06-04', estado: 'Pendiente' }))).toBe(
-      'Retraso'
+  it('promueve a Retrasa si la fecha compromiso es anterior', () => {
+    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ fecha: '2026-06-04', estado: 'En_Pausa' }))).toBe(
+      'Retrasa'
     )
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ fecha: '2026-06-04', estado: 'Hoy' }))).toBe('Retraso')
   })
 
-  it('regresa a Pendiente si la fecha compromiso es futura', () => {
+  it('regresa a En_Pausa si la fecha compromiso es futura y estaba en Retrasa', () => {
     expect(
-      getAutoEstadoPorFechaCompromiso(baseAccion({ fecha: '2026-06-06', estado: 'Hoy' }))
-    ).toBe('Pendiente')
-    expect(
-      getAutoEstadoPorFechaCompromiso(baseAccion({ fecha: '2026-06-06', estado: 'Retraso' }))
-    ).toBe('Pendiente')
+      getAutoEstadoPorFechaCompromiso(baseAccion({ fecha: '2026-06-06', estado: 'Retrasa' }))
+    ).toBe('En_Pausa')
   })
 
-  it('no mueve acciones cerradas ni bloqueadas', () => {
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'Bloqueado' }))).toBeNull()
-    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'Hecho' }))).toBeNull()
+  it('no mueve acciones completadas', () => {
+    expect(getAutoEstadoPorFechaCompromiso(baseAccion({ estado: 'Completada' }))).toBeNull()
   })
 
   it('ubica en kanban segun fecha compromiso y hora limite', () => {
-    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-04' }))).toBe('Retraso')
-    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-05', hora_limite: '17:00' }))).toBe('Retraso')
-    expect(getAccionKanbanColumn(baseAccion({ estado: 'Bloqueado', fecha: '2026-06-04' }))).toBe('Bloqueado')
+    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-04' }))).toBe('Retrasa')
+    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-05', hora_limite: '17:00' }))).toBe('Retrasa')
+    expect(getAccionKanbanColumn(baseAccion({ estado: 'En_Pausa', fecha: '2026-06-04' }))).toBe('Retrasa')
   })
 
   it('detecta fecha UTC erronea (2026-06-06) como futura en CDMX', () => {
     expect(getFechaCompromisoSlot('2026-06-06')).toBe('future')
-    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-06', estado: 'Pendiente' }))).toBe('Pendiente')
+    expect(getAccionKanbanColumn(baseAccion({ fecha: '2026-06-06', estado: 'En_Pausa' }))).toBe('En_Pausa')
   })
 })

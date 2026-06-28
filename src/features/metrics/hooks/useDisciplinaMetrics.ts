@@ -35,12 +35,10 @@ function computeFromAcciones(
   ]
   const asignadas = accionesUsuario.length
   const cerradasConEvidencia = accionesUsuario.filter(
-    (a) =>
-      (a.estado === 'Hecho' || a.estado === 'Verificado') && a.evidencia_cargada
+    (a) => a.estado === 'Completada' && a.evidencia_cargada
   ).length
   const sinEvidencia = accionesUsuario.filter(
-    (a) =>
-      (a.estado === 'Hecho' || a.estado === 'Verificado') && !a.evidencia_cargada
+    (a) => a.estado === 'Completada' && !a.evidencia_cargada
   ).length
   const porcentaje =
     asignadas > 0 ? Math.round((cerradasConEvidencia / asignadas) * 1000) / 10 : 0

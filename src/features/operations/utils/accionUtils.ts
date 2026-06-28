@@ -4,7 +4,7 @@ import type { AccionDiaria, ActionStatus } from '@/types'
 
 const CDMX_TZ = 'America/Mexico_City'
 
-const ESTADOS_CERRADOS: ActionStatus[] = ['Hecho', 'Verificado']
+export const ACCION_ESTADOS_CERRADOS: ActionStatus[] = ['Completada']
 
 /**
  * Código público `emx_XXXXX` (5 dígitos) derivado del UUID.
@@ -90,14 +90,14 @@ export function getAccionDeadlineMs(
 }
 
 function isAutoSyncEligible(accion: AccionDiaria): boolean {
-  return !ESTADOS_CERRADOS.includes(accion.estado) && accion.estado !== 'Bloqueado'
+  return !ACCION_ESTADOS_CERRADOS.includes(accion.estado)
 }
 
 /**
- * Retraso si la fecha compromiso ya pasó o si hoy superó fecha + hora_limite (CDMX).
+ * Retrasa si la fecha compromiso ya pasó o si hoy superó fecha + hora_limite (CDMX).
  */
 export function isEnRetraso(a: AccionDiaria): boolean {
-  if (ESTADOS_CERRADOS.includes(a.estado)) return false
+  if (ACCION_ESTADOS_CERRADOS.includes(a.estado)) return false
   return isPastAccionDeadline(a)
 }
 
@@ -105,28 +105,22 @@ export function isEnRetraso(a: AccionDiaria): boolean {
 export function getAutoEstadoPorFechaCompromiso(accion: AccionDiaria): ActionStatus | null {
   if (!isAutoSyncEligible(accion)) return null
 
-  const fecha = normalizeFechaCompromiso(accion.fecha)
-  const today = getCdmxWallClock(getAppNow()).ymd
-
   if (isPastAccionDeadline(accion)) {
-    return accion.estado === 'Retraso' ? null : 'Retraso'
+    return accion.estado === 'Retrasa' ? null : 'Retrasa'
   }
-  if (fecha > today) {
-    if (accion.estado === 'Retraso' || accion.estado === 'Hoy') return 'Pendiente'
-    return null
+
+  if (accion.estado === 'Retrasa') {
+    return 'En_Pausa'
   }
-  if (fecha === today) {
-    if (accion.estado === 'Hoy' || accion.estado === 'En_Ejecucion') return null
-    return 'Hoy'
-  }
+
   return null
 }
 
 /** Columna Kanban efectiva según fecha compromiso (CDMX). */
 export function getAccionKanbanColumn(accion: AccionDiaria): ActionStatus {
-  if (accion.estado === 'Bloqueado') return 'Bloqueado'
-  if (ESTADOS_CERRADOS.includes(accion.estado)) return accion.estado
+  if (ACCION_ESTADOS_CERRADOS.includes(accion.estado)) return accion.estado
   const target = getAutoEstadoPorFechaCompromiso(accion)
   if (target) return target
+  if (isEnRetraso(accion) && accion.estado !== 'Retrasa') return 'Retrasa'
   return accion.estado
 }

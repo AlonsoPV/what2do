@@ -66,3 +66,13 @@ export function flattenDescripcionForForm(text: string): string {
     .filter((part, index, list) => list.indexOf(part) === index)
   return parts.join('\n\n')
 }
+
+/** Campo único del formulario: prioriza instrucciones_especificas y cae a descripcion_accion legacy. */
+export function resolveInstruccionesFromAccion(accion: {
+  instrucciones_especificas?: string | null
+  descripcion_accion?: string | null
+}): string {
+  const instrucciones = accion.instrucciones_especificas?.trim()
+  if (instrucciones) return instrucciones
+  return flattenDescripcionForForm(accion.descripcion_accion ?? '')
+}

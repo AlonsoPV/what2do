@@ -59,15 +59,17 @@ export function DashboardHeader({
           {title}
         </h1>
         <p className="dashboard-subtitle text-pretty text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          Crea acciones, revisa el tablero y ajusta el alcance temporal sin perder contexto.
+          Patrones de retraso, desempeño por área y actividades críticas del tablero.
         </p>
       </div>
 
-      <div
-        className={cn(
-          'dashboard-header-actions grid w-full min-w-0 grid-cols-2 gap-2 rounded-xl border border-border/70 bg-muted/25 p-2 shadow-sm ring-1 ring-border/30 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:p-3'
-        )}
-      >
+      {onNewAction || onToggleFilters ? (
+        <div
+          className={cn(
+            'dashboard-header-actions grid w-full min-w-0 gap-2 rounded-xl border border-border/70 bg-muted/25 p-2 shadow-sm ring-1 ring-border/30 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:p-3',
+            onNewAction && onToggleFilters ? 'grid-cols-2' : 'grid-cols-1'
+          )}
+        >
         {onNewAction ? (
           <Button
             id="dashboard-btn-new-action"
@@ -122,7 +124,8 @@ export function DashboardHeader({
             ) : null}
           </Button>
         ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {filtersExpanded && filtersPanel ? (
         <div

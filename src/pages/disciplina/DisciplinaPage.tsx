@@ -100,7 +100,7 @@ export function DisciplinaPage() {
     [personalMetrics.rules]
   )
   const blockedActions = useMemo(
-    () => personalActions.filter((action) => action.estado === 'Bloqueado').length,
+    () => personalActions.filter((action) => action.estado === 'En_Pausa').length,
     [personalActions]
   )
   const todayOwnedActions = useMemo(() => {
@@ -109,7 +109,7 @@ export function DisciplinaPage() {
     return getUserOwnedActions(currentUser.id, todayList, comentarios)
   }, [acciones, comentarios, currentUser?.id, fecha])
   const todayBlockedActions = useMemo(
-    () => todayOwnedActions.filter((action) => action.estado === 'Bloqueado').length,
+    () => todayOwnedActions.filter((action) => action.estado === 'En_Pausa').length,
     [todayOwnedActions]
   )
   const loading = loadingActions || loadingComments

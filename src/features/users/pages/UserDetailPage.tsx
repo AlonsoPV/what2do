@@ -25,6 +25,7 @@ import { useCurrentUser, useUser, useUserAuthEmail, useUpdateUser, useToggleUser
 import type { UserFormValues } from '../schemas/user.schema'
 import type { UpdateUserInput } from '../types/user.types'
 import { canManageUserTelegram } from '@/features/auth/lib/permissions'
+import { ROUTES } from '@/constants'
 import { whatsappIntegrationService, whatsappSummary } from '@/services/whatsappIntegration.service'
 import { toast } from 'sonner'
 import { ArrowLeft } from 'lucide-react'
@@ -92,7 +93,7 @@ export function UserDetailPage() {
   if (isError || !user) {
     return (
       <div className="space-y-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/settings/users')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(ROUTES.DIRECTORIOS_USUARIOS)}>
           <ArrowLeft className="mr-1 h-4 w-4" />
           Volver al listado
         </Button>
@@ -105,7 +106,7 @@ export function UserDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/settings/users')}>
+      <Button variant="ghost" size="sm" onClick={() => navigate(ROUTES.DIRECTORIOS_USUARIOS)}>
         <ArrowLeft className="mr-1 h-4 w-4" />
         Volver al listado
       </Button>

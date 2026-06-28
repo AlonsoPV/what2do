@@ -24,7 +24,7 @@ function accion(overrides: Partial<AccionDiaria> = {}): AccionDiaria {
     evidencia_esperada: 'Evidencia',
     evidencia_cargada: false,
     evidencia_adjunta: null,
-    estado: 'Pendiente',
+    estado: 'En_Pausa',
     kpi_afectado: null,
     gap_id: null,
     tipo_accion: 'operativa',

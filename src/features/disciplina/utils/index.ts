@@ -1,4 +1,4 @@
-import type { AccionDiaria, Sprint, Usuario } from '@/types'
+import type { AccionDiaria, Sprint, Usuario, ActionStatus } from '@/types'
 
 export type ExecutionStatus = 'Bajo desempeno' | 'En desarrollo' | 'High Performer' | 'Execution Champion'
 export type TrendDirection = 'up' | 'down' | 'flat'
@@ -85,7 +85,7 @@ export interface UserExecutionProfile {
   level: UserLevelResult
 }
 
-const DONE_STATES = new Set(['Hecho', 'Verificado'])
+const DONE_STATES = new Set<ActionStatus>(['Completada'])
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 function clamp(value: number, min = 0, max = 100) {
@@ -114,7 +114,7 @@ function isDone(action: AccionDiaria) {
 }
 
 function isVerified(action: AccionDiaria) {
-  return action.estado === 'Verificado'
+  return action.estado === 'Completada'
 }
 
 function isOverdue(action: AccionDiaria, now = new Date()) {
@@ -169,7 +169,7 @@ export function calculateExecutionScore(
   const completed = userActions.filter(isDone)
   const verified = userActions.filter(isVerified)
   const overdue = userActions.filter((action) => isOverdue(action, now))
-  const blocked = userActions.filter((action) => action.estado === 'Bloqueado')
+  const blocked = userActions.filter((action) => action.estado === 'En_Pausa')
   const repeated = userActions.filter((action) => action.repeticion)
   const withEvidence = completed.filter((action) => action.evidencia_cargada)
   const onTime = completed.filter(isCompletedOnTime)

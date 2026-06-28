@@ -18,7 +18,7 @@ export type CloseAccionValidationOptions = {
   onlyObligatorioBlocking?: boolean
 }
 
-const MSJ_HECHO_SIN_EVIDENCIA = 'No se puede marcar como Hecho sin evidencia cargada.'
+const MSJ_COMPLETADA_SIN_EVIDENCIA = 'No se puede marcar como Completada sin evidencia cargada.'
 
 function normalizeEvidenceRule(value: string | null | undefined): string {
   return (value ?? '')
@@ -60,7 +60,7 @@ export async function assertCanCloseAccionFromAccion(
 ): Promise<void> {
   if (accionRequiresEvidence(accion) && !accion.evidencia_cargada) {
     const hasRecord = await hasEvidenceRecord(accion.id)
-    if (!hasRecord) throw new Error(MSJ_HECHO_SIN_EVIDENCIA)
+    if (!hasRecord) throw new Error(MSJ_COMPLETADA_SIN_EVIDENCIA)
   }
 
   const bloquea = await accionCheckpointsService.hasPendingBlockingHecho(accion.id, {

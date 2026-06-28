@@ -2,15 +2,7 @@ import type { ActionStatus } from '@/types'
 import type { Status } from '@/features/catalogs/types/catalogs.types'
 import { accionEstadoLabel } from './accionEstadoDisplay'
 
-const STATUS_KEYS: ActionStatus[] = [
-  'Pendiente',
-  'Hoy',
-  'En_Ejecucion',
-  'Bloqueado',
-  'Retraso',
-  'Hecho',
-  'Verificado',
-]
+const STATUS_KEYS: ActionStatus[] = ['En_Pausa', 'En_Proceso', 'Completada', 'Retrasa']
 
 export function getStatusCatalogKey(status: Status): ActionStatus | null {
   const key = status.estado_key ?? status.nombre

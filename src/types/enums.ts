@@ -24,13 +24,10 @@ export const APP_ROLE = ['admin', 'super_admin', 'viewer'] as const
 export type AppRole = (typeof APP_ROLE)[number]
 
 export const ACTION_STATUS = [
-  'Pendiente',
-  'Hoy',
-  'En_Ejecucion',
-  'Bloqueado',
-  'Retraso',
-  'Hecho',
-  'Verificado',
+  'En_Pausa',
+  'En_Proceso',
+  'Completada',
+  'Retrasa',
 ] as const
 
 export type ActionStatus = (typeof ACTION_STATUS)[number]

@@ -16,7 +16,7 @@ function accion(partial: Partial<AccionDiaria> & { id: string }): AccionDiaria {
     evidencia_esperada: 'doc',
     evidencia_cargada: false,
     evidencia_adjunta: null,
-    estado: 'Pendiente',
+    estado: 'En_Pausa',
     kpi_afectado: null,
     tipo_accion: 'operativa',
     story_points: 5,

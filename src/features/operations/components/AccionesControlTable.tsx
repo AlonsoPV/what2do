@@ -20,6 +20,7 @@ import { isEnRetraso } from '../utils/accionUtils'
 import { accionStoryPoints } from '@/features/kpi/utils/gapProgress'
 import {
   accionEstadoBadgeClass,
+  accionEstadoLabel,
   getAccionDisplayEstado,
 } from '../utils/accionEstadoDisplay'
 import {
@@ -45,16 +46,6 @@ import { AccionPriorityBadge } from './AccionPriorityBadge'
 import { findPriorityForAccion } from '../utils/resolveAccionPrioridad'
 import { statusCatalogByKey, statusCatalogLabel } from '../utils/statusCatalog'
 
-const ESTADO_LABELS: Record<string, string> = {
-  Pendiente: 'Pendiente',
-  Hoy: 'Hoy',
-  En_Ejecucion: 'En ejecución',
-  Bloqueado: 'Bloqueado',
-  Retraso: 'Retraso',
-  Hecho: 'Hecho',
-  Verificado: 'Verificado',
-}
-
 const PRIORIDAD_SORT_ORDER: Record<string, number> = {
   P1_Critica: 1,
   P2_Media: 2,
@@ -62,13 +53,10 @@ const PRIORIDAD_SORT_ORDER: Record<string, number> = {
 }
 
 const ESTADO_SORT_ORDER: Record<string, number> = {
-  Retraso: 0,
-  Bloqueado: 1,
-  Pendiente: 2,
-  Hoy: 3,
-  En_Ejecucion: 4,
-  Hecho: 5,
-  Verificado: 6,
+  Retrasa: 0,
+  En_Pausa: 1,
+  En_Proceso: 2,
+  Completada: 3,
 }
 
 export type AccionControlSortKey =
@@ -88,13 +76,10 @@ const DEFAULT_SORT: { key: AccionControlSortKey; dir: SortDir } = { key: 'fecha'
 
 /** Borde izquierdo sutil por estado para escaneo rápido */
 const ESTADO_ROW_BORDER: Record<string, string> = {
-  Pendiente: 'border-l-4 border-l-slate-400',
-  Hoy: 'border-l-4 border-l-amber-400',
-  En_Ejecucion: 'border-l-4 border-l-blue-400',
-  Bloqueado: 'border-l-4 border-l-red-400',
-  Retraso: 'border-l-4 border-l-orange-500',
-  Hecho: 'border-l-4 border-l-emerald-400',
-  Verificado: 'border-l-4 border-l-violet-400',
+  En_Pausa: 'border-l-4 border-l-slate-400',
+  En_Proceso: 'border-l-4 border-l-blue-400',
+  Completada: 'border-l-4 border-l-emerald-400',
+  Retrasa: 'border-l-4 border-l-orange-500',
 }
 
 function formatFechaLimite(fecha: string): string {
@@ -139,7 +124,7 @@ function indicadoresSortValue(
   if (prog && prog.total > 0) score += Math.round((prog.completed / prog.total) * 20)
   if (accion.evidencia_cargada) score += 5
   if (isEnRetraso(accion)) score += 50
-  if (accion.estado === 'Bloqueado') score += 40
+  if (accion.estado === 'En_Pausa') score += 20
   return score
 }
 
@@ -397,10 +382,7 @@ function AccionControlMobileCard({
               )}
               <EvidenciaCargadaIndicator cargada={accion.evidencia_cargada} />
               {isEnRetraso(accion) && (
-                <AlertTriangle className="h-3.5 w-3.5 text-orange-600" aria-label="En retraso" />
-              )}
-              {accion.estado === 'Bloqueado' && (
-                <AlertCircle className="h-3.5 w-3.5 text-destructive" aria-label="Bloqueado" />
+                <AlertTriangle className="h-3.5 w-3.5 text-orange-600" aria-label="Retrasa" />
               )}
             </>
           )}
@@ -674,17 +656,15 @@ export function AccionesControlTable({
                 <TableCell className="py-3 align-middle">
                   <Badge
                     variant={
-                      displayStatus === 'Retraso'
+                      displayStatus === 'Retrasa'
                         ? 'destructive'
-                        : displayStatus === 'Bloqueado'
-                          ? 'destructive'
-                          : displayStatus === 'Hecho' || displayStatus === 'Verificado'
-                            ? 'default'
-                            : 'secondary'
+                        : displayStatus === 'Completada'
+                          ? 'default'
+                          : 'secondary'
                     }
                     className="font-medium"
                   >
-                    {statusCatalogLabel(displayStatus, statusByKey) || ESTADO_LABELS[displayStatus] || accion.estado}
+                    {statusCatalogLabel(displayStatus, statusByKey) || accionEstadoLabel(displayStatus)}
                   </Badge>
                 </TableCell>
                 <TableCell className="py-3 text-muted-foreground text-sm align-middle">
@@ -726,12 +706,12 @@ export function AccionesControlTable({
                       </span>
                     )}
                     {isEnRetraso(accion) && (
-                      <span title="Retraso: fecha límite vencida" className="text-orange-600">
+                      <span title="Retrasa: fecha límite vencida" className="text-orange-600">
                         <AlertTriangle className="h-4 w-4" />
                       </span>
                     )}
-                    {accion.estado === 'Bloqueado' && (
-                      <span title="Bloqueado" className="text-destructive">
+                    {accion.estado === 'En_Pausa' && (
+                      <span title="En pausa" className="text-muted-foreground">
                         <AlertCircle className="h-4 w-4" />
                       </span>
                     )}
@@ -761,16 +741,13 @@ export function AccionesControlTable({
                         total={checklistProg.total}
                       />
                     )}
-                    {!accion.evidencia_cargada &&
-                      (accion.estado === 'Hecho' || accion.estado === 'Verificado') && (
+                    {accion.estado === 'Completada' && !accion.evidencia_cargada && (
                       <span title="Sin evidencia cargada" className="text-amber-600">
                         <FileCheck className="h-4 w-4" />
                       </span>
                     )}
-                    {displayStatus !== 'Retraso' &&
-                      displayStatus !== 'Hecho' &&
-                      displayStatus !== 'Verificado' &&
-                      displayStatus !== 'Bloqueado' && (
+                    {displayStatus !== 'Retrasa' &&
+                      displayStatus !== 'Completada' && (
                         <span title="Pendiente de cierre" className="text-muted-foreground">
                           <Clock className="h-4 w-4" />
                         </span>

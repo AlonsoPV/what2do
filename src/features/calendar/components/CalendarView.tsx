@@ -61,8 +61,8 @@ import type { AccionesFilter } from '@/services/acciones.service'
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const WEEKDAYS_SHORT = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
-/** Calendario: acciones activas = cualquier estado excepto Verificado. */
-const CALENDAR_EXCLUDED_STATUSES: ActionStatus[] = ['Verificado']
+/** Calendario: acciones activas = cualquier estado excepto Completada. */
+const CALENDAR_EXCLUDED_STATUSES: ActionStatus[] = ['Completada']
 
 type CalendarDayTab = 'acciones' | 'recordatorios' | 'minutas'
 

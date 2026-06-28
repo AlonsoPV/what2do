@@ -11,21 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { MessageCircle, Users, Shield, UserCircle, type LucideIcon } from 'lucide-react'
+import { MessageCircle, UserCircle, type LucideIcon } from 'lucide-react'
 
 const SETTINGS_LINKS = [
   { to: ROUTES.SETTINGS_PROFILE, label: 'Mi perfil', icon: UserCircle },
-  { to: ROUTES.SETTINGS_USERS, label: 'Usuarios', icon: Users },
   { to: ROUTES.SETTINGS_WHATSAPP, label: 'WhatsApp', icon: MessageCircle },
-  { to: ROUTES.SETTINGS_CATALOGS_ROLES, label: 'Roles', icon: Shield },
 ] as const
 
 type NavLink = { to: string; label: string; icon: LucideIcon }
 
 function resolveSettingsValue(pathname: string, links: readonly NavLink[]): string {
-  if (pathname.startsWith('/settings/catalogs')) {
-    return ROUTES.SETTINGS_CATALOGS_ROLES
-  }
   const match = links.find(
     (link) => pathname === link.to || pathname.startsWith(`${link.to}/`)
   )

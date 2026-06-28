@@ -20,9 +20,13 @@ import type { TipoAccion } from '@/features/operations/utils/tipoAccionConfig'
 const TABLE = 'acciones_diarias'
 const ACCION_COLUMNS = [
   'id',
+  'no_actividad',
   'fecha',
+  'fecha_inicio',
   'titulo_accion',
   'descripcion_accion',
+  'instrucciones_especificas',
+  'objetivo',
   'responsable',
   'created_by',
   'updated_by',
@@ -86,7 +90,7 @@ function markPrioridadIdUnavailable(error: { code?: string; message?: string } |
 }
 
 function isDoneEstado(s: ActionStatus): boolean {
-  return s === 'Hecho' || s === 'Verificado'
+  return s === 'Completada'
 }
 
 async function resolveCurrentUsuarioId(): Promise<string | null> {
@@ -113,8 +117,6 @@ async function maybeInsertGapActionLog(prev: AccionDiaria, updated: AccionDiaria
   let eventType: 'action_completed' | 'action_verified' | null = null
   if (!isDoneEstado(prev.estado) && isDoneEstado(next)) {
     eventType = 'action_completed'
-  } else if (prev.estado === 'Hecho' && next === 'Verificado') {
-    eventType = 'action_verified'
   }
   if (!eventType) return
 
@@ -244,8 +246,8 @@ function buildAccionesListQuery(filter: AccionesFilter = {}) {
       ? filter.estado
       : [filter.estado]
     : []
-  const onlyRetraso = estadoFilter.length === 1 && estadoFilter[0] === 'Retraso'
-  if (estadoFilter.length > 0 && !onlyRetraso) {
+  const onlyRetrasa = estadoFilter.length === 1 && estadoFilter[0] === 'Retrasa'
+  if (estadoFilter.length > 0 && !onlyRetrasa) {
     q = q.in('estado', estadoFilter)
   }
   if (filter.excluir_estados?.length) {
@@ -269,10 +271,10 @@ function buildAccionesListQuery(filter: AccionesFilter = {}) {
   if (filter.search?.trim()) {
     const term = escapePostgrestLikeTerm(filter.search.trim())
     q = q.or(
-      `titulo_accion.ilike.%${term}%,descripcion_accion.ilike.%${term}%,evidencia_esperada.ilike.%${term}%`
+      `no_actividad.ilike.%${term}%,titulo_accion.ilike.%${term}%,descripcion_accion.ilike.%${term}%,instrucciones_especificas.ilike.%${term}%,objetivo.ilike.%${term}%,evidencia_esperada.ilike.%${term}%`
     )
   }
-  return { query: q.order('hora_limite', { ascending: true }), onlyRetraso }
+  return { query: q.order('hora_limite', { ascending: true }), onlyRetraso: onlyRetrasa }
 }
 
 export const accionesService = {
@@ -302,7 +304,7 @@ export const accionesService = {
     if (error) throw error
     let list = (data ?? []) as unknown as AccionDiaria[]
     if (onlyRetraso) {
-      list = list.filter((a) => a.estado === 'Retraso' || isEnRetraso(a))
+      list = list.filter((a) => a.estado === 'Retrasa' || isEnRetraso(a))
     }
     return syncEstadosPorFechaCompromiso(list)
   },
@@ -408,7 +410,7 @@ export const accionesService = {
       }
     }
 
-    if (nextEstado === 'Hecho' && prev && nextEstado !== prev.estado) {
+    if (nextEstado === 'Completada' && prev && nextEstado !== prev.estado) {
       const preClosePayload = { ...cleanPayload }
       delete preClosePayload.estado
 

@@ -78,13 +78,10 @@ function KanbanToolbarField({
 }
 
 const ESTADO_LABELS: Record<string, string> = {
-  Pendiente: 'Pendiente',
-  Hoy: 'Hoy',
-  En_Ejecucion: 'En ejecución',
-  Bloqueado: 'Bloqueado',
-  Retraso: 'Retraso',
-  Hecho: 'Hecho',
-  Verificado: 'Verificado',
+  En_Pausa: 'En pausa',
+  En_Proceso: 'En proceso',
+  Completada: 'Completada',
+  Retrasa: 'Retrasa',
 }
 
 const ESTADO_OPTIONS: { value: string; label: string }[] = [

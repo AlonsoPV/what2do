@@ -1,12 +1,11 @@
 /**
  * Schema Zod para crear/editar acción diaria (spec §5.1).
- * Descripción en tres partes (Cómo / Quiero / Para qué) → una sola columna `descripcion_accion`.
+ * Instrucciones en un solo campo: `instrucciones_especificas`.
  */
 
 import { z } from 'zod'
 import { ACTION_STATUS } from '@/types'
 import { DEFAULT_PRIORITY_NOMBRE } from '../utils/priorityLabels'
-import { formatDescripcionTriada } from '../utils/descripcionAccionTriada'
 import { STORY_POINTS_OPTIONS } from '../utils/tipoAccionConfig'
 
 const TIPO_ACCION_ENUM = z.enum(['operativa', 'sprint', 'estrategica', 'desbloqueo'])
@@ -15,18 +14,6 @@ const tituloAccionSchema = z
   .string()
   .transform((s) => (s ?? '').trim())
   .pipe(z.string().max(70, 'Máximo 70 caracteres'))
-
-/** Cada respuesta de la triada (5–400 caracteres). */
-const descripcionParteSchema = z
-  .string()
-  .min(1, 'Este campo es obligatorio')
-  .transform((s) => s.trim())
-  .pipe(
-    z
-      .string()
-      .min(5, 'Mínimo 5 caracteres')
-      .max(400, 'Máximo 400 caracteres')
-  )
 
 const evidenciaEsperadaSchema = z
   .string()
@@ -46,17 +33,26 @@ const horaSchema = z
     { message: 'Hora inválida' }
   )
 
-const DESCRIPCION_SIMPLE_MIN = 15
+const INSTRUCCIONES_MIN = 15
+
+const instruccionesSchema = z
+  .string()
+  .min(1, 'Las instrucciones específicas son obligatorias')
+  .transform((s) => s.trim())
+  .pipe(
+    z
+      .string()
+      .min(INSTRUCCIONES_MIN, `Mínimo ${INSTRUCCIONES_MIN} caracteres`)
+      .max(1200, 'Máximo 1200 caracteres')
+  )
 
 const accionInputShape = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha YYYY-MM-DD').optional(),
+  fecha_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha YYYY-MM-DD').nullable().optional(),
+  no_actividad: z.string().trim().max(40, 'Máximo 40 caracteres').nullable().optional(),
   titulo_accion: tituloAccionSchema,
-  /** Modo de captura: una sola caja o triada estructurada. */
-  descripcion_modo: z.enum(['simple', 'estructurada']).default('simple'),
-  descripcion_simple: z.string().optional(),
-  descripcion_como: z.string().optional(),
-  descripcion_quiero: z.string().optional(),
-  descripcion_para_que: z.string().optional(),
+  instrucciones_especificas: instruccionesSchema,
+  objetivo: z.string().trim().max(700, 'Máximo 700 caracteres').nullable().optional(),
   responsable: z.string().uuid('Responsable obligatorio'),
   hora_limite: horaSchema,
   evidencia_esperada: evidenciaEsperadaSchema,
@@ -68,9 +64,7 @@ const accionInputShape = z.object({
     .optional()
     .default(DEFAULT_PRIORITY_NOMBRE),
   kpi_afectado: z.string().uuid().nullable().optional(),
-  /** Brechas O2C impactadas (tabla puente + columna primaria = primer id). */
   gap_ids: z.array(z.string().uuid()).max(50).optional().default([]),
-  /** KPIs de catálogo impactados (tabla puente + columna primaria = primer id). */
   catalog_kpi_ids: z.array(z.string().uuid()).max(50).optional().default([]),
   okr_impactado: z.string().uuid().nullable().optional(),
   proceso: z.string().uuid().nullable().optional(),
@@ -104,57 +98,17 @@ const accionInputShape = z.object({
       message: 'Selecciona quien debe desbloquear esta accion.',
     })
   }
-  if (value.descripcion_modo === 'estructurada') {
-    for (const [field, path] of [
-      ['descripcion_como', 'descripcion_como'],
-      ['descripcion_quiero', 'descripcion_quiero'],
-      ['descripcion_para_que', 'descripcion_para_que'],
-    ] as const) {
-      const parsed = descripcionParteSchema.safeParse(value[field] ?? '')
-      if (!parsed.success) {
-        const msg = parsed.error.issues[0]?.message ?? 'Este campo es obligatorio'
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message: msg })
-      }
-    }
-  } else {
-    const s = (value.descripcion_simple ?? '').trim()
-    if (s.length < DESCRIPCION_SIMPLE_MIN) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['descripcion_simple'],
-        message: `Mínimo ${DESCRIPCION_SIMPLE_MIN} caracteres para describir la acción.`,
-      })
-    }
-  }
 })
 
 export const accionCreateSchema = accionInputShape.transform(
-  ({
-    descripcion_modo,
-    descripcion_simple,
-    descripcion_como,
-    descripcion_quiero,
-    descripcion_para_que,
-    gap_ids,
-    catalog_kpi_ids,
-    ...rest
-  }) => {
+  ({ gap_ids, catalog_kpi_ids, instrucciones_especificas, ...rest }) => {
     const gids = gap_ids ?? []
     const kids = catalog_kpi_ids ?? []
-    let como: string
-    let quiero: string
-    let para: string
-    if (descripcion_modo === 'estructurada') {
-      como = (descripcion_como ?? '').trim()
-      quiero = (descripcion_quiero ?? '').trim()
-      para = (descripcion_para_que ?? '').trim()
-    } else {
-      const s = (descripcion_simple ?? '').trim()
-      como = quiero = para = s
-    }
+    const instrucciones = instrucciones_especificas.trim()
     return {
       ...rest,
-      descripcion_accion: formatDescripcionTriada(como, quiero, para),
+      instrucciones_especificas: instrucciones,
+      descripcion_accion: instrucciones,
       gap_ids: gids,
       catalog_kpi_ids: kids,
       gap_id: gids[0] ?? null,
@@ -163,21 +117,19 @@ export const accionCreateSchema = accionInputShape.transform(
   }
 )
 
-/** Valores del formulario antes del transform (tres preguntas). */
 export type AccionFormInput = z.input<typeof accionCreateSchema>
 
-/** Payload tras validar (incluye `descripcion_accion` unificado). */
 export type AccionCreateInput = z.output<typeof accionCreateSchema>
 
 export const accionUpdateSchema = z
   .object({
     fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha YYYY-MM-DD').optional(),
+    fecha_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha YYYY-MM-DD').nullable().optional(),
+    no_actividad: z.string().trim().max(40).nullable().optional(),
     titulo_accion: tituloAccionSchema.optional(),
-    descripcion_accion: z
-      .string()
-      .min(15, 'Mínimo 15 caracteres')
-      .max(1300, 'Máximo 1300 caracteres')
-      .optional(),
+    instrucciones_especificas: z.string().trim().min(INSTRUCCIONES_MIN).max(1200).optional(),
+    objetivo: z.string().trim().max(700).nullable().optional(),
+    descripcion_accion: z.string().min(INSTRUCCIONES_MIN).max(1300).optional(),
     responsable: z.string().uuid().optional(),
     hora_limite: horaSchema.optional(),
     evidencia_esperada: z.string().min(5).max(500).optional(),

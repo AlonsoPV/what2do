@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Columns3, Calendar, BookOpen, X, type LucideIcon } from 'lucide-react'
+import {
+  Columns3,
+  ClipboardList,
+  FolderOpen,
+  LayoutDashboard,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ROUTES, APP_NAME } from '@/constants'
 import { useAppStore } from '@/store'
@@ -12,13 +19,19 @@ type NavItem = {
   to: string
   label: string
   icon: LucideIcon
+  isActive?: (pathname: string) => boolean
 }
 
-/** Navegación visible en el tablero (módulos ocultos se controlan en permissions). */
 const navItems: NavItem[] = [
+  { to: ROUTES.DASHBOARD, label: 'Dashboard', icon: LayoutDashboard },
   { to: ROUTES.KANBAN, label: 'Kanban', icon: Columns3 },
-  { to: ROUTES.CALENDARIO, label: 'Calendario', icon: Calendar },
-  { to: ROUTES.MANUAL, label: 'Manual', icon: BookOpen },
+  { to: ROUTES.TASKPOOL, label: 'Taskpool', icon: ClipboardList },
+  {
+    to: ROUTES.DIRECTORIOS_USUARIOS,
+    label: 'Directorios',
+    icon: FolderOpen,
+    isActive: (pathname) => pathname.startsWith(ROUTES.DIRECTORIOS),
+  },
 ]
 
 const MOBILE_MQ = '(max-width: 1023px)'
@@ -27,12 +40,18 @@ function isMobileViewport() {
   return typeof window !== 'undefined' && window.matchMedia(MOBILE_MQ).matches
 }
 
+function isNavItemActive(pathname: string, item: NavItem): boolean {
+  if (item.isActive) return item.isActive(pathname)
+  return pathname === item.to || pathname.startsWith(`${item.to}/`)
+}
+
 export function Sidebar() {
   const location = useLocation()
   const sidebarOpen = useAppStore((s) => s.sidebarOpen)
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
   const { data: currentUser } = useCurrentUser()
+
   const visibleNavItems = navItems.filter((item) => canAccessRouteByRole(currentUser?.rol, item.to))
 
   useLayoutEffect(() => {
@@ -70,7 +89,7 @@ export function Sidebar() {
   ) => {
     const { showLabels, mobile, onActivate } = opts
     const { to, label, icon: Icon } = item
-    const isActive = location.pathname === to
+    const isActive = isNavItemActive(location.pathname, item)
     return (
       <Link
         key={to}
@@ -138,7 +157,9 @@ export function Sidebar() {
             className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain p-3 pb-8"
             aria-label="Enlaces de la aplicación"
           >
-            {visibleNavItems.map((item) => renderNavLink(item, { showLabels: true, mobile: true, onActivate: closeMobileMenu }))}
+            {visibleNavItems.map((item) =>
+              renderNavLink(item, { showLabels: true, mobile: true, onActivate: closeMobileMenu })
+            )}
           </nav>
         </div>
       ) : null}

@@ -14,22 +14,27 @@ describe('role route permissions', () => {
 
     expect(isDirectionByRole(role)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.KANBAN)).toBe(true)
-    expect(canAccessRouteByRole(role, ROUTES.CALENDARIO)).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.CALENDARIO)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.MANUAL)).toBe(false)
     expect(canAccessRouteByRole(role, ROUTES.NOTIFICACIONES)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_PROFILE)).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.DIRECTORIOS_USUARIOS)).toBe(true)
+    expect(canAccessRouteByRole(role, '/directorios/usuarios/example-id')).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.DIRECTORIOS_ROLES)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_USERS)).toBe(true)
     expect(canAccessRouteByRole(role, '/settings/users/example-id')).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_ROLES)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_KPIS)).toBe(false)
-    expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_AREAS)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.DIRECTORIOS_AREAS)).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.SETTINGS_CATALOGS_AREAS)).toBe(true)
+    expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(true)
     expect(usesOperationalDashboardByRole(role)).toBe(true)
   })
 
   it('keeps Direccion out of hidden and non-analyst operational modules', () => {
     const role = 'Direccion'
 
-    expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(false)
     expect(canAccessRouteByRole(role, ROUTES.DASHBOARD_KPIS)).toBe(false)
     expect(canAccessRouteByRole(role, ROUTES.REPORTES)).toBe(false)
     expect(canAccessRouteByRole(role, ROUTES.DISCIPLINA)).toBe(false)
@@ -47,7 +52,7 @@ describe('role route permissions', () => {
   it('treats extended operative catalog names as operative roles', () => {
     const role = 'Operativo O2C'
 
-    expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.KANBAN)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.SETTINGS_USERS)).toBe(false)
     expect(usesOperationalDashboardByRole(role)).toBe(true)
@@ -58,7 +63,7 @@ describe('role route permissions', () => {
     const role = 'Analista'
 
     expect(canAccessRouteByRole(role, ROUTES.KANBAN)).toBe(true)
-    expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(false)
+    expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(true)
     expect(canAccessRouteByRole(role, ROUTES.DISCIPLINA)).toBe(false)
     expect(canAccessRouteByRole(role, ROUTES.CALENDARIO)).toBe(false)
     expect(canAccessRouteByRole(role, ROUTES.TICKETS)).toBe(false)
@@ -69,7 +74,7 @@ describe('role route permissions', () => {
 
   it('hides operational analytics modules for all roles', () => {
     for (const role of ['DG', 'Sistemas', 'super_admin', 'Operativo', 'Direccion'] as const) {
-      expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(false)
+      expect(canAccessRouteByRole(role, ROUTES.DASHBOARD)).toBe(true)
       expect(canAccessRouteByRole(role, ROUTES.DASHBOARD_KPIS)).toBe(false)
       expect(canAccessRouteByRole(role, ROUTES.DASHBOARD_GAPS)).toBe(false)
       expect(canAccessRouteByRole(role, ROUTES.DASHBOARD_IMPACTO)).toBe(false)

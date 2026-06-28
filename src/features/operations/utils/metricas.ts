@@ -15,11 +15,9 @@ export interface MetricasAcciones {
 
 export function metricasFromAcciones(acciones: AccionDiaria[]): MetricasAcciones {
   const total = acciones.length
-  const completadas = acciones.filter((a) =>
-    a.estado === 'Hecho' || a.estado === 'Verificado'
-  ).length
-  const bloqueadas = acciones.filter((a) => a.estado === 'Bloqueado').length
-  const retraso = acciones.filter((a) => a.estado === 'Retraso' || isEnRetraso(a)).length
+  const completadas = acciones.filter((a) => a.estado === 'Completada').length
+  const bloqueadas = acciones.filter((a) => a.estado === 'En_Pausa').length
+  const retraso = acciones.filter((a) => a.estado === 'Retrasa' || isEnRetraso(a)).length
   const eficienciaPorcentaje = total > 0 ? Math.round((completadas / total) * 100) : 0
 
   return {

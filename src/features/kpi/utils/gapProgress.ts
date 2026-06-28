@@ -7,7 +7,7 @@ export function accionStoryPoints(a: AccionDiaria): number {
 }
 
 export function isAccionEstadoDone(estado: ActionStatus): boolean {
-  return estado === 'Hecho' || estado === 'Verificado'
+  return estado === 'Completada'
 }
 
 /**

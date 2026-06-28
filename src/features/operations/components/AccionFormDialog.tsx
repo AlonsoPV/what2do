@@ -47,7 +47,7 @@ import { accionCheckpointsService } from '@/services/accionCheckpoints.service'
 import type { AccionCheckpoint, AccionDiaria, ActionStatus } from '@/types'
 import { DEFAULT_PRIORITY_NOMBRE } from '../utils/priorityLabels'
 import type { AccionCreateInput, AccionFormInput } from '../schemas/accion.schema'
-import { flattenDescripcionForForm } from '../utils/descripcionAccionTriada'
+import { resolveInstruccionesFromAccion } from '../utils/descripcionAccionTriada'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Download, ExternalLink, Paperclip, FileText, Image, Send, Trash2 } from 'lucide-react'
@@ -83,6 +83,8 @@ import {
   resolveAccionPrioridadId,
   resolveAccionPrioridadNombre,
 } from '../utils/resolveAccionPrioridad'
+
+const CHECKLIST_UI_ENABLED = false
 
 /** Fecha de hoy en YYYY-MM-DD (calendario CDMX, no UTC). */
 function todayISO(): string {
@@ -120,8 +122,8 @@ export function AccionFormDialog({
   const accionLive = accionFreshQuery.data ?? accion ?? null
   const { data: priorities = [] } = usePriorities()
   const canDeleteAccion = isEdit && isSuperAdminByRole(currentUser?.rol)
-  const isEditProtectedReadonly = isEdit
   const isAnalyst = isAnalystByRole(currentUser?.rol)
+  const isEditProtectedReadonly = isEdit && isAnalyst
   const isActionCreator = !!accionLive?.created_by && accionLive.created_by === currentUser?.id
   const canManageChecklistStructure = isActionCreator
   // La autorizacion final del checklist vive en Supabase. El cliente solo evita
@@ -244,7 +246,7 @@ export function AccionFormDialog({
     return {
       titulo: input.titulo ?? 'Te asignaron como responsable',
       titulo_accion: input.tituloAccion.trim() || undefined,
-      descripcion_accion: flattenDescripcionForForm(input.descripcionAccion ?? '').trim().slice(0, 900) || undefined,
+      descripcion_accion: (input.descripcionAccion ?? '').trim().slice(0, 900) || undefined,
       responsable_id: input.responsableId ?? null,
       responsable_nombre: responsableNombre || undefined,
       fecha_compromiso: fechaCompromiso || undefined,
@@ -376,12 +378,11 @@ export function AccionFormDialog({
     if (!accionLive) {
       return {
         fecha: defaultFecha ?? todayISO(),
+        fecha_inicio: defaultFecha ?? todayISO(),
+        no_actividad: '',
         titulo_accion: '',
-        descripcion_modo: 'simple',
-        descripcion_simple: '',
-        descripcion_como: '',
-        descripcion_quiero: '',
-        descripcion_para_que: '',
+        instrucciones_especificas: '',
+        objetivo: '',
         hora_limite: '17:00',
         prioridad: undefined,
         gap_ids: [],
@@ -399,12 +400,11 @@ export function AccionFormDialog({
     const prioridadResuelta = resolveAccionPrioridadNombre(accionLive, priorities)
     return {
       fecha: accionLive.fecha,
+      fecha_inicio: accionLive.fecha_inicio ?? accionLive.created_at?.slice(0, 10) ?? accionLive.fecha,
+      no_actividad: accionLive.no_actividad ?? '',
       titulo_accion: accionLive.titulo_accion ?? '',
-      descripcion_modo: 'simple',
-      descripcion_simple: flattenDescripcionForForm(accionLive.descripcion_accion ?? ''),
-      descripcion_como: '',
-      descripcion_quiero: '',
-      descripcion_para_que: '',
+      instrucciones_especificas: resolveInstruccionesFromAccion(accionLive),
+      objetivo: accionLive.objetivo ?? '',
       responsable: accionLive.responsable,
       hora_limite: accionLive.hora_limite?.slice(0, 5) ?? '17:00',
       evidencia_esperada: accionLive.evidencia_esperada,
@@ -451,19 +451,26 @@ export function AccionFormDialog({
     const prioridad_id =
       priorities.find((p) => p.nombre === prioridad)?.id ??
       (accionLive ? resolveAccionPrioridadId(accionLive, priorities) : null)
-    const estado = (values.estado ?? 'Pendiente') as ActionStatus
+    const estado = (values.estado ?? 'En_Pausa') as ActionStatus
+    const instrucciones = (values.instrucciones_especificas ?? '').trim()
     const payload: Partial<AccionDiaria> =
       isEditProtectedReadonly && accionLive
         ? {
-            descripcion_accion: values.descripcion_accion,
+            descripcion_accion: instrucciones,
+            instrucciones_especificas: instrucciones || null,
+            objetivo: values.objetivo ?? null,
             prioridad,
             prioridad_id,
             updated_by: currentUser?.id ?? null,
           }
         : {
+            no_actividad: values.no_actividad?.trim() || null,
             fecha,
+            fecha_inicio: values.fecha_inicio ?? null,
             titulo_accion: (values.titulo_accion ?? '').trim().slice(0, 70),
-            descripcion_accion: values.descripcion_accion,
+            instrucciones_especificas: instrucciones || null,
+            objetivo: values.objetivo?.trim() || null,
+            descripcion_accion: instrucciones,
             responsable: values.responsable,
             hora_limite: values.hora_limite,
             evidencia_esperada: values.evidencia_esperada,
@@ -492,7 +499,7 @@ export function AccionFormDialog({
             if (cambiaResponsable && nuevoResponsable) {
               void notifyResponsable(nuevoResponsable, accionLive.id, {
                 titulo_accion: payload.titulo_accion ?? accionLive.titulo_accion ?? '',
-                descripcion_accion: payload.descripcion_accion ?? accionLive.descripcion_accion ?? '',
+                descripcion_accion: payload.descripcion_accion ?? instrucciones,
                 creador_id: accionLive.created_by ?? null,
                 creador_nombre: userNameById(accionLive.created_by),
                 fecha: payload.fecha ?? accionLive.fecha,
@@ -591,7 +598,7 @@ export function AccionFormDialog({
             deferredOps.push(
               notifyResponsable(responsable, createdId, {
                 titulo_accion: payload.titulo_accion ?? '',
-                descripcion_accion: payload.descripcion_accion ?? '',
+                descripcion_accion: payload.descripcion_accion ?? instrucciones,
                 creador_id: currentUser?.id ?? null,
                 creador_nombre: currentUser?.nombre ?? null,
                 fecha: payload.fecha ?? null,
@@ -741,13 +748,15 @@ export function AccionFormDialog({
             validationExtras={
               !isEdit ? (
                 <>
-                  <div id={`${formBaseId}-checklist-draft`}>
-                    <AccionChecklistEditor
-                      items={checklistDrafts}
-                      onChange={setChecklistDrafts}
-                      disabled={createAccion.isPending}
-                    />
-                  </div>
+                  {CHECKLIST_UI_ENABLED ? (
+                    <div id={`${formBaseId}-checklist-draft`}>
+                      <AccionChecklistEditor
+                        items={checklistDrafts}
+                        onChange={setChecklistDrafts}
+                        disabled={createAccion.isPending}
+                      />
+                    </div>
+                  ) : null}
                   <AccionFormSection
                     sectionId={`${formBaseId}-evidencia-adjunta`}
                     icon={Paperclip}
@@ -864,23 +873,25 @@ export function AccionFormDialog({
           />
         {isEdit && accion && (
           <div className="accion-form-dialog-edit-extras mt-4 space-y-4 sm:mt-6 sm:space-y-5">
-            <div
-              id={`${formBaseId}-checklist-manage`}
-              className="accion-form-dialog-checklist-manage border-t border-border/60 pt-4 sm:pt-5"
-            >
-              <AccionChecklistManage
-                accionId={accion.id}
-                currentUsuarioId={currentUser?.id ?? null}
-                disabled={updateAccion.isPending}
-                readOnly={!canAttemptChecklistContribution && !canManageChecklistStructure}
-                canEditStructure={canManageChecklistStructure}
-                canAddPoint={canAttemptChecklistContribution}
-                canToggle={canAttemptChecklistContribution}
-                responsableNames={responsableNames}
-                onSendWhatsAppFollowup={handleSendCheckpointWhatsApp}
-                whatsAppFollowupPendingId={whatsAppFollowupPendingId}
-              />
-            </div>
+            {CHECKLIST_UI_ENABLED ? (
+              <div
+                id={`${formBaseId}-checklist-manage`}
+                className="accion-form-dialog-checklist-manage border-t border-border/60 pt-4 sm:pt-5"
+              >
+                <AccionChecklistManage
+                  accionId={accion.id}
+                  currentUsuarioId={currentUser?.id ?? null}
+                  disabled={updateAccion.isPending}
+                  readOnly={!canAttemptChecklistContribution && !canManageChecklistStructure}
+                  canEditStructure={canManageChecklistStructure}
+                  canAddPoint={canAttemptChecklistContribution}
+                  canToggle={canAttemptChecklistContribution}
+                  responsableNames={responsableNames}
+                  onSendWhatsAppFollowup={handleSendCheckpointWhatsApp}
+                  whatsAppFollowupPendingId={whatsAppFollowupPendingId}
+                />
+              </div>
+            ) : null}
             <div
               id={`${formBaseId}-evidencias-section`}
               className="accion-form-dialog-evidencias border-t border-border/60 pt-4 sm:pt-5"
@@ -891,7 +902,7 @@ export function AccionFormDialog({
               <AccionComentarios
                 accionId={accion.id}
                 tituloAccion={accion.titulo_accion ?? ''}
-                descripcionAccion={accion.descripcion_accion ?? ''}
+                descripcionAccion={resolveInstruccionesFromAccion(accion)}
                 creadorId={accion.created_by}
                 creadorNombre={userNameById(accion.created_by)}
                 responsableId={accion.responsable}

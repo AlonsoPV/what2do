@@ -23,23 +23,15 @@ import { todayWallClockCDMX } from '@/lib/dateUtils'
 import type { AccionDiaria, ActionStatus } from '@/types'
 import type { AccionComentario } from '@/types/accionComentario'
 
-const ACCION_ESTADO_LABEL: Record<ActionStatus, string> = {
-  Pendiente: 'Pendiente',
-  Hoy: 'Hoy',
-  En_Ejecucion: 'En ejecución',
-  Bloqueado: 'Bloqueado',
-  Retraso: 'Retraso',
-  Hecho: 'Hecho',
-  Verificado: 'Verificado',
-}
+import { accionEstadoLabel } from '@/features/operations/utils/accionEstadoDisplay'
 
 function accionExecMetrics(list: AccionDiaria[]) {
   let enCurso = 0
   let cerradas = 0
   let bloqueadas = 0
   for (const a of list) {
-    const done = a.estado === 'Hecho' || a.estado === 'Verificado'
-    if (a.estado === 'Bloqueado') bloqueadas++
+    const done = a.estado === 'Completada'
+    if (a.estado === 'En_Pausa') bloqueadas++
     if (!done) enCurso++
     else cerradas++
   }
@@ -47,7 +39,7 @@ function accionExecMetrics(list: AccionDiaria[]) {
 }
 
 function sortForDisplay(list: AccionDiaria[]) {
-  const pendientePrimero = (e: ActionStatus) => (e === 'Hecho' || e === 'Verificado' ? 1 : 0)
+  const pendientePrimero = (e: ActionStatus) => (e === 'Completada' ? 1 : 0)
   return [...list].sort(
     (a, b) => pendientePrimero(a.estado) - pendientePrimero(b.estado) || a.titulo_accion.localeCompare(b.titulo_accion)
   )
@@ -62,13 +54,13 @@ function uniqueById(list: AccionDiaria[]): AccionDiaria[] {
 }
 
 function estadoBadgeClasses(estado: ActionStatus) {
-  if (estado === 'Hecho' || estado === 'Verificado') {
+  if (estado === 'Completada') {
     return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100'
   }
-  if (estado === 'Bloqueado' || estado === 'Retraso') {
+  if (estado === 'Retrasa') {
     return 'border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-100'
   }
-  if (estado === 'En_Ejecucion') {
+  if (estado === 'En_Proceso') {
     return 'border-blue-500/30 bg-blue-500/10 text-blue-950 dark:text-blue-100'
   }
   return 'border-border/60 bg-muted/50 text-foreground'
@@ -144,7 +136,7 @@ function KpiChip({
 }
 
 function AccionEnlaceRow({ accion, fechaRef }: { accion: AccionDiaria; fechaRef: string }) {
-  const done = accion.estado === 'Hecho' || accion.estado === 'Verificado'
+  const done = accion.estado === 'Completada'
   const riesgoEvidencia = done && !accion.evidencia_cargada
   const to = `${ROUTES.KANBAN}?accion=${encodeURIComponent(accion.id)}&fecha=${encodeURIComponent(fechaRef)}`
 
@@ -168,7 +160,7 @@ function AccionEnlaceRow({ accion, fechaRef }: { accion: AccionDiaria; fechaRef:
               estadoBadgeClasses(accion.estado)
             )}
           >
-            {ACCION_ESTADO_LABEL[accion.estado]}
+            {accionEstadoLabel(accion.estado)}
           </span>
           {accion.hora_limite ? (
             <span className="text-[10px] tabular-nums text-muted-foreground">Límite {accion.hora_limite}</span>

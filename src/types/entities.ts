@@ -24,10 +24,16 @@ export interface Usuario {
 
 export interface AccionDiaria {
   id: string
+  /** Consecutivo o folio visible para seguimiento tipo taskpool. */
+  no_actividad?: string | null
   fecha: string // date YYYY-MM-DD
+  /** Fecha de inicio para seguimiento tipo taskpool. */
+  fecha_inicio?: string | null
   /** Título breve (máx. 70 caracteres); se muestra en vista colapsada. */
   titulo_accion: string
   descripcion_accion: string
+  instrucciones_especificas?: string | null
+  objetivo?: string | null
   responsable: string // FK usuarios.id (assigned_to)
   created_by?: string | null // FK usuarios.id (quién creó)
   updated_by?: string | null // FK usuarios.id (quién modificó)

@@ -492,12 +492,12 @@ async function applyCheckpointResponse(
 
   let nextEstado =
     response === 'support'
-      ? 'Bloqueado'
-      : response === 'progress' && accion.estado === 'Bloqueado'
-        ? 'Bloqueado'
-        : 'En_Ejecucion'
+      ? 'En_Pausa'
+      : response === 'progress' && accion.estado === 'En_Pausa'
+        ? 'En_Pausa'
+        : 'En_Proceso'
 
-  if (response === 'done' && accion.estado !== 'Verificado') {
+  if (response === 'done' && accion.estado !== 'Completada') {
     const { count, error: pendingError } = await client
       .from('accion_checkpoints')
       .select('id', { count: 'exact', head: true })
@@ -507,7 +507,7 @@ async function applyCheckpointResponse(
     if (pendingError) {
       console.error('No se pudo contar checklist pendiente por WhatsApp:', pendingError)
     } else if ((count ?? 0) === 0) {
-      nextEstado = 'Hecho'
+      nextEstado = 'Completada'
     }
   }
 

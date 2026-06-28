@@ -9,17 +9,13 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   useAcciones,
   useAccion,
-  useCommentCounts,
   useChecklistProgressByAccionIds,
   KanbanBoard,
   KanbanHeader,
   KanbanToolbar,
   hasKanbanActiveFilters,
-  AccionesControlTable,
   AccionFormDialog,
-  KanbanNextDeadline,
 } from '@/features/operations'
-import type { KanbanViewMode } from '@/features/operations'
 import { useUsers } from '@/features/users/hooks/useUsers'
 import {
   dropdownOptionsByCatalogKeyQueryKey,
@@ -28,7 +24,6 @@ import {
 import type { AccionDiaria, ActionStatus } from '@/types'
 import type { AccionesFilter } from '@/services/acciones.service'
 import { todayWallClockCDMX } from '@/lib/dateUtils'
-import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
 import { useGapAccionesForGapIds } from '@/features/kpi/hooks/useGapAccionesForGapIds'
 import { useGap } from '@/features/kpi/hooks/useGaps'
 import { useCurrentUser } from '@/features/users/hooks/useCurrentUser'
@@ -50,7 +45,6 @@ export function KanbanPage() {
 
   const [filter, setFilter] = useState<AccionesFilter>(() => ({}))
   const [filtersExpanded, setFiltersExpanded] = useState(false)
-  const [viewMode, setViewMode] = useState<KanbanViewMode>('kanban')
   const filterForQuery = useMemo(
     () => (isAnalyst && currentUser?.id ? { ...filter, responsable: currentUser.id } : { ...filter }),
     [currentUser?.id, filter, isAnalyst]
@@ -80,7 +74,6 @@ export function KanbanPage() {
 
   const accionIds = useMemo(() => accionesDisplay.map((a) => a.id), [accionesDisplay])
   const { data: checklistProgressByAccionId = {} } = useChecklistProgressByAccionIds(accionIds)
-  const { data: commentCounts = {} } = useCommentCounts(accionesDisplay.map((a) => a.id))
   const { data: users = [] } = useUsers({ activo: true })
   const [editingAccion, setEditingAccion] = useState<AccionDiaria | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -142,19 +135,6 @@ export function KanbanPage() {
     return map
   }, [users])
 
-  const nextDeadline = useMemo(() => {
-    const pending = accionesDisplay.filter(
-      (a) => a.estado !== 'Hecho' && a.estado !== 'Verificado'
-    )
-    if (pending.length === 0) return null
-    const sorted = [...pending].sort((a, b) => {
-      const da = new Date(`${a.fecha}T${a.hora_limite}`).getTime()
-      const db = new Date(`${b.fecha}T${b.hora_limite}`).getTime()
-      return da - db
-    })
-    return sorted[0]
-  }, [accionesDisplay])
-
   const filterEstadoSingle = useMemo((): ActionStatus | undefined => {
     if (filter.estado != null && !Array.isArray(filter.estado)) return filter.estado
     if (Array.isArray(filter.estado) && filter.estado.length === 1) return filter.estado[0]
@@ -179,13 +159,6 @@ export function KanbanPage() {
     setDialogOpen(true)
   }, [prefetchEvidenceCatalog])
 
-  const handleNewAction = useCallback(() => {
-    if (isAnalyst) return
-    void prefetchEvidenceCatalog()
-    setEditingAccion(null)
-    setDialogOpen(true)
-  }, [isAnalyst, prefetchEvidenceCatalog])
-
   const handleDialogClose = useCallback(() => {
     setEditingAccion(null)
     setDialogOpen(false)
@@ -200,18 +173,6 @@ export function KanbanPage() {
         filtersExpanded={filtersExpanded}
         onToggleFilters={isAnalyst ? undefined : () => setFiltersExpanded((v) => !v)}
         hasActiveFilters={hasActiveFilters}
-        onNewAction={isAnalyst ? undefined : handleNewAction}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        rightOfTitle={
-          nextDeadline ? (
-            <KanbanNextDeadline
-              accion={nextDeadline}
-              responsableName={responsableNames[nextDeadline.responsable]}
-              onOpenAccion={() => handleSelectAccion(nextDeadline)}
-            />
-          ) : null
-        }
       />
 
       {gapIdFromUrl ? (
@@ -267,7 +228,7 @@ export function KanbanPage() {
               Reintentar
             </button>
           </div>
-        ) : viewMode === 'kanban' ? (
+        ) : (
           <div className="-mx-3 min-w-0 sm:mx-0">
             <KanbanBoard
               acciones={accionesDisplay}
@@ -275,33 +236,10 @@ export function KanbanPage() {
               responsableNames={responsableNames}
               checklistProgressByAccionId={checklistProgressByAccionId}
               onSelectAccion={handleSelectAccion}
-              onNewAction={isAnalyst ? undefined : handleNewAction}
               filterEstado={filterEstadoSingle}
               narrowToOccupiedColumns={narrowKanbanToOccupiedColumns}
             />
           </div>
-        ) : (
-          <SectionCard className="kanban-grid-view overflow-hidden">
-            <SectionCardHeader
-              title="Vista en lista"
-              subtitle="Clic en una fila para editar la acción."
-              action={
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  <span className="font-semibold text-foreground">{accionesDisplay.length}</span> acciones
-                </span>
-              }
-            />
-            <SectionCardBody className="p-0">
-              <AccionesControlTable
-                acciones={accionesDisplay}
-                isLoading={listLoading}
-                commentCounts={commentCounts}
-                onSelectAccion={handleSelectAccion}
-                responsableNames={responsableNames}
-                checklistProgressByAccionId={checklistProgressByAccionId}
-              />
-            </SectionCardBody>
-          </SectionCard>
         )}
       </section>
 

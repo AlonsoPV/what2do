@@ -6,27 +6,26 @@
 import type { AccionDiaria } from '@/types'
 import type { ActionStatus } from '@/types'
 
-/** Mensaje si no puede pasar a Hecho (UI + alineado con validación servidor). */
-export const MSJ_PERMISO_HECHO =
-  'Solo la persona creadora de la acción o el responsable asignado pueden marcar esta acción como Hecha.'
+/** Mensaje si no puede pasar a Completada (UI + alineado con validación servidor). */
+export const MSJ_PERMISO_COMPLETADA =
+  'Solo la persona creadora de la acción o el responsable asignado pueden marcar esta acción como Completada.'
 
-/** Mensaje si no puede pasar a Verificado. */
-export const MSJ_PERMISO_VERIFICADO =
-  'Solo la persona que creó esta acción puede marcarla como Verificada.'
+/** @deprecated Alias legacy */
+export const MSJ_PERMISO_HECHO = MSJ_PERMISO_COMPLETADA
 
 /** Mensaje si no es responsable, creador ni admin de negocio (alineado con RLS de UPDATE). */
 export const MSJ_PERMISO_CAMBIAR_ESTADO =
   'Solo el responsable, quien creó la acción o un administrador pueden cambiar su estatus.'
 
 export function isEstadoConPermisoEstricto(estado: ActionStatus): boolean {
-  return estado === 'Hecho' || estado === 'Verificado'
+  return estado === 'Completada'
 }
 
 /**
- * Puede mover a Hecho: creador (si hay created_by) o responsable.
+ * Puede mover a Completada: creador (si hay created_by) o responsable.
  * Si created_by es null, solo el responsable puede cerrar operativamente.
  */
-export function canMoveToHecho(
+export function canMoveToCompletada(
   accion: AccionDiaria,
   currentUsuarioId: string | null | undefined
 ): boolean {
@@ -36,14 +35,14 @@ export function canMoveToHecho(
   return false
 }
 
-/** Puede mover a Verificado: solo creador; requiere created_by no nulo. */
-export function canMoveToVerificado(
-  accion: AccionDiaria,
-  currentUsuarioId: string | null | undefined
-): boolean {
-  if (!currentUsuarioId || accion.created_by == null) return false
-  return accion.created_by === currentUsuarioId
-}
+/** @deprecated Usar canMoveToCompletada */
+export const canMoveToHecho = canMoveToCompletada
+
+/** @deprecated Usar canMoveToCompletada */
+export const canMoveToVerificado = canMoveToCompletada
+
+/** @deprecated Usar MSJ_PERMISO_COMPLETADA */
+export const MSJ_PERMISO_VERIFICADO = MSJ_PERMISO_COMPLETADA
 
 /** Puede editar la acción (incluido cambiar estatus), según RLS de acciones_diarias. */
 export function canManageAccionEstado(
@@ -70,8 +69,7 @@ export function canChangeAccionEstado(
 ): boolean {
   if (options?.bypassEstadoRoles) return true
   if (!canManageAccionEstado(accion, currentUsuarioId, options)) return false
-  if (targetEstado === 'Hecho') return canMoveToHecho(accion, currentUsuarioId)
-  if (targetEstado === 'Verificado') return canMoveToVerificado(accion, currentUsuarioId)
+  if (targetEstado === 'Completada') return canMoveToCompletada(accion, currentUsuarioId)
   return true
 }
 
@@ -86,11 +84,8 @@ export function getAccionEstadoChangeDenialMessage(
   if (!canManageAccionEstado(accion, currentUsuarioId, options)) {
     return MSJ_PERMISO_CAMBIAR_ESTADO
   }
-  if (targetEstado === 'Hecho' && !canMoveToHecho(accion, currentUsuarioId)) {
-    return MSJ_PERMISO_HECHO
-  }
-  if (targetEstado === 'Verificado' && !canMoveToVerificado(accion, currentUsuarioId)) {
-    return MSJ_PERMISO_VERIFICADO
+  if (targetEstado === 'Completada' && !canMoveToCompletada(accion, currentUsuarioId)) {
+    return MSJ_PERMISO_COMPLETADA
   }
   return null
 }

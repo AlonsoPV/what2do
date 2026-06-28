@@ -154,7 +154,7 @@ describe('computeGapStoryProgress', () => {
       {
         id: '1',
         gap_id: 'g1',
-        estado: 'Hecho',
+        estado: 'Completada',
         story_points: 5,
       },
       {

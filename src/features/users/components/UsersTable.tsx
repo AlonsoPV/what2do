@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { ROUTES } from '@/constants'
 import {
   Table,
   TableBody,
@@ -111,7 +112,7 @@ export function UsersTable({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
-                      <Link to={`/settings/users/${user.id}`}>
+                      <Link to={`${ROUTES.DIRECTORIOS_USUARIOS}/${user.id}`}>
                         <Eye className="mr-2 h-4 w-4" />
                         Ver detalle
                       </Link>

@@ -43,9 +43,9 @@ function formatNumber(value: number | null | undefined, digits = 1): string {
 }
 
 function actionStatusDotClass(status: string | null): string {
-  if (status === 'Hecho' || status === 'Verificado') return 'bg-emerald-500'
-  if (status === 'Bloqueado' || status === 'Retraso') return 'bg-red-500'
-  if (status === 'En_Ejecucion' || status === 'Hoy') return 'bg-amber-500'
+  if (status === 'Completada') return 'bg-emerald-500'
+  if (status === 'Retrasa') return 'bg-red-500'
+  if (status === 'En_Proceso') return 'bg-amber-500'
   return 'bg-muted-foreground/40'
 }
 

@@ -3,6 +3,7 @@ import { RouteErrorFallback } from '@/components/RouteErrorFallback'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { SettingsLayout } from '@/components/layout/SettingsLayout'
+import { DirectoriosLayout } from '@/components/layout/DirectoriosLayout'
 import { PageLoadingFallback } from '@/components/PageLoadingFallback'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
@@ -88,6 +89,13 @@ const router = createBrowserRouter([
             },
           },
           {
+            path: ROUTES.TASKPOOL,
+            lazy: async () => {
+              const { TaskpoolPage } = await importWithReload(() => import('@/pages/taskpool/TaskpoolPage'))
+              return { Component: TaskpoolPage }
+            },
+          },
+          {
             path: ROUTES.TICKETS,
             lazy: async () => {
               const { TicketsPage } = await importWithReload(() => import('@/features/tickets'))
@@ -151,6 +159,41 @@ const router = createBrowserRouter([
             },
           },
           {
+            path: ROUTES.DIRECTORIOS,
+            element: <DirectoriosLayout />,
+            children: [
+              { index: true, element: <Navigate to={ROUTES.DIRECTORIOS_USUARIOS} replace /> },
+              {
+                path: 'usuarios',
+                lazy: async () => {
+                  const { UsersPage } = await importWithReload(() => import('@/features/users/pages/UsersPage'))
+                  return { Component: UsersPage }
+                },
+              },
+              {
+                path: 'usuarios/:id',
+                lazy: async () => {
+                  const { UserDetailPage } = await importWithReload(() => import('@/features/users/pages/UserDetailPage'))
+                  return { Component: UserDetailPage }
+                },
+              },
+              {
+                path: 'roles',
+                lazy: async () => {
+                  const { RolesPage } = await importWithReload(() => import('@/features/catalogs/pages/RolesPage'))
+                  return { Component: RolesPage }
+                },
+              },
+              {
+                path: 'areas',
+                lazy: async () => {
+                  const { CatalogAreasPage } = await importWithReload(() => import('@/features/catalogs/pages/AreasPage'))
+                  return { Component: CatalogAreasPage }
+                },
+              },
+            ],
+          },
+          {
             path: ROUTES.PLAN_ACCION,
             lazy: async () => {
               const { PlanAccionRoute } = await importWithReload(() => import('@/features/plan-accion'))
@@ -171,16 +214,15 @@ const router = createBrowserRouter([
               },
               {
                 path: 'users',
-                lazy: async () => {
-                  const { UsersPage } = await importWithReload(() => import('@/features/users/pages/UsersPage'))
-                  return { Component: UsersPage }
-                },
+                element: <Navigate to={ROUTES.DIRECTORIOS_USUARIOS} replace />,
               },
               {
                 path: 'users/:id',
                 lazy: async () => {
-                  const { UserDetailPage } = await importWithReload(() => import('@/features/users/pages/UserDetailPage'))
-                  return { Component: UserDetailPage }
+                  const { UserDetailRedirect } = await importWithReload(() =>
+                    import('@/pages/directorios/UserDetailRedirect')
+                  )
+                  return { Component: UserDetailRedirect }
                 },
               },
               {
@@ -199,17 +241,11 @@ const router = createBrowserRouter([
               },
               {
                 path: 'catalogs/roles',
-                lazy: async () => {
-                  const { RolesPage } = await importWithReload(() => import('@/features/catalogs/pages/RolesPage'))
-                  return { Component: RolesPage }
-                },
+                element: <Navigate to={ROUTES.DIRECTORIOS_ROLES} replace />,
               },
               {
                 path: 'catalogs/areas',
-                lazy: async () => {
-                  const { CatalogAreasPage } = await importWithReload(() => import('@/features/catalogs/pages/AreasPage'))
-                  return { Component: CatalogAreasPage }
-                },
+                element: <Navigate to={ROUTES.DIRECTORIOS_AREAS} replace />,
               },
               {
                 path: 'catalogs/statuses',

@@ -25,11 +25,11 @@ const ITEM_TYPE_OPTIONS: { value: NonNullable<CalendarFilters['itemType']>; labe
   { value: 'minutas', label: 'Solo minutas' },
 ]
 
-/** Calendario: acciones activas (sin Verificado). */
+/** Calendario: acciones activas (sin Completada). */
 const CALENDAR_ESTADO_OPTIONS: { value: ActionStatus; label: string }[] = (
   Object.entries(ACCION_ESTADO_LABELS) as [ActionStatus, string][]
 )
-  .filter(([estado]) => estado !== 'Verificado')
+  .filter(([estado]) => estado !== 'Completada')
   .map(([value, label]) => ({ value, label }))
 
 const CALENDAR_FILTER_SELECT_CONTENT_CLASS =

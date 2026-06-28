@@ -10,6 +10,7 @@ export const ROUTES = {
   DASHBOARD_GAPS: '/dashboard/gaps',
   DASHBOARD_IMPACTO: '/dashboard/impacto',
   KANBAN: '/kanban',
+  TASKPOOL: '/taskpool',
   TICKETS: '/tickets',
   SPRINTS: '/sprints',
   DISCIPLINA: '/disciplina',
@@ -19,6 +20,12 @@ export const ROUTES = {
   NOTIFICACIONES: '/notificaciones',
   DISTANCIAS: '/distancias',
   MANUAL: '/manual',
+  /** Directorios: usuarios, roles y áreas en una sola sección. */
+  DIRECTORIOS: '/directorios',
+  DIRECTORIOS_USUARIOS: '/directorios/usuarios',
+  DIRECTORIOS_USUARIOS_DETAIL: '/directorios/usuarios/:id',
+  DIRECTORIOS_ROLES: '/directorios/roles',
+  DIRECTORIOS_AREAS: '/directorios/areas',
   /** Plan de acción Scrum Master — acceso restringido por usuario. */
   PLAN_ACCION: '/plan-accion',
   SETTINGS: '/settings',

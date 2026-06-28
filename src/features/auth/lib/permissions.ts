@@ -21,7 +21,6 @@ const STRICT_ANALYST_ALLOWED_ROUTES = [ROUTES.KANBAN] as const
 
 /** Rutas ocultas globalmente: sin acceso directo ni enlaces en navegación. */
 export const HIDDEN_APP_ROUTES = [
-  ROUTES.DASHBOARD,
   ROUTES.DASHBOARD_KPIS,
   ROUTES.DASHBOARD_GAPS,
   ROUTES.DASHBOARD_IMPACTO,
@@ -29,28 +28,35 @@ export const HIDDEN_APP_ROUTES = [
   ROUTES.SPRINTS,
   ROUTES.DISCIPLINA,
   ROUTES.REPORTES,
+  ROUTES.CALENDARIO,
+  ROUTES.MANUAL,
 ] as const
 
 const ANALYST_ALLOWED_ROUTES = [
+  ROUTES.DASHBOARD,
   ROUTES.KANBAN,
-  ROUTES.CALENDARIO,
+  ROUTES.TASKPOOL,
   ROUTES.NOTIFICACIONES,
-  ROUTES.MANUAL,
   ROUTES.SETTINGS,
   ROUTES.SETTINGS_PROFILE,
 ] as const
 
 const DIRECTION_ALLOWED_ROUTES = [
   ...ANALYST_ALLOWED_ROUTES,
+  ROUTES.DIRECTORIOS,
+  ROUTES.DIRECTORIOS_USUARIOS,
+  ROUTES.DIRECTORIOS_USUARIOS_DETAIL,
+  ROUTES.DIRECTORIOS_ROLES,
+  ROUTES.DIRECTORIOS_AREAS,
   ROUTES.SETTINGS_USERS,
   ROUTES.SETTINGS_USERS_DETAIL,
   ROUTES.SETTINGS_CATALOGS,
   ROUTES.SETTINGS_CATALOGS_ROLES,
+  ROUTES.SETTINGS_CATALOGS_AREAS,
 ] as const
 
-/** Catálogos deshabilitados en la UI; solo quedan activos Usuarios y Roles. */
+/** Catálogos deshabilitados en la UI; Áreas queda activa bajo Directorios. */
 export const HIDDEN_CATALOG_ROUTES = [
-  ROUTES.SETTINGS_CATALOGS_AREAS,
   ROUTES.SETTINGS_CATALOGS_STATUSES,
   ROUTES.SETTINGS_CATALOGS_PRIORITIES,
   ROUTES.SETTINGS_CATALOGS_DROPDOWNS,
@@ -149,7 +155,7 @@ export function canAccessRouteByRole(rol: string | null | undefined, pathname: s
   if (isHiddenCatalogRoute(pathname)) return false
 
   if (isAnalystByRole(rol)) {
-    return STRICT_ANALYST_ALLOWED_ROUTES.some((route) => routeMatches(pathname, route))
+    return [...STRICT_ANALYST_ALLOWED_ROUTES, ROUTES.TASKPOOL, ROUTES.DASHBOARD].some((route) => routeMatches(pathname, route))
   }
 
   if (isDirectionByRole(rol)) {

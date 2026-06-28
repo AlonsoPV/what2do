@@ -40,14 +40,10 @@ import {
 } from '../utils/accionUtils'
 import { accionEstadoLabel, getAccionDisplayEstado } from '../utils/accionEstadoDisplay'
 import {
-  AlertCircle,
-  Clock,
-  Sun,
-  PlayCircle,
-  CheckCircle,
-  BadgeCheck,
-  Plus,
   AlertTriangle,
+  CheckCircle,
+  PauseCircle,
+  PlayCircle,
   MoreVertical,
   Info,
   ArrowUpDown,
@@ -76,82 +72,50 @@ import {
   statusCatalogDescription,
   statusCatalogLabel,
 } from '../utils/statusCatalog'
-const COLUMN_ORDER: ActionStatus[] = [
-  'Pendiente',
-  'Hoy',
-  'En_Ejecucion',
-  'Bloqueado',
-  'Retraso',
-  'Hecho',
-  'Verificado',
-]
+const COLUMN_ORDER: ActionStatus[] = ['En_Pausa', 'En_Proceso', 'Completada', 'Retrasa']
 
 const COLUMN_LABELS: Record<ActionStatus, string> = {
-  Pendiente: 'Pendiente',
-  Hoy: 'Hoy',
-  En_Ejecucion: 'En ejecución',
-  Bloqueado: 'Bloqueado',
-  Retraso: 'Retraso',
-  Hecho: 'Hecho',
-  Verificado: 'Verificado',
+  En_Pausa: 'En pausa',
+  En_Proceso: 'En proceso',
+  Completada: 'Completada',
+  Retrasa: 'Retrasa',
 }
 
 const COLUMN_ICONS: Record<ActionStatus, React.ComponentType<{ className?: string }>> = {
-  Pendiente: Clock,
-  Hoy: Sun,
-  En_Ejecucion: PlayCircle,
-  Bloqueado: AlertCircle,
-  Retraso: AlertTriangle,
-  Hecho: CheckCircle,
-  Verificado: BadgeCheck,
+  En_Pausa: PauseCircle,
+  En_Proceso: PlayCircle,
+  Completada: CheckCircle,
+  Retrasa: AlertTriangle,
 }
 
 const COLUMN_DESCRIPTIONS: Record<ActionStatus, string> = {
-  Pendiente: 'Acción creada, aún no programada para hoy ni en ejecución.',
-  Hoy: 'Acción programada para hoy; pendiente de iniciar.',
-  En_Ejecucion: 'Acción en curso.',
-  Bloqueado: 'Acción detenida por un impedimento; requiere desbloqueo.',
-  Retraso: 'Acción que superó su fecha o hora límite sin completarse.',
-  Hecho: 'Acción completada.',
-  Verificado: 'Acción cerrada y verificada.',
+  En_Pausa: 'Acción creada o detenida; aún no en ejecución.',
+  En_Proceso: 'Acción en curso.',
+  Completada: 'Acción cerrada con validaciones cumplidas.',
+  Retrasa: 'Acción que superó su fecha o hora límite sin completarse.',
 }
 
 /** Acento por columna: borde izquierdo + fondo muy sutil */
 const COLUMN_STYLES: Record<ActionStatus, { border: string; bg: string; icon: string }> = {
-  Pendiente: {
+  En_Pausa: {
     border: 'border-l-slate-400',
     bg: 'bg-slate-500/5',
     icon: 'text-slate-500',
   },
-  Hoy: {
-    border: 'border-l-amber-400',
-    bg: 'bg-amber-500/5',
-    icon: 'text-amber-600',
-  },
-  En_Ejecucion: {
+  En_Proceso: {
     border: 'border-l-blue-400',
     bg: 'bg-blue-500/5',
     icon: 'text-blue-600',
   },
-  Bloqueado: {
-    border: 'border-l-red-400',
-    bg: 'bg-red-500/5',
-    icon: 'text-red-600',
-  },
-  Retraso: {
-    border: 'border-l-orange-500',
-    bg: 'bg-orange-500/5',
-    icon: 'text-orange-600',
-  },
-  Hecho: {
+  Completada: {
     border: 'border-l-emerald-400',
     bg: 'bg-emerald-500/5',
     icon: 'text-emerald-600',
   },
-  Verificado: {
-    border: 'border-l-violet-400',
-    bg: 'bg-violet-500/5',
-    icon: 'text-violet-600',
+  Retrasa: {
+    border: 'border-l-orange-500',
+    bg: 'bg-orange-500/5',
+    icon: 'text-orange-600',
   },
 }
 
@@ -162,8 +126,7 @@ function kanbanCardStatusLabel(accion: AccionDiaria, overdue: boolean): string {
 }
 
 function kanbanCardStatusTone(status: string): string | undefined {
-  if (status === 'Vencido') return 'text-orange-600 dark:text-orange-400 font-medium'
-  if (status === 'Bloqueado') return 'text-destructive font-medium'
+  if (status === 'Vencido' || status === 'Retrasa') return 'text-orange-600 dark:text-orange-400 font-medium'
   return undefined
 }
 
@@ -357,7 +320,6 @@ export interface KanbanBoardProps {
   isLoading?: boolean
   responsableNames?: Record<string, string>
   onSelectAccion?: (accion: AccionDiaria) => void
-  onNewAction?: () => void
   /** Cuando está definido, se muestra solo la columna de este estado (sincronizado con el filtro de la toolbar). */
   filterEstado?: ActionStatus
   /**
@@ -572,11 +534,9 @@ function KanbanCard({
 
 function KanbanColumnEmpty({
   status,
-  onNewAction,
   statusByKey,
 }: {
   status: ActionStatus
-  onNewAction?: () => void
   statusByKey: StatusCatalogMap
 }) {
   const Icon = COLUMN_ICONS[status]
@@ -586,19 +546,7 @@ function KanbanColumnEmpty({
     <div className="flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 px-4 py-8 text-center">
       <Icon className={cn('mb-2 h-8 w-8', style.icon, 'opacity-60')} />
       <p className="text-sm font-medium text-muted-foreground">Sin acciones en {label}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground/80">
-        Arrastra aquí o crea una nueva
-      </p>
-      {onNewAction && (
-        <button
-          type="button"
-          onClick={onNewAction}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Nueva acción
-        </button>
-      )}
+      <p className="mt-0.5 text-xs text-muted-foreground/80">Arrastra una tarjeta aquí</p>
     </div>
   )
 }
@@ -609,7 +557,6 @@ function KanbanColumn({
   responsableNames,
   commentCounts = {},
   onSelectAccion,
-  onNewAction,
   onMoveEstado,
   checklistProgressByAccionId = {},
   /** Tarjeta activa no puede entrar a esta columna (Hecho/Verificado); solo UI — la validación final es al soltar. */
@@ -623,7 +570,6 @@ function KanbanColumn({
   responsableNames: Record<string, string>
   commentCounts?: Record<string, number>
   onSelectAccion?: (accion: AccionDiaria) => void
-  onNewAction?: () => void
   onMoveEstado?: (accion: AccionDiaria, estado: ActionStatus) => void
   checklistProgressByAccionId?: Record<string, { total: number; completed: number }>
   dropForbidden?: boolean
@@ -751,7 +697,7 @@ function KanbanColumn({
       </div>
       <div className="kanban-column-cards flex min-h-[200px] flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4 pt-0 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:rounded [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-border">
         {actions.length === 0 ? (
-          <KanbanColumnEmpty status={status} onNewAction={onNewAction} statusByKey={statusByKey} />
+          <KanbanColumnEmpty status={status} statusByKey={statusByKey} />
         ) : (
           <>
             {visibleActions.map((accion) => (
@@ -837,7 +783,6 @@ export function KanbanBoard({
   isLoading,
   responsableNames = {},
   onSelectAccion,
-  onNewAction,
   filterEstado,
   narrowToOccupiedColumns = false,
   checklistProgressByAccionId = {},
@@ -889,13 +834,10 @@ export function KanbanBoard({
 
   const byStatus = useMemo(() => {
     const map: Record<ActionStatus, AccionDiaria[]> = {
-      Pendiente: [],
-      Hoy: [],
-      En_Ejecucion: [],
-      Bloqueado: [],
-      Retraso: [],
-      Hecho: [],
-      Verificado: [],
+      En_Pausa: [],
+      En_Proceso: [],
+      Completada: [],
+      Retrasa: [],
     }
     for (const a of acciones) {
       const column = getAccionKanbanColumn(a)
@@ -947,7 +889,7 @@ export function KanbanBoard({
       if (!newStatus) return
       const accion = acciones.find((a) => a.id === active.id)
       if (!accion) return
-      if (accion.estado === newStatus) return
+      if (getAccionKanbanColumn(accion) === newStatus) return
       const denied = estadoPermission.denialMessage(accion, newStatus)
       if (denied) {
         toast.error(denied)
@@ -1001,7 +943,6 @@ export function KanbanBoard({
             responsableNames={responsableNames}
             commentCounts={commentCounts}
             onSelectAccion={onSelectAccion}
-            onNewAction={onNewAction}
             onMoveEstado={handleMoveEstado}
             checklistProgressByAccionId={checklistProgressByAccionId}
             dropForbidden={isColumnDropDisabled(status)}

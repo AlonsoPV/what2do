@@ -50,7 +50,7 @@ export function CountdownTimer({
     return ms != null ? ms - Date.now() : null
   })
 
-  const isComplete = estado === 'Hecho' || estado === 'Verificado'
+  const isComplete = estado === 'Completada'
   const deadlineMs = getDeadlineMs(fecha, hora_limite)
 
   useEffect(() => {

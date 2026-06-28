@@ -1,9 +1,9 @@
 import { addCalendarDays } from '@/lib/dateUtils'
 import { isEnRetraso } from '@/features/operations/utils/accionUtils'
-import type { AccionDiaria } from '@/types'
+import type { AccionDiaria, ActionStatus } from '@/types'
 import type { AccionComentario } from '@/types/accionComentario'
 
-const DONE_STATES = new Set(['Hecho', 'Verificado'])
+const DONE_STATES = new Set<ActionStatus>(['Completada'])
 
 export const ACTION_GAMIFICATION_POINTS = {
   onTimeClosed: 10,
@@ -97,7 +97,7 @@ export function buildActionGamificationMetrics(
       count: overdue.length,
       pointsPerUnit: ACTION_GAMIFICATION_POINTS.overdue,
       points: calculateRulePoints(overdue.length, ACTION_GAMIFICATION_POINTS.overdue),
-      helper: 'Acciones creadas por ti o asignadas a ti que el Kanban clasifica como Retraso.',
+      helper: 'Acciones creadas por ti o asignadas a ti que el Kanban clasifica como Retrasa.',
       tone: overdue.length > 0 ? 'negative' : 'neutral',
     },
     {
@@ -238,7 +238,7 @@ function isClosedOnTime(action: AccionDiaria) {
 }
 
 function isActionOverdue(action: AccionDiaria) {
-  return action.estado === 'Retraso' || isEnRetraso(action)
+  return action.estado === 'Retrasa' || isEnRetraso(action)
 }
 
 function calculateRulePoints(count: number, pointsPerUnit: number) {

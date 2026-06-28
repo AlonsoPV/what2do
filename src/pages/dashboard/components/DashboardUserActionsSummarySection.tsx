@@ -3,13 +3,13 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Trophy, UsersRound } from 'lucide-reac
 import { SectionCard, SectionCardBody, SectionCardHeader } from '@/components/SectionCard'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import type { AccionDiaria } from '@/types'
+import type { AccionDiaria, ActionStatus } from '@/types'
 import type { AccionComentario } from '@/types/accionComentario'
 import type { UserProfile } from '@/features/users/types/user.types'
 import { buildActionGamificationMetrics } from '@/features/disciplina/utils/actionGamification'
 import { isEnRetraso } from '@/features/operations/utils/accionUtils'
 
-const CLOSED_STATES = new Set(['Hecho', 'Verificado'])
+const CLOSED_STATES = new Set<ActionStatus>(['Completada'])
 
 interface DashboardUserActionsSummarySectionProps {
   users: UserProfile[]
@@ -60,9 +60,9 @@ function buildRows(
         area: user.area,
         abiertas: assignedOpenActions.length,
         retraso: assignedOpenActions.filter(
-          (accion) => accion.estado === 'Retraso' || isEnRetraso(accion)
+          (accion) => accion.estado === 'Retrasa' || isEnRetraso(accion)
         ).length,
-        bloqueadas: assignedOpenActions.filter((accion) => accion.estado === 'Bloqueado').length,
+        bloqueadas: assignedOpenActions.filter((accion) => accion.estado === 'En_Pausa').length,
         gamificationPoints,
       }
     })
