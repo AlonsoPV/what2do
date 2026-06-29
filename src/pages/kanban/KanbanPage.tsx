@@ -46,7 +46,11 @@ export function KanbanPage() {
   const [filter, setFilter] = useState<AccionesFilter>(() => ({}))
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const filterForQuery = useMemo(
-    () => (isAnalyst && currentUser?.id ? { ...filter, responsable: currentUser.id } : { ...filter }),
+    () => ({
+      ...filter,
+      alcance_ejecucion: 'kanban' as const,
+      ...(isAnalyst && currentUser?.id ? { responsable: currentUser.id } : {}),
+    }),
     [currentUser?.id, filter, isAnalyst]
   )
   const {

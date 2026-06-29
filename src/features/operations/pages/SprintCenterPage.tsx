@@ -65,7 +65,11 @@ export function SprintCenterPage() {
             actions: sprintActions,
             progress: sprintProgress(sprintActions),
             responsables: [
-              ...new Set(sprintActions.map((action) => userById.get(action.responsable)).filter(Boolean)),
+              ...new Set(
+                sprintActions
+                  .map((action) => (action.responsable ? userById.get(action.responsable) : undefined))
+                  .filter(Boolean)
+              ),
             ],
           }
         })

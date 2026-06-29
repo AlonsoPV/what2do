@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react'
-import { ClipboardList, Search, X } from 'lucide-react'
+import { ClipboardList, Plus, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -141,7 +141,6 @@ function TaskpoolCard({
 export function TaskpoolPage() {
   const [search, setSearch] = useState('')
   const [areaFilter, setAreaFilter] = useState(ALL_FILTER)
-  const [responsableFilter, setResponsableFilter] = useState(ALL_FILTER)
   const [estadoFilter, setEstadoFilter] = useState(ALL_FILTER)
   const [editingAccion, setEditingAccion] = useState<AccionDiaria | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -149,17 +148,12 @@ export function TaskpoolPage() {
   const isAnalyst = isAnalystByRole(currentUser?.rol)
 
   const filter = useMemo<AccionesFilter>(() => {
-    const base: AccionesFilter = {}
+    const base: AccionesFilter = { alcance_ejecucion: 'taskpool' }
     if (search.trim()) base.search = search.trim()
-    if (isAnalyst && currentUser?.id) {
-      base.responsable = currentUser.id
-    } else if (responsableFilter !== ALL_FILTER) {
-      base.responsable = responsableFilter
-    }
     if (areaFilter !== ALL_FILTER) base.area = areaFilter
     if (estadoFilter !== ALL_FILTER) base.estado = estadoFilter as ActionStatus
     return base
-  }, [areaFilter, currentUser?.id, estadoFilter, isAnalyst, responsableFilter, search])
+  }, [areaFilter, estadoFilter, search])
 
   const { data: acciones = [], isLoading, isError, error, refetch } = useAcciones(filter)
   const { data: users = [] } = useUsers({ activo: true })
@@ -185,16 +179,17 @@ export function TaskpoolPage() {
   )
 
   const hasActiveFilters =
-    search.trim() !== '' ||
-    areaFilter !== ALL_FILTER ||
-    responsableFilter !== ALL_FILTER ||
-    estadoFilter !== ALL_FILTER
+    search.trim() !== '' || areaFilter !== ALL_FILTER || estadoFilter !== ALL_FILTER
 
   const clearFilters = useCallback(() => {
     setSearch('')
     setAreaFilter(ALL_FILTER)
-    setResponsableFilter(ALL_FILTER)
     setEstadoFilter(ALL_FILTER)
+  }, [])
+
+  const openCreateAction = useCallback(() => {
+    setEditingAccion(null)
+    setDialogOpen(true)
   }, [])
 
   const openEditAction = useCallback((accion: AccionDiaria) => {
@@ -210,23 +205,31 @@ export function TaskpoolPage() {
   return (
     <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-5 px-3 py-5 sm:px-6 sm:py-6">
       <header className="rounded-xl border border-border/60 bg-card px-4 py-4 shadow-sm sm:px-5">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <ClipboardList className="h-5 w-5" aria-hidden />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <ClipboardList className="h-5 w-5" aria-hidden />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Operaciones
+                </p>
+                <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+                  Pool de actividades
+                </h1>
+              </div>
             </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Operaciones
-              </p>
-              <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-                Pool de actividades
-              </h1>
-            </div>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              Crea actividades aquí sin responsable. Al asignar responsable, la actividad pasa al Kanban.
+            </p>
           </div>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Vista tabular de actividades con instrucciones, responsables y fechas clave.
-          </p>
+          {!isAnalyst ? (
+            <Button type="button" className="shrink-0" onClick={openCreateAction}>
+              <Plus className="mr-2 h-4 w-4" aria-hidden />
+              Nueva actividad
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -259,21 +262,7 @@ export function TaskpoolPage() {
           </div>
 
           {!isAnalyst ? (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <Select value={responsableFilter} onValueChange={setResponsableFilter}>
-                <SelectTrigger className="h-10 bg-background">
-                  <SelectValue placeholder="Responsable" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_FILTER}>Todos los responsables</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               <Select value={areaFilter} onValueChange={setAreaFilter}>
                 <SelectTrigger className="h-10 bg-background">
                   <SelectValue placeholder="Área" />
@@ -336,11 +325,16 @@ export function TaskpoolPage() {
             <p className="max-w-sm text-sm text-muted-foreground">
               {hasActiveFilters
                 ? 'Prueba con otros filtros o limpia la búsqueda.'
-                : 'Aún no hay actividades registradas en el pool.'}
+                : 'Aún no hay actividades sin asignar en el pool.'}
             </p>
             {hasActiveFilters ? (
               <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
                 Limpiar filtros
+              </Button>
+            ) : !isAnalyst ? (
+              <Button type="button" size="sm" onClick={openCreateAction}>
+                <Plus className="mr-2 h-4 w-4" aria-hidden />
+                Nueva actividad
               </Button>
             ) : null}
           </div>
@@ -351,7 +345,7 @@ export function TaskpoolPage() {
                 <TaskpoolCard
                   key={accion.id}
                   accion={accion}
-                  responsableName={responsableNames[accion.responsable] ?? '—'}
+                  responsableName={accion.responsable ? (responsableNames[accion.responsable] ?? '—') : 'Sin asignar'}
                   onOpen={() => openEditAction(accion)}
                 />
               ))}
@@ -387,7 +381,9 @@ export function TaskpoolPage() {
                 <TableBody>
                   {rows.map((accion, rowIndex) => {
                     const instrucciones = resolveInstruccionesFromAccion(accion)
-                    const responsableName = responsableNames[accion.responsable] ?? '—'
+                    const responsableName = accion.responsable
+                      ? (responsableNames[accion.responsable] ?? '—')
+                      : 'Sin asignar'
                     return (
                       <TableRow
                         key={accion.id}

@@ -72,7 +72,7 @@ export function HistoricalReports({ responsableNames = {} }: HistoricalReportsPr
       a.fecha,
       a.hora_limite?.slice(0, 5) ?? '',
       `"${(a.descripcion_accion ?? '').replace(/"/g, '""')}"`,
-      responsableNames[a.responsable] ?? a.responsable ?? '',
+      a.responsable ? (responsableNames[a.responsable] ?? a.responsable) : '',
       a.estado,
       a.evidencia_cargada ? 'Sí' : 'No',
     ])
@@ -238,7 +238,11 @@ export function HistoricalReports({ responsableNames = {} }: HistoricalReportsPr
                           <td className="p-2 max-w-[280px] truncate" title={a.descripcion_accion}>
                             {a.descripcion_accion}
                           </td>
-                          <td className="p-2">{responsableNames[a.responsable] ?? a.responsable ?? '—'}</td>
+                          <td className="p-2">
+                            {a.responsable
+                              ? (responsableNames[a.responsable] ?? a.responsable)
+                              : '—'}
+                          </td>
                           <td className="p-2">{a.estado}</td>
                           <td className="p-2">{a.evidencia_cargada ? 'Sí' : 'No'}</td>
                         </tr>

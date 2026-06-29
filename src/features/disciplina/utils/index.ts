@@ -512,7 +512,9 @@ export function calculateTeamHealthScore(
 
   const results = [...teams.entries()].map(([teamName, members]) => {
     const memberIds = new Set(members.map((member) => member.id))
-    const teamActions = actions.filter((action) => memberIds.has(action.responsable))
+    const teamActions = actions.filter(
+      (action) => action.responsable != null && memberIds.has(action.responsable)
+    )
     const avgScore = safeRate(
       members.reduce((sum, member) => sum + (profilesByUser.get(member.id)?.score.score ?? 0), 0),
       Math.max(members.length, 1)

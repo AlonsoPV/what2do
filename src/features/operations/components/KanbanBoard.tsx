@@ -704,7 +704,11 @@ function KanbanColumn({
               <KanbanCard
                 key={accion.id}
                 accion={accion}
-                responsableName={responsableNames[accion.responsable] ?? accion.responsable ?? '—'}
+                responsableName={
+                  accion.responsable
+                    ? (responsableNames[accion.responsable] ?? accion.responsable)
+                    : 'Sin asignar'
+                }
                 commentCount={commentCounts[accion.id] ?? 0}
                 onSelectAccion={onSelectAccion}
                 onMoveEstado={onMoveEstado}
@@ -957,7 +961,11 @@ export function KanbanBoard({
           <div className="w-[280px]">
             <KanbanCardInner
               accion={activeAccion}
-              responsableName={responsableNames[activeAccion.responsable] ?? activeAccion.responsable ?? '—'}
+              responsableName={
+                activeAccion.responsable
+                  ? (responsableNames[activeAccion.responsable] ?? activeAccion.responsable)
+                  : 'Sin asignar'
+              }
               commentCount={commentCounts[activeAccion.id] ?? 0}
               priority={findPriorityForAccion(activeAccion, priorities)}
               statusByKey={statusByKey}

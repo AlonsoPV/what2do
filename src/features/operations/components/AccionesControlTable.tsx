@@ -151,8 +151,12 @@ function compareAccionesControl(
       cmp = accionEstadoSortValue(a) - accionEstadoSortValue(b)
       break
     case 'responsable': {
-      const na = (responsableNames[a.responsable] ?? a.responsable ?? '').toLocaleLowerCase('es')
-      const nb = (responsableNames[b.responsable] ?? b.responsable ?? '').toLocaleLowerCase('es')
+      const na = (
+        a.responsable ? (responsableNames[a.responsable] ?? a.responsable) : 'Sin responsable'
+      ).toLocaleLowerCase('es')
+      const nb = (
+        b.responsable ? (responsableNames[b.responsable] ?? b.responsable) : 'Sin responsable'
+      ).toLocaleLowerCase('es')
       cmp = na.localeCompare(nb, 'es')
       break
     }
@@ -345,7 +349,7 @@ function AccionControlMobileCard({
       <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-foreground">{titulo}</p>
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
         <span className="max-w-[55%] truncate">
-          {responsableNames[accion.responsable] ?? 'Sin responsable'}
+          {accion.responsable ? (responsableNames[accion.responsable] ?? 'Sin responsable') : 'Sin responsable'}
         </span>
         <span className="text-border/80" aria-hidden>
           ·
@@ -668,7 +672,9 @@ export function AccionesControlTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="py-3 text-muted-foreground text-sm align-middle">
-                  {responsableNames[accion.responsable] ?? accion.responsable ?? '—'}
+                  {accion.responsable
+                    ? (responsableNames[accion.responsable] ?? accion.responsable)
+                    : '—'}
                 </TableCell>
                 <TableCell className="py-3 text-sm font-semibold tabular-nums text-foreground align-middle">
                   {formatStoryPoints(accion)}

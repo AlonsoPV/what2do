@@ -53,7 +53,14 @@ const accionInputShape = z.object({
   titulo_accion: tituloAccionSchema,
   instrucciones_especificas: instruccionesSchema,
   objetivo: z.string().trim().max(700, 'Máximo 700 caracteres').nullable().optional(),
-  responsable: z.string().uuid('Responsable obligatorio'),
+  responsable: z
+    .string()
+    .optional()
+    .transform((value) => {
+      const trimmed = (value ?? '').trim()
+      return trimmed.length > 0 ? trimmed : undefined
+    })
+    .pipe(z.string().uuid('Responsable inválido').optional()),
   hora_limite: horaSchema,
   evidencia_esperada: evidenciaEsperadaSchema,
   estado: z.enum(ACTION_STATUS as unknown as [string, ...string[]]).optional(),

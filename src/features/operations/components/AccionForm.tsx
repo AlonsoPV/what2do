@@ -243,8 +243,8 @@ export function AccionForm({
           <AccionFormField
             label="Responsable"
             htmlFor={fieldId('responsable')}
-            required
             error={form.formState.errors.responsable?.message}
+            hint="Opcional. Sin asignar queda en taskpool; al asignar pasa al Kanban."
           >
             {usersLoading && <p className="text-xs text-muted-foreground">Cargando responsables...</p>}
             {usersError && (
@@ -262,7 +262,7 @@ export function AccionForm({
                 <SelectValue placeholder="Seleccionar responsable" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">Seleccionar responsable</SelectItem>
+                <SelectItem value="__none__">Sin asignar (taskpool)</SelectItem>
                 {users.map((u) => (
                   <SelectItem key={u.id} value={u.id}>
                     {u.nombre}

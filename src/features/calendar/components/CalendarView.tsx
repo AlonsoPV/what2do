@@ -1393,7 +1393,11 @@ function CalendarActionsPanel({
                 <div className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-[10px] text-muted-foreground">
                   <span className="shrink-0">{accion.hora_limite?.slice(0, 5) ?? '—'}</span>
                   <span className="text-muted-foreground/50">·</span>
-                  <span className="truncate">{responsableNames[accion.responsable] ?? 'Sin responsable'}</span>
+                  <span className="truncate">
+                    {accion.responsable
+                      ? (responsableNames[accion.responsable] ?? 'Sin responsable')
+                      : 'Sin responsable'}
+                  </span>
                   <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px] font-medium">
                     {accion.estado}
                   </Badge>

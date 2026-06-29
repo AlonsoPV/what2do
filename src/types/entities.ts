@@ -34,7 +34,7 @@ export interface AccionDiaria {
   descripcion_accion: string
   instrucciones_especificas?: string | null
   objetivo?: string | null
-  responsable: string // FK usuarios.id (assigned_to)
+  responsable: string | null // FK usuarios.id; null = taskpool sin asignar
   created_by?: string | null // FK usuarios.id (quién creó)
   updated_by?: string | null // FK usuarios.id (quién modificó)
   hora_limite: string // time HH:MM

@@ -171,6 +171,8 @@ export interface AccionesFilter {
   tipo_accion?: TipoAccion | TipoAccion[]
   sprint_id?: string
   search?: string
+  /** Taskpool: sin responsable. Kanban: con responsable asignado. */
+  alcance_ejecucion?: 'taskpool' | 'kanban'
 }
 
 export interface CalendarActionCountsInput {
@@ -261,6 +263,11 @@ function buildAccionesListQuery(filter: AccionesFilter = {}) {
     q = q.in('prioridad', prioridades)
   }
   if (filter.area != null && filter.area !== '') q = q.eq('area', filter.area)
+  if (filter.alcance_ejecucion === 'taskpool') {
+    q = q.is('responsable', null)
+  } else if (filter.alcance_ejecucion === 'kanban') {
+    q = q.not('responsable', 'is', null)
+  }
   if (filter.responsable) q = q.eq('responsable', filter.responsable)
   if (filter.created_by) q = q.eq('created_by', filter.created_by)
   if (filter.tipo_accion) {
